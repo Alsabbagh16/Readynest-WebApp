@@ -345,7 +345,7 @@ const HourlyBookingPage = () => {
 
   return (
     <div className="min-h-screen bg-background pb-24 md:pb-12">
-      {currentStep === 1 && <HourlyBookingHeroSection />}
+      {/* {currentStep === 1 && <HourlyBookingHeroSection />} */}
 
       <div className="max-w-7xl mx-auto px-4 py-8 md:py-12">
         
