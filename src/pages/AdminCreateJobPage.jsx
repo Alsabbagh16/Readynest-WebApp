@@ -243,7 +243,22 @@ const AdminCreateJobPage = () => {
 
   const [formData, setFormData] = useState({
     job_ref_id: generateJobRefId(),
-    document_urls: [], 
+    document_urls: [],
+    preferred_date: '',
+    status: 'Pending Assignment',
+    user_name: '',
+    user_email: '',
+    user_phone: '',
+    user_address: {
+      street: '',
+      city: '',
+      zip: '',
+      phone: '',
+      alt_phone: ''
+    },
+    assigned_employees_ids: [],
+    notes: '',
+    purchase_ref_id: null,
   });
 
   const [allEmployees, setAllEmployees] = useState([]);
