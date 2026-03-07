@@ -481,7 +481,7 @@ const PurchaseAddressInfo = ({ purchase }) => {
     </Section>
   );
 
-  const addressString = `${address.street || ''}, ${address.city || ''}, ${address.state || ''} ${address.zip || ''}`
+  const addressString = `${address.street || ''}, ${address.city || ''}, ${address.zip || ''}`
     .replace(/, , /g, ', ')
     .trim() || 'N/A';
 
@@ -582,7 +582,6 @@ const AdminPurchaseDetailPage = () => {
             notes: data.notes || '',
             address_street: data.address?.street || '',
             address_city: data.address?.city || '',
-            address_state: data.address?.state || '',
             address_zip: data.address?.zip || '',
             address_phone: data.address?.phone || '',
             address_alt_phone: data.address?.alt_phone || ''
@@ -654,7 +653,6 @@ const AdminPurchaseDetailPage = () => {
         address: {
             street: editableFields.address_street,
             city: editableFields.address_city,
-            state: editableFields.address_state,
             zip: editableFields.address_zip,
             phone: editableFields.address_phone,
             alt_phone: editableFields.address_alt_phone
@@ -768,10 +766,6 @@ const AdminPurchaseDetailPage = () => {
                             <div>
                                 <Label htmlFor="address_city" className="text-sm">City</Label>
                                 <Input id="address_city" name="address_city" value={editableFields.address_city} onChange={handleInputChange} className="mt-1 h-8 text-sm" />
-                            </div>
-                            <div>
-                                <Label htmlFor="address_state" className="text-sm">State/Area</Label>
-                                <Input id="address_state" name="address_state" value={editableFields.address_state} onChange={handleInputChange} className="mt-1 h-8 text-sm" />
                             </div>
                         </div>
                          <div className="grid grid-cols-2 gap-3">

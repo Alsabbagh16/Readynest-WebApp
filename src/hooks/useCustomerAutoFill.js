@@ -71,7 +71,6 @@ export const useCustomerAutoFill = (selectedCustomerId, setFormData) => {
                             ...prev.address,
                             street: bestAddress.street || '',
                             city: bestAddress.city || '',
-                            state: bestAddress.state || '',
                             zip: bestAddress.zip_code || bestAddress.zip || '',
                             country: bestAddress.country || '',
                             phone: bestAddress.phone || prev.address?.phone || '',
@@ -84,7 +83,6 @@ export const useCustomerAutoFill = (selectedCustomerId, setFormData) => {
                         ...prev,
                         address_street: bestAddress.street || '',
                         address_city: bestAddress.city || '',
-                        address_state: bestAddress.state || '',
                         address_zip: bestAddress.zip_code || bestAddress.zip || '',
                         address_phone: bestAddress.phone || '',
                         address_alt_phone: bestAddress.alt_phone || ''

@@ -177,7 +177,7 @@ const Contact = () => {
                 <Phone className="h-5 w-5 text-primary mr-3 md:mr-4 mt-1 flex-shrink-0" />
                 <div>
                   <h4 className="font-semibold mb-1 text-sm md:text-base">Phone</h4>
-                  <p className="text-gray-600 text-sm">(555) 123-4567</p>
+                  <p className="text-gray-600 text-sm">+973 33215180</p>
                 </div>
               </div>
 
@@ -206,7 +206,7 @@ const Contact = () => {
         {/* Mobile Floating WhatsApp Button */}
       <div className="fixed bottom-6 right-6 z-40">
         <a
-          href="https://wa.me/97333333333"
+          href="https://wa.me/97333215180"
           target="_blank"
           rel="noopener noreferrer"
           className="block"

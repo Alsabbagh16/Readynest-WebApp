@@ -78,7 +78,7 @@ const BookingConfirmationPage = () => {
   } = purchaseDetails;
 
   const displayAddress = typeof address === 'string' ? address :
-    `${address?.street || ''}, ${address?.city || ''}, ${address?.state || ''} ${address?.zip || ''}`.replace(/, , /, ', ').trim();
+    `${address?.street || ''}, ${address?.city || ''}, ${address?.zip || ''}`.replace(/, , /, ', ').trim();
 
 
   return (

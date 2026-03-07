@@ -56,7 +56,7 @@ const CancellationPolicyPage = () => {
           <ul className="list-disc list-inside space-y-2 ml-4">
             <li><strong>Online:</strong> Log in to your ReadyNest account and manage your bookings directly.</li>
             <li><strong>Email:</strong> Send an email to support@readynest.com with your booking reference number and requested change.</li>
-            <li><strong>Phone:</strong> Call us at +1 (555) 123-4567 during our business hours.</li>
+            <li><strong>Phone:</strong> Call us at +973 33215180 during our business hours.</li>
           </ul>
           <p className="mt-4">
             Please ensure you receive a confirmation of your cancellation or rescheduling from ReadyNest to validate the change.

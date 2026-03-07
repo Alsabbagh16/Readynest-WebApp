@@ -121,10 +121,6 @@ const AddressFormSection = ({ formData, handleAddressChange }) => (
                 <Input id="city" name="city" value={formData.user_address.city} onChange={handleAddressChange} placeholder="Anytown" required className="dark:bg-slate-700 dark:border-slate-600 dark:text-white"/>
             </div>
             <div>
-                <Label htmlFor="state" className="dark:text-slate-300">State/Province <span className="text-red-500">*</span></Label>
-                <Input id="state" name="state" value={formData.user_address.state} onChange={handleAddressChange} placeholder="CA" required className="dark:bg-slate-700 dark:border-slate-600 dark:text-white"/>
-            </div>
-            <div>
                 <Label htmlFor="zip" className="dark:text-slate-300">Block / ZIP <span className="text-red-500">*</span></Label>
                 <Input id="zip" name="zip" value={formData.user_address.zip} onChange={handleAddressChange} placeholder="90210" required className="dark:bg-slate-700 dark:border-slate-600 dark:text-white"/>
             </div>
@@ -247,17 +243,6 @@ const AdminCreateJobPage = () => {
 
   const [formData, setFormData] = useState({
     job_ref_id: generateJobRefId(),
-    purchase_ref_id: null,
-    user_id: null,
-    user_name: '',
-    user_email: '',
-    user_phone: '',
-    user_address: { street: '', city: '', state: '', zip: '', phone: '', alt_phone: '' },
-    addons: [], 
-    preferred_date: '',
-    status: 'Pending Assignment',
-    assigned_employees_ids: [],
-    notes: '',
     document_urls: [], 
   });
 
@@ -312,7 +297,6 @@ const AdminCreateJobPage = () => {
             user_address: {
                 street: purchaseData.address?.street || '',
                 city: purchaseData.address?.city || '',
-                state: purchaseData.address?.state || '',
                 zip: purchaseData.address?.zip || purchaseData.address?.zip_code || '',
                 phone: purchaseData.address?.phone || '',
                 alt_phone: purchaseData.address?.alt_phone || '',
@@ -379,7 +363,7 @@ const AdminCreateJobPage = () => {
             user_name: '',
             user_email: '',
             user_phone: '',
-            user_address: { street: '', city: '', state: '', zip: '', phone: '', alt_phone: '' },
+            user_address: { street: '', city: '', zip: '', phone: '', alt_phone: '' },
             addons: [],
             // Remove auto-generated note part but keep user notes if any
             notes: prev.notes.replace(/Job created from purchase [A-Z0-9-]+\. Product: [^\.]+\./, '').trim(),
@@ -403,7 +387,7 @@ const AdminCreateJobPage = () => {
 
     setIsSubmitting(true);
 
-    if (!formData.preferred_date || !formData.user_name || !formData.user_email || !formData.user_address.street || !formData.user_address.city || !formData.user_address.state || !formData.user_address.zip || !formData.user_address.phone) {
+    if (!formData.preferred_date || !formData.user_name || !formData.user_email || !formData.user_address.street || !formData.user_address.city || !formData.user_address.zip || !formData.user_address.phone) {
         toast({ title: "Missing Required Fields", description: "Please fill in all required fields (*).", variant: "destructive"});
         setIsSubmitting(false);
         return;

@@ -146,7 +146,7 @@ const JobAddressInfoSection = ({ job }) => {
     </Section>
   );
 
-  const addressString = `${address.street || ''}, ${address.city || ''}, ${address.state || ''} ${address.zip || ''}`.replace(/, , /g, ', ').replace(/, $/,'').trim() || 'N/A';
+  const addressString = `${address.street || ''}, ${address.city || ''}, ${address.zip || ''}`.replace(/, , /g, ', ').replace(/, $/,'').trim() || 'N/A';
 
   return (
     <Section title="Service Address" icon={<MapPin className="h-5 w-5 text-primary"/>}>

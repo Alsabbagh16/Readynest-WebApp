@@ -29,7 +29,6 @@ export const useInvoiceGeneration = (purchase) => {
     const customerAddress = [
         addressObj.street,
         addressObj.city,
-        addressObj.state,
         addressObj.zip
     ].filter(Boolean).join(', ') || 'Address not provided';
 
@@ -76,7 +75,7 @@ export const useInvoiceGeneration = (purchase) => {
             name: "",
             address: "CR: 183715-1, Block 213, Road 51, Building 564, Flat 21, Muharraq, Bahrain",
             email: "support@readynest.co",
-            phone: "+973 1234 5678",
+            phone: "+973 33215180",
             website: "www.readynest.co"
         },
         lineItems,
@@ -252,7 +251,7 @@ const generateMobilePDF = async (element, invoiceNumber) => {
         yPosition += 20;
         ctx.fillText('support@readynest.co', 50, yPosition);
         yPosition += 20;
-        ctx.fillText('+973 1234 5678', 50, yPosition);
+        ctx.fillText('+973 33215180', 50, yPosition);
         yPosition += 40; // Extra space before invoice header
         
         // Invoice Header (Right side)

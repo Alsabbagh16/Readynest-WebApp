@@ -52,7 +52,6 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
     user_id: null,
     address_street: '',
     address_city: '',
-    address_state: '',
     address_zip: '',
     address_phone: '',
     address_alt_phone: ''
@@ -225,7 +224,6 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
         address: {
           street: formData.address_street,
           city: formData.address_city,
-          state: formData.address_state,
           zip: formData.address_zip,
           phone: formData.address_phone,
           alt_phone: formData.address_alt_phone
@@ -297,7 +295,7 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
       // Reset Form
       setFormData({
         name: '', email: '', phone: '', productId: 'custom', amount: '', paymentType: 'Cash', status: 'Pending', preferred_booking_date: '',
-        customer_id: null, user_id: null, address_street: '', address_city: '', address_state: '', address_zip: '', address_phone: '', address_alt_phone: ''
+        customer_id: null, user_id: null, address_street: '', address_city: '', address_zip: '', address_phone: '', address_alt_phone: ''
       });
       setHourlyService({
         cleaners: '',
@@ -471,7 +469,6 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
             <div className="grid grid-cols-2 gap-2">
               <Input name="address_street" placeholder="Street" value={formData.address_street} onChange={handleChange} className="col-span-2 text-sm" />
               <Input name="address_city" placeholder="City" value={formData.address_city} onChange={handleChange} className="text-sm" />
-              <Input name="address_state" placeholder="State/Area" value={formData.address_state} onChange={handleChange} className="text-sm" />
               <Input name="address_zip" placeholder="Zip/Block" value={formData.address_zip} onChange={handleChange} className="text-sm" />
             </div>
           </div>

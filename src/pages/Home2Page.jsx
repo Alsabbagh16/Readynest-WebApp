@@ -27,7 +27,6 @@ import { getUserJobs } from "@/lib/storage/jobStorage";
 import { format } from "date-fns";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/components/ui/use-toast";
-import { personalSubscriptionPlans, businessSubscriptionPlans } from "@/lib/services";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,6 +37,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import PromotionalBanner from "@/components/PromotionalBanner";
 import { usePurchaseNotifications } from "@/hooks/usePurchaseNotifications";
+import CompactProductCards from "@/components/CompactProductCards";
 
 const services = [
   {
@@ -81,9 +81,6 @@ const Home2Page = () => {
   const [loadingJobs, setLoadingJobs] = useState(true);
   const [isBookingAgain, setIsBookingAgain] = useState(false);
 
-  const [displayedPlans, setDisplayedPlans] = useState([]);
-  const [loadingPlans, setLoadingPlans] = useState(true);
-
   // Derived user data
   const displayName = profile?.first_name
     ? `${profile.first_name} ${profile.last_name || ''}`.trim()
@@ -116,64 +113,6 @@ const Home2Page = () => {
   useEffect(() => {
     fetchJobs();
   }, [fetchJobs]);
-
-  useEffect(() => {
-    const fetchPlansAndPrices = async () => {
-      setLoadingPlans(true);
-
-      const basePlans = isBusinessUser ? businessSubscriptionPlans : personalSubscriptionPlans;
-      const propertyType = isBusinessUser ? 'airbnb' : 'home';
-
-      try {
-        const oneTimeQuery = supabase
-          .from('products')
-          .select('price')
-          .eq('type', 'one_time_service')
-          .eq('property_type', propertyType)
-          .eq('isActive', true)
-          .order('price', { ascending: true })
-          .limit(1);
-
-        const recurringQuery = supabase
-          .from('products')
-          .select('price')
-          .eq('type', 'recurring_service')
-          .eq('property_type', propertyType)
-          .eq('isActive', true)
-          .order('price', { ascending: true })
-          .limit(1);
-
-        const [oneTimeRes, recurringRes] = await Promise.all([
-          oneTimeQuery,
-          recurringQuery
-        ]);
-
-        const oneTimePrice = oneTimeRes.data?.[0]?.price;
-        const recurringPrice = recurringRes.data?.[0]?.price;
-
-        const updatedPlans = basePlans.map(plan => {
-          let newPlan = { ...plan };
-          if (newPlan.price === null) {
-            if (newPlan.isOneTime && oneTimePrice) {
-              newPlan.price = oneTimePrice;
-            } else if (!newPlan.isOneTime && recurringPrice) {
-              newPlan.price = recurringPrice;
-            }
-          }
-          return newPlan;
-        });
-
-        setDisplayedPlans(updatedPlans);
-      } catch (err) {
-        console.error("Error fetching prices", err);
-        setDisplayedPlans(basePlans);
-      } finally {
-        setLoadingPlans(false);
-      }
-    };
-
-    fetchPlansAndPrices();
-  }, [isBusinessUser]);
 
   const getStatusBadge = (status) => {
     switch (status?.toLowerCase()) {
@@ -273,16 +212,6 @@ const Home2Page = () => {
     }
   };
 
-  const handlePlanSelect = (plan) => {
-    if (plan.disabled && plan.buttonText !== "Contact Us") return;
-
-    if (plan.buttonText === 'Contact Us') {
-      navigate('/contact');
-    } else {
-      navigate('/hourlybooking');
-    }
-  };
-
   const handleLogout = async () => {
     try {
       await logout();
@@ -295,15 +224,6 @@ const Home2Page = () => {
         variant: "destructive"
       });
     }
-  };
-
-  const formatPrice = (price) => {
-    if (!price) return "Loading...";
-    const numPrice = Number(price);
-    if (!isNaN(numPrice)) {
-      return `BD ${numPrice}`;
-    }
-    return price;
   };
 
   return (
@@ -372,8 +292,7 @@ const Home2Page = () => {
       </header>
 
       <div className="max-w-6xl mx-auto p-6 md:p-8 lg:p-10 space-y-8">
-        <div className="md:grid md:grid-cols-2 md:gap-8">
-        {/* 2. Welcome Section */}
+        {/* 2. Welcome Section with Jobs Slider */}
         <section>
           {authLoading ? (
             <div className="flex items-center space-x-4 animate-pulse">
@@ -384,28 +303,117 @@ const Home2Page = () => {
               </div>
             </div>
           ) : user ? (
-            <div className="flex items-center space-x-4">
-              <Link to="/account">
-                <motion.div whileTap={{ scale: 0.95 }} className="relative">
-                  <Avatar className="h-16 w-16 border-2 border-primary/20 cursor-pointer hover:border-primary transition-colors">
-                    <AvatarImage src={profile?.avatar_url} alt={displayName} />
-                    <AvatarFallback className="text-xl font-bold text-primary bg-primary/10">
-                      {userInitial}
-                    </AvatarFallback>
-                  </Avatar>
-                  {hasNewPurchases && (
-                    <span className="absolute top-0 right-0 h-4 w-8 bg-red-600 rounded-full border-0 border-white z-10 flex items-center justify-center">
-                      <span className="text-white text-[10px] font-bold">New</span>
-                    </span>              
+            <div className="space-y-6">
+              <div className="flex items-center space-x-4">
+                <Link to="/account">
+                  <motion.div whileTap={{ scale: 0.95 }} className="relative">
+                    <Avatar className="h-16 w-16 border-2 border-primary/20 cursor-pointer hover:border-primary transition-colors">
+                      <AvatarImage src={profile?.avatar_url} alt={displayName} />
+                      <AvatarFallback className="text-xl font-bold text-primary bg-primary/10">
+                        {userInitial}
+                      </AvatarFallback>
+                    </Avatar>
+                    {hasNewPurchases && (
+                      <span className="absolute top-0 right-0 h-4 w-8 bg-red-600 rounded-full border-0 border-white z-10 flex items-center justify-center">
+                        <span className="text-white text-[10px] font-bold">New</span>
+                      </span>              
+                    )}
+                  </motion.div>
+                </Link>
+                <div className="flex-1">
+                  <p className="text-sm text-muted-foreground font-medium">Welcome back,</p>
+                  <h2 className="text-2xl font-bold text-gray-900">{displayName}</h2>
+                  <Badge variant="outline" className="mt-1 text-xs font-normal border-primary/30 text-primary bg-primary/5 uppercase tracking-wide">
+                    {userType}
+                  </Badge>
+                </div>
+              </div>
+
+              {/* Jobs Slider */}
+              <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-gray-900">Your Recent Jobs</h3>
+                  {user && jobs.length > 0 && (
+                    <Link to="/account" className="text-xs font-medium text-primary hover:text-primary/80 flex items-center">
+                      View All <ArrowRight className="h-3 w-3 ml-1" />
+                    </Link>
                   )}
-                </motion.div>
-              </Link>
-              <div>
-                <p className="text-sm text-muted-foreground font-medium">Welcome back,</p>
-                <h2 className="text-2xl font-bold text-gray-900">{displayName}</h2>
-                <Badge variant="outline" className="mt-1 text-xs font-normal border-primary/30 text-primary bg-primary/5 uppercase tracking-wide">
-                  {userType}
-                </Badge>
+                </div>
+
+                <div className="flex space-x-3 overflow-x-auto pb-2 scrollbar-hide snap-x">
+                  {!user ? (
+                    <div className="w-full px-4 py-6 text-center bg-gray-50 border border-dashed rounded-lg min-w-[200px]">
+                      <p className="text-xs text-gray-500 mb-2">Log in to view your jobs</p>
+                      <Button size="sm" variant="outline" onClick={() => navigate('/auth')}>Log In</Button>
+                    </div>
+                  ) : loadingJobs ? (
+                    <div className="flex space-x-3">
+                      {[1, 2].map((i) => (
+                        <div key={i} className="w-[180px] h-24 bg-gray-100 rounded-lg animate-pulse" />
+                      ))}
+                    </div>
+                  ) : jobs.length > 0 ? (
+                    jobs.slice(0, 5).map((job) => {
+                      const jobDate = job.preferred_date ? new Date(job.preferred_date) : new Date();
+                      const address = job.user_address || {};
+                      const locationStr = address.label
+                        ? address.label
+                        : (address.city || address.street || "Location details");
+                      
+                      return (
+                        <motion.div
+                          key={job.job_ref_id}
+                          className="snap-center shrink-0 w-[180px]"
+                          whileTap={{ scale: 0.98 }}
+                        >
+                          <Card className="h-full border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                            <CardContent className="p-3">
+                              <div className="flex justify-between items-start mb-2">
+                                <div className="flex items-center text-gray-500 text-xs truncate max-w-[100px]" title={locationStr}>
+                                  <MapPin className="h-2.5 w-2.5 mr-1 flex-shrink-0" /> <span className="truncate">{locationStr}</span>
+                                </div>
+                                {getStatusBadge(job.status)}
+                              </div>
+                              <div>
+                                <h4 className="font-semibold text-gray-900 text-sm truncate" title={job.product_name}>{job.product_name}</h4>
+                                <div className="flex items-center text-xs text-gray-500 mt-1">
+                                  <Clock className="h-2.5 w-2.5 mr-1" /> {format(jobDate, 'MMM d')}
+                                </div>
+                              </div>
+                              <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between">
+                                {job.status?.toLowerCase() === 'completed' ? (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-5 text-[9px] px-1 text-primary hover:text-primary/80 hover:bg-primary/5 -ml-1"
+                                    onClick={() => handleBookAgain(job)}
+                                    disabled={isBookingAgain}
+                                  >
+                                    {isBookingAgain ? <Loader2 className="h-2.5 w-2.5 mr-1 animate-spin" /> : <RotateCw className="h-2.5 w-2.5 mr-1" />}
+                                    Book
+                                  </Button>
+                                ) : <div />}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-5 text-xs p-0 text-gray-400 hover:text-primary"
+                                  onClick={() => handleDetailsClick(job.job_ref_id)}
+                                >
+                                  <ChevronRight className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </motion.div>
+                      );
+                    })
+                  ) : (
+                    <div className="w-full px-4 py-6 text-center bg-gray-50 border border-dashed rounded-lg min-w-[200px]">
+                      <p className="text-xs text-gray-500 mb-2">No jobs found</p>
+                      <Button size="sm" variant="outline" onClick={() => navigate('/hourlybooking')}>Book Now</Button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           ) : (
@@ -426,98 +434,6 @@ const Home2Page = () => {
             </div>
           )}
         </section>
-
-        {/* 3. Upcoming Jobs Section */}
-        <section>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-bold text-gray-900">Your Jobs</h3>
-            {user && (
-              <Link to="/account" className="text-xs font-semibold text-primary hover:text-primary/80 flex items-center">
-                VIEW ALL <ArrowRight className="h-3 w-3 ml-1" />
-              </Link>
-            )}
-          </div>
-
-          <div className="flex space-x-4 overflow-x-auto pb-4 -mx-6 px-6 scrollbar-hide snap-x md:grid md:grid-cols-2 md:space-x-0 md:gap-4 md:mx-0 md:px-0 md:overflow-visible">
-            {!user ? (
-              <div className="w-full px-6 py-8 text-center bg-white border border-dashed rounded-lg">
-                <p className="text-sm text-gray-500 mb-2">Log in to view your jobs</p>
-                <Button size="sm" variant="outline" onClick={() => navigate('/auth')}>Log In</Button>
-              </div>
-            ) : loadingJobs ? (
-              <div className="flex space-x-4 px-6">
-                {[1, 2].map((i) => (
-                  <div key={i} className="w-[240px] h-40 bg-gray-100 rounded-lg animate-pulse" />
-                ))}
-              </div>
-            ) : jobs.length > 0 ? (
-              jobs.map((job) => {
-                const jobDate = job.preferred_date ? new Date(job.preferred_date) : new Date();
-                const address = job.user_address || {};
-                const locationStr = address.label
-                  ? address.label
-                  : (address.city || address.street || "Location details");
-                
-                return (
-                  <motion.div
-                    key={job.job_ref_id}
-                    className="snap-center shrink-0 w-[240px] md:w-full"
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    <Card className="h-full border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-                      <CardContent className="p-4 flex flex-col h-full justify-between">
-                        <div className="flex justify-between items-start mb-3">
-                          <div className="flex items-center text-gray-500 text-xs truncate max-w-[120px]" title={locationStr}>
-                            <MapPin className="h-3 w-3 mr-1 flex-shrink-0" /> <span className="truncate">{locationStr}</span>
-                          </div>
-                          {getStatusBadge(job.status)}
-                        </div>
-
-                        <div>
-                          <h4 className="font-bold text-gray-900 truncate" title={job.product_name}>{job.product_name}</h4>
-                          <div className="flex items-center text-xs text-gray-500 mt-1">
-                            <Clock className="h-3 w-3 mr-1" /> {format(jobDate, 'MMM d, h:mm a')}
-                          </div>
-                        </div>
-
-                        <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
-                           
-                            {job.status?.toLowerCase() === 'completed' ? (
-                                <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 text-[10px] px-2 text-primary hover:text-primary/80 hover:bg-primary/5 -ml-2"
-                                onClick={() => handleBookAgain(job)}
-                                disabled={isBookingAgain}
-                                >
-                                {isBookingAgain ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <RotateCw className="h-3 w-3 mr-1" />}
-                                Book Again
-                                </Button>
-                            ) : <div />}
-
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 text-xs p-0 text-gray-400 hover:text-primary"
-                            onClick={() => handleDetailsClick(job.job_ref_id)}
-                          >
-                            Details <ChevronRight className="h-3 w-3 ml-1" />
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                );
-              })
-            ) : (
-              <div className="w-full px-6 py-8 text-center bg-white border border-dashed rounded-lg">
-                <p className="text-sm text-gray-500 mb-2">No jobs found</p>
-                <Button size="sm" variant="outline" onClick={() => navigate('/hourlybooking')}>Book Now</Button>
-              </div>
-            )}
-          </div>
-        </section>
-        </div>
 
         {/* 4. Services Grid */}
         <section>
@@ -547,71 +463,14 @@ const Home2Page = () => {
         {/* Promotional Banner */}
         <PromotionalBanner />
 
-        {/* 5. Cleaning Packages */}
-        <section>
-          <h3 className="text-lg font-bold text-gray-900 mb-4">
-            {isBusinessUser ? 'Host Packages' : 'Cleaning Packages'}
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {loadingPlans ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {[1, 2, 3].map(i => (
-                  <div key={i} className="h-32 bg-gray-100 rounded-lg animate-pulse" />
-                ))}
-              </div>
-            ) : (
-              displayedPlans.map((pkg) => {
-                const isNumeric = !isNaN(Number(pkg.price)) && pkg.price !== null;
-                const isWeekly = pkg.id === 'personal_weekly';
-
-                return (
-                  <Card
-                    key={pkg.id}
-                    className={`border ${pkg.popular && !pkg.disabled ? 'border-primary shadow-md' : 'border-gray-200'} ${pkg.disabled ? 'opacity-75' : ''} overflow-hidden`}
-                  >
-                    <CardContent className="p-0 flex items-stretch">
-                      {/* Left Highlight Bar */}
-                      {pkg.popular && !pkg.disabled && <div className="w-2 bg-primary"></div>}
-
-                      <div className="p-4 flex-grow flex items-center justify-between">
-                        <div>
-                          <div className="flex items-center gap-2 flex-wrap mb-1">
-                            <h4 className="font-bold text-gray-900">{pkg.name}</h4>
-                            {pkg.popular && !pkg.disabled && <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">Popular</span>}
-                            {isWeekly && !pkg.disabled && <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">Save 20%</span>}
-                            {pkg.disabled && <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-medium">Coming Soon</span>}
-                          </div>
-                          <p className="text-sm text-gray-500 line-clamp-2">{pkg.description}</p>
-                        </div>
-                        <div className="text-right pl-4 min-w-[100px] flex flex-col items-end justify-center">
-                          {isNumeric && !pkg.disabled && <span className="text-[10px] text-gray-500 font-medium whitespace-nowrap mb-0.5">Starting at</span>}
-                          <span className={`block text-lg font-bold leading-tight ${pkg.disabled ? 'text-gray-400' : 'text-primary'}`}>
-                            {formatPrice(pkg.price)}
-                          </span>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className={`h-7 text-xs mt-2 ${pkg.disabled ? 'opacity-50 cursor-not-allowed' : 'border-primary text-primary hover:bg-primary/5'}`}
-                            onClick={() => handlePlanSelect(pkg)}
-                            disabled={pkg.disabled && pkg.buttonText !== "Contact Us"}
-                          >
-                            Select
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })
-            )}
-          </div>
-        </section>
+        {/* 5. Product Cards */}
+        <CompactProductCards />
       </div>
 
       {/* Mobile Floating WhatsApp Button */}
       <div className="fixed bottom-6 right-6 z-40">
         <a
-          href="https://wa.me/97333333333"
+          href="https://wa.me/97333215180"
           target="_blank"
           rel="noopener noreferrer"
           className="block"
