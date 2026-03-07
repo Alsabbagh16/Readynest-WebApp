@@ -693,27 +693,25 @@ const AdminPurchaseDetailPage = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <Button asChild variant="outline" size="sm">
-          <Link to="/admin-dashboard/purchases"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Purchases</Link>
+      <div className="flex flex-wrap gap-2 justify-end">
+        <Button asChild variant="outline" size="sm" className="admin-button-wrap">
+          <Link to="/admin-dashboard/purchases"><ArrowLeft className="mr-2 h-4 w-4 button-icon" /> Back</Link>
         </Button>
-        <div className="flex space-x-2">
-            {!isEditing && canCreateInvoice && (
-                <Button onClick={() => setIsInvoiceModalOpen(true)} size="sm" variant="outline">
-                    <FileText className="mr-2 h-4 w-4" /> Create Invoice
-                </Button>
-            )}
-            {!isEditing && (
-                <Button onClick={handleCreateJobFromPurchase} size="sm" variant="outline">
-                    <Briefcase className="mr-2 h-4 w-4" /> Create Job from Purchase
-                </Button>
-            )}
-            {!isEditing && (
-                <Button onClick={() => setIsEditing(true)} size="sm">
-                    <Edit2 className="mr-2 h-4 w-4" /> Edit Purchase
-                </Button>
-            )}
-        </div>
+        {!isEditing && canCreateInvoice && (
+            <Button onClick={() => setIsInvoiceModalOpen(true)} size="sm" variant="outline" className="admin-button-wrap">
+                <FileText className="mr-2 h-4 w-4 button-icon" /> Invoice
+            </Button>
+        )}
+        {!isEditing && (
+            <Button onClick={handleCreateJobFromPurchase} size="sm" variant="outline" className="admin-button-wrap">
+                <Briefcase className="mr-2 h-4 w-4 button-icon" /> Create Job
+            </Button>
+        )}
+        {!isEditing && (
+            <Button onClick={() => setIsEditing(true)} size="sm" className="admin-button-wrap">
+                <Edit2 className="mr-2 h-4 w-4 button-icon" /> Edit
+            </Button>
+        )}
       </div>
 
       <Card>
@@ -807,13 +805,13 @@ const AdminPurchaseDetailPage = () => {
                     </Select>
                 </div>
                 
-                 <div className="flex justify-end space-x-2 mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                 <div className="flex justify-end flex-wrap gap-2 mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
                     <Button variant="outline" onClick={() => {
                         setIsEditing(false);
                         fetchPurchaseDetails();
-                    }}>Cancel</Button>
-                    <Button onClick={handleSaveChanges} disabled={loading} className="bg-primary text-primary-foreground hover:bg-primary/90">
-                        {loading ? 'Saving...' : <><Save className="mr-2 h-4 w-4"/> Save Changes</>}
+                    }} className="admin-button-wrap">Cancel</Button>
+                    <Button onClick={handleSaveChanges} disabled={loading} className="bg-primary text-primary-foreground hover:bg-primary/90 admin-button-wrap">
+                        {loading ? 'Saving...' : <><Save className="mr-2 h-4 w-4 button-icon"/> Save</>}
                     </Button>
                  </div>
             </div>

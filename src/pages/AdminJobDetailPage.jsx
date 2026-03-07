@@ -435,10 +435,10 @@ const JobEditForm = ({ editableFields, handleInputChange, handleStatusChange, al
         <JobAssignedEmployeesSection isEditing={true} editableFields={editableFields} allEmployees={allEmployees} handleEmployeeSelect={handleEmployeeSelect} />
         <JobInternalNotesSection job={{}} isEditing={true} editableFields={editableFields} handleInputChange={handleInputChange} />
 
-        <div className="flex justify-end space-x-2 mt-6">
-        <Button variant="outline" onClick={cancelEdit} className="dark:border-slate-600 dark:hover:bg-slate-700">Cancel</Button>
-        <Button onClick={handleSaveChanges} disabled={isSubmitting}>
-            {isSubmitting ? 'Saving...' : <><Save className="mr-2 h-4 w-4"/> Save Changes</>}
+        <div className="flex justify-end flex-wrap gap-2 mt-6">
+        <Button variant="outline" onClick={cancelEdit} className="dark:border-slate-600 dark:hover:bg-slate-700 admin-button-wrap">Cancel</Button>
+        <Button onClick={handleSaveChanges} disabled={isSubmitting} className="admin-button-wrap">
+            {isSubmitting ? 'Saving...' : <><Save className="mr-2 h-4 w-4 button-icon"/> Save</>}
         </Button>
         </div>
     </div>
@@ -707,13 +707,13 @@ const AdminJobDetailPage = () => {
 
   return (
     <div className="space-y-6 dark:text-slate-300">
-      <div className="flex justify-between items-center">
-        <Button asChild variant="outline" size="sm" className="dark:border-slate-600 dark:hover:bg-slate-700">
-          <Link to="/admin-dashboard/jobs"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Jobs</Link>
+      <div className="flex flex-wrap gap-2 justify-end">
+        <Button asChild variant="outline" size="sm" className="dark:border-slate-600 dark:hover:bg-slate-700 admin-button-wrap">
+          <Link to="/admin-dashboard/jobs"><ArrowLeft className="mr-2 h-4 w-4 button-icon" /> Back</Link>
         </Button>
         {canEditJob && !isEditing && (
-          <Button onClick={() => setIsEditing(true)} size="sm">
-            <Edit2 className="mr-2 h-4 w-4" /> Edit Job
+          <Button onClick={() => setIsEditing(true)} size="sm" className="admin-button-wrap">
+            <Edit2 className="mr-2 h-4 w-4 button-icon" /> Edit
           </Button>
         )}
       </div>

@@ -261,6 +261,11 @@ const AdminCreateJobPage = () => {
     purchase_ref_id: null,
   });
 
+  // Debug formData changes
+  useEffect(() => {
+    console.log("formData changed:", formData);
+  }, [formData]);
+
   const [allEmployees, setAllEmployees] = useState([]);
   const [availablePurchases, setAvailablePurchases] = useState([]);
   const [loadingPurchases, setLoadingPurchases] = useState(false);
@@ -301,6 +306,7 @@ const AdminCreateJobPage = () => {
 
   const populateFormWithPurchaseData = useCallback((purchaseData) => {
     if (purchaseData) {
+      console.log("Populating form with purchase data:", purchaseData);
       setFormData(prev => {
         const newFormData = {
             ...prev,
@@ -321,6 +327,7 @@ const AdminCreateJobPage = () => {
             preferred_date: purchaseData.preferred_booking_date ? toLocalDatetimeInputString(purchaseData.preferred_booking_date) : '',
             notes: `Job created from purchase ${purchaseData.purchase_ref_id}. Product: ${purchaseData.product_name || 'N/A'}.`.trim(),
         };
+        console.log("New form data after population:", newFormData);
         // Trigger validation if date exists
         if (newFormData.preferred_date) {
             const val = validateBookingTime(newFormData.preferred_date);
@@ -332,10 +339,19 @@ const AdminCreateJobPage = () => {
   }, []);
 
   useEffect(() => {
-    if (purchaseDataFromState) {
+    console.log("purchaseDataFromState:", purchaseDataFromState);
+    if (purchaseDataFromState && !loadingPurchases) {
       populateFormWithPurchaseData(purchaseDataFromState);
     }
-  }, [purchaseDataFromState, populateFormWithPurchaseData]);
+  }, [purchaseDataFromState, loadingPurchases, populateFormWithPurchaseData]);
+
+  // Separate effect to handle when purchases finish loading
+  useEffect(() => {
+    if (!loadingPurchases && purchaseDataFromState && availablePurchases.length > 0) {
+      console.log("Purchases loaded, populating form with purchase data");
+      populateFormWithPurchaseData(purchaseDataFromState);
+    }
+  }, [loadingPurchases, availablePurchases.length, purchaseDataFromState, populateFormWithPurchaseData]);
 
 
   const handleInputChange = (e) => {

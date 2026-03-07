@@ -65,7 +65,7 @@ const AdminDashboardContent = () => {
     { id: 'my-account', label: 'My Account', icon: UserCircle, path: '/admin-dashboard/my-account', component: <AdminMyAccountTab />, permission: null }, 
     { id: 'jobs-calendar', label: 'Jobs Calendar', icon: CalendarDays, path: '/admin-dashboard/jobs-calendar', component: <JobsCalendarTab />, permission: 'tab.jobs_list.view' },
     { id: 'jobs', label: 'Jobs List', icon: ListChecks, path: '/admin-dashboard/jobs', component: <RecentServicesTab />, permission: 'tab.jobs_list.view' },
-    { id: 'purchases', label: 'Recent Purchases', icon: ShoppingCart, path: '/admin-dashboard/purchases', component: <RecentPurchasesTab />, permission: 'tab.recent_purchases.view' },
+    { id: 'purchases', label: 'Purchases', icon: ShoppingCart, path: '/admin-dashboard/purchases', component: <RecentPurchasesTab />, permission: 'tab.recent_purchases.view' },
     { id: 'accounts', label: 'Registered Accounts', icon: Users, path: '/admin-dashboard/accounts', component: <RegisteredAccountsTab />, permission: 'tab.registered_accounts.view' },
     { id: 'employees', label: 'Employees', icon: Briefcase, path: '/admin-dashboard/employees', component: <EmployeesTab />, permission: 'tab.employees.view' },
     { id: 'manage-services', label: 'Services & Products', icon: Settings2, path: '/admin-dashboard/manage-services', component: <ManageServicesTab />, permission: 'tab.services_products.view' },

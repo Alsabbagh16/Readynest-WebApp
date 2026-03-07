@@ -173,3 +173,29 @@
     touch-action: manipulation;
   }
 }
+
+/* Admin dashboard button text wrapping fixes */
+.admin-button-wrap {
+  white-space: normal !important;
+  text-align: center;
+  line-height: 1.2;
+  hyphens: auto;
+  word-wrap: break-word;
+  word-break: break-word;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+/* For buttons with icons, ensure proper spacing */
+.admin-button-wrap .button-icon {
+  flex-shrink: 0;
+  margin-right: 0.5rem;
+}
+
+/* Responsive button sizing */
+@media (max-width: 640px) {
+  .admin-button-wrap {
+    font-size: 0.75rem;
+    padding: 0.5rem 0.75rem;
+  }
+}
