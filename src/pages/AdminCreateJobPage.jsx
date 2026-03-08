@@ -46,19 +46,38 @@ const JobCoreDetailsFormSection = ({ formData, handleInputChange, availableStatu
         <Input id="job_ref_id" name="job_ref_id" value={formData.job_ref_id} readOnly disabled className="dark:bg-slate-700 dark:border-slate-600 dark:text-slate-300"/>
       </div>
       <div>
-        <Label htmlFor="preferred_date" className="dark:text-slate-300 flex items-center gap-2">
-            <CalendarClock className="h-4 w-4" /> Preferred Date & Time <span className="text-red-500">*</span>
-        </Label>
-        <Input 
-            id="preferred_date" 
-            name="preferred_date" 
-            type="datetime-local" 
-            value={formData.preferred_date} 
-            onChange={handleInputChange} 
-            min={getCurrentLocalString()} 
-            required 
-            className={`dark:bg-slate-700 dark:border-slate-600 dark:text-white ${dateError ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
-        />
+        <div className="space-y-2">
+          <Label className="dark:text-slate-300 flex items-center gap-2">
+              <CalendarClock className="h-4 w-4" /> Preferred Date & Time <span className="text-red-500">*</span>
+          </Label>
+          <div className="grid grid-cols-2 gap-2">
+            <Input 
+                id="preferred_date" 
+                name="preferred_date" 
+                type="date" 
+                value={formData.preferred_date ? formData.preferred_date.split('T')[0] : ''} 
+                onChange={(e) => {
+                  const timePart = formData.preferred_date ? formData.preferred_date.split('T')[1] : '09:00';
+                  const newDateTime = e.target.value ? `${e.target.value}T${timePart}` : '';
+                  handleInputChange({ target: { name: 'preferred_date', value: newDateTime } });
+                }}
+                className={`dark:bg-slate-700 dark:border-slate-600 dark:text-white ${dateError ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
+            />
+            <Input 
+                type="time" 
+                value={formData.preferred_date ? formData.preferred_date.split('T')[1] : ''} 
+                onChange={(e) => {
+                  const datePart = formData.preferred_date ? formData.preferred_date.split('T')[0] : new Date().toISOString().split('T')[0];
+                  const newDateTime = e.target.value ? `${datePart}T${e.target.value}` : '';
+                  handleInputChange({ target: { name: 'preferred_date', value: newDateTime } });
+                }}
+                className={`dark:bg-slate-700 dark:border-slate-600 dark:text-white ${dateError ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
+            />
+          </div>
+          <p className="text-[10px] text-muted-foreground">
+              Select any date and time (past dates allowed).
+          </p>
+        </div>
         {dateError && (
             <p className="text-sm text-red-500 flex items-center mt-1">
                 <AlertCircle className="h-3 w-3 mr-1" /> {dateError}

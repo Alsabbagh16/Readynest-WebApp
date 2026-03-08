@@ -174,10 +174,13 @@ export const deleteEmployee = async (employeeId) => {
 };
 
 export const findEmployeeByEmail = async (email) => {
+  // Convert email to lowercase for case-insensitive search
+  const normalizedEmail = email.toLowerCase();
+  
   const { data, error } = await supabase
     .from('employees')
     .select('*')
-    .eq('email', email)
+    .ilike('email', `${normalizedEmail}`) // Use ilike for case-insensitive comparison
     .maybeSingle(); 
 
   if (error) {

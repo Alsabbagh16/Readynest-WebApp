@@ -417,6 +417,7 @@ const JobEditForm = ({ editableFields, handleInputChange, handleStatusChange, al
                     type="datetime-local" 
                     value={editableFields.preferred_date} 
                     onChange={handleInputChange} 
+                    step="60"
                     className="dark:bg-slate-700 dark:border-slate-600"
                 />
                 <p className="text-xs text-muted-foreground mt-1">Select the scheduled date and time for this job.</p>

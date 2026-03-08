@@ -5,7 +5,7 @@ import { format } from 'date-fns';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import { RefreshCcw, Download, Edit, XCircle, ShoppingCart, ExternalLink, Phone, Tag, Mail, User, PlusCircle, FileText, CalendarDays, ChevronLeft, ChevronRight, Search, Filter } from 'lucide-react';
+import { RefreshCcw, Download, Edit, XCircle, ShoppingCart, ExternalLink, Phone, Tag, Mail, User, PlusCircle, FileText, CalendarDays, ChevronLeft, ChevronRight, Search, Filter, AlertTriangle } from 'lucide-react';
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
@@ -64,6 +64,8 @@ const getStatusBadgeVariant = (status) => {
     case 'failed':
     case 'refunded':
       return 'destructive';
+    case 'flagged':
+      return 'warning';
     default: return 'secondary';
   }
 };
@@ -221,8 +223,9 @@ const createColumnConfig = (onUpdateStatus) => [
     accessor: "status",
     className: "text-center",
     cell: (purchase) => (
-      <Badge variant={getStatusBadgeVariant(purchase.status)} className="capitalize whitespace-nowrap">
+      <Badge variant={getStatusBadgeVariant(purchase.status)} className="capitalize whitespace-nowrap flex items-center gap-1">
         {purchase.status || 'Unknown'}
+        {purchase.status === 'Flagged' && <AlertTriangle className="w-3 h-3" />}
       </Badge>
     ),
     csvFn: (purchase) => purchase.status || 'Unknown'
@@ -482,6 +485,7 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
                 <SelectItem value="Cancelled">Cancelled</SelectItem>
                 <SelectItem value="Refunded">Refunded</SelectItem>
                 <SelectItem value="Failed">Failed</SelectItem>
+                <SelectItem value="Flagged">Flagged</SelectItem>
               </SelectContent>
             </Select>
           </div>

@@ -129,8 +129,11 @@ export const AdminAuthProvider = ({ children }) => {
     setAdminAuthLoading(true);
     const loginMsgId = addLoadingMessage("Admin logging in...");
     try {
+      // Convert email to lowercase for case-insensitive authentication
+      const normalizedEmail = email.toLowerCase();
+      
       // 1. Check if employee exists first (Pre-check)
-      const employee = await findEmployeeByEmail(email);
+      const employee = await findEmployeeByEmail(normalizedEmail);
       if (!employee) {
         throw new Error("Admin account not found.");
       }
@@ -139,7 +142,7 @@ export const AdminAuthProvider = ({ children }) => {
       }
 
       // 2. Perform Supabase Login
-      const { data: { user: supabaseSessUser }, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      const { data: { user: supabaseSessUser }, error: signInError } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
       if (signInError) throw signInError;
       if (!supabaseSessUser) throw new Error("Login failed.");
 

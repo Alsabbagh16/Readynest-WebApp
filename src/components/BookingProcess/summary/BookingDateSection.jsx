@@ -33,7 +33,6 @@ const BookingDateSection = ({
             <Input
               id="summary-date1"
               type="datetime-local"
-              min={minDateTime}
               value={bookingDate || ''}
               onChange={(e) => onBookingDateChange(e.target.value)}
               className="bg-white dark:bg-slate-800"
@@ -47,7 +46,6 @@ const BookingDateSection = ({
                 <Input
                   id="summary-date2"
                   type="datetime-local"
-                  min={minDateTime}
                   value={additionalBookingDates.date2 || ''}
                   onChange={(e) => onAdditionalBookingDateChange('date2', e.target.value)}
                   className="bg-white dark:bg-slate-800"
@@ -58,7 +56,6 @@ const BookingDateSection = ({
                 <Input
                   id="summary-date3"
                   type="datetime-local"
-                  min={minDateTime}
                   value={additionalBookingDates.date3 || ''}
                   onChange={(e) => onAdditionalBookingDateChange('date3', e.target.value)}
                   className="bg-white dark:bg-slate-800"
@@ -69,7 +66,6 @@ const BookingDateSection = ({
                 <Input
                   id="summary-date4"
                   type="datetime-local"
-                  min={minDateTime}
                   value={additionalBookingDates.date4 || ''}
                   onChange={(e) => onAdditionalBookingDateChange('date4', e.target.value)}
                   className="bg-white dark:bg-slate-800"

@@ -77,7 +77,7 @@ const AdminLoginPage = () => {
                   type="email"
                   placeholder="admin@example.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => setEmail(e.target.value.toLowerCase())}
                   required
                 />
               </div>

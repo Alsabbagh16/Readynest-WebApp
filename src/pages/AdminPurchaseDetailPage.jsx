@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { format as formatTz, utcToZonedTime, zonedTimeToUtc } from 'date-fns-tz';
-import { ArrowLeft, Save, UserCircle, ShoppingBag, CalendarDays, DollarSign, MapPin, List, Edit2, Briefcase, Phone, Clock, MessageSquare, Tag, FileText, Calculator, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Save, UserCircle, ShoppingBag, CalendarDays, DollarSign, MapPin, List, Edit2, Briefcase, Phone, Clock, MessageSquare, Tag, FileText, Calculator, ExternalLink, Flag, AlertTriangle } from 'lucide-react';
 import InvoiceModal from '@/components/AdminDashboard/InvoiceModal';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import CustomerSelector from '@/components/AdminDashboard/CustomerSelector';
@@ -45,23 +45,23 @@ const formatForInput = (isoString) => {
 };
 
 const getStatusBadgeVariant = (status) => {
-    switch (status?.toLowerCase()) {
-      case 'completed':
-      case 'confirmed':
-      case 'paid':
-        return 'success';
-      case 'pending confirmation':
-      case 'pending payment':
-      case 'pending':
-        return 'default';
-      case 'processing':
-        return 'outline';
-      case 'cancelled':
-      case 'failed':
-      case 'refunded':
-        return 'destructive';
-      default: return 'secondary';
-    }
+  switch (status?.toLowerCase()) {
+    case 'completed':
+    case 'confirmed':
+    case 'paid':
+      return 'success';
+    case 'pending confirmation':
+    case 'pending':
+    case 'processing':
+      return 'default';
+    case 'cancelled':
+    case 'failed':
+    case 'refunded':
+      return 'destructive';
+    case 'flagged':
+      return 'warning';
+    default: return 'secondary';
+  }
 };
 
 const calculateTransactionTotals = (baseAmountStr, discountType, discountValueStr) => {
@@ -84,7 +84,7 @@ const calculateTransactionTotals = (baseAmountStr, discountType, discountValueSt
     };
 };
 
-const availableStatuses = ["Pending Confirmation", "Pending", "Confirmed", "Paid", "Processing", "Completed", "Cancelled", "Refunded", "Failed"];
+const availableStatuses = ["Pending Confirmation", "Pending", "Confirmed", "Paid", "Processing", "Completed", "Cancelled", "Refunded", "Failed", "Flagged"];
 
 // --- Components ---
 
@@ -519,6 +519,8 @@ const AdminPurchaseDetailPage = () => {
   const [purchase, setPurchase] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
+  const [isEditingFlagReason, setIsEditingFlagReason] = useState(false);
+  const [flagReasonInput, setFlagReasonInput] = useState('');
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
 
   const [editableFields, setEditableFields] = useState({
@@ -568,10 +570,10 @@ const AdminPurchaseDetailPage = () => {
         setEditableFields({
             status: data.status || '',
             product_name: data.product_name || '',
-            preferred_booking_date: formatForInput(data.preferred_booking_date),
-            base_amount: restoredBase.toFixed(3), 
-            discount_type: currentDiscount > 0 ? 'fixed' : 'none', 
-            discount_value: currentDiscount > 0 ? currentDiscount.toString() : '',
+            preferred_booking_date: formatForInput(data.preferred_booking_date) || '',
+            base_amount: data.final_amount_due_on_arrival?.toString() || data.paid_amount?.toString() || '',
+            discount_type: 'none',
+            discount_value: '',
             coupon_code: data.coupon_code || '',
             
             user_phone: data.user_phone || '',
@@ -586,6 +588,9 @@ const AdminPurchaseDetailPage = () => {
             address_phone: data.address?.phone || '',
             address_alt_phone: data.address?.alt_phone || ''
         });
+        
+        // Initialize flag reason input
+        setFlagReasonInput(data.notes || '');
       } else {
         navigate("/admin-dashboard/purchases");
       }
@@ -610,13 +615,55 @@ const AdminPurchaseDetailPage = () => {
     setEditableFields(prev => ({ ...prev, [name]: value }));
   };
   
+  const handleSaveFlagReason = async () => {
+    try {
+      await updatePurchase(purchaseRefId, { notes: flagReasonInput.trim() });
+      toast({ title: "Success", description: "Flag reason updated successfully." });
+      setIsEditingFlagReason(false);
+      fetchPurchaseDetails();
+    } catch (error) {
+      console.error("Error updating flag reason:", error);
+      toast({ title: "Error", description: "Failed to update flag reason.", variant: "destructive" });
+    }
+  };
+  
   const handleCustomerSelect = (customerId) => {
       setEditableFields(prev => ({ ...prev, customer_id: customerId }));
+  };
+  
+  const handleFlagPurchase = async () => {
+    setLoading(true);
+    try {
+      const newStatus = purchase.status === 'Flagged' ? 'Pending' : 'Flagged';
+      const actionText = newStatus === 'Flagged' ? 'Flagged' : 'Unflagged';
+      
+      await updatePurchase(purchaseRefId, { status: newStatus });
+      toast({ title: `Purchase ${actionText}`, description: `Purchase status changed to ${newStatus}.` });
+      fetchPurchaseDetails();
+    } catch (error) {
+      console.error("Error flagging purchase:", error);
+      toast({ title: "Error", description: "Failed to update purchase status.", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
   };
   
   const handleSaveChanges = async () => {
     setLoading(true);
     try {
+      console.log("Starting purchase update with editableFields:", editableFields);
+      
+      // Validation: Flagged status requires a reason
+      if (editableFields.status === 'Flagged' && !editableFields.notes?.trim()) {
+        toast({ 
+          title: "Validation Error", 
+          description: "Please provide a reason when flagging a purchase.", 
+          variant: "destructive" 
+        });
+        setLoading(false);
+        return;
+      }
+      
       const { discountAmount, finalTotal } = calculateTransactionTotals(
           editableFields.base_amount, 
           editableFields.discount_type, 
@@ -659,6 +706,9 @@ const AdminPurchaseDetailPage = () => {
         }
       };
       
+      console.log("Prepared updateData for purchase:", updateData);
+      console.log("PurchaseRefId:", purchaseRefId);
+      
       await updatePurchase(purchaseRefId, updateData);
 
       toast({ title: "Success", description: "Purchase updated successfully." });
@@ -666,7 +716,17 @@ const AdminPurchaseDetailPage = () => {
       fetchPurchaseDetails(); 
     } catch (error) {
       console.error("Error updating purchase:", error);
-      toast({ title: "Error", description: "Update failed.", variant: "destructive" });
+      console.error("Full error details:", {
+        message: error.message,
+        details: error.details,
+        code: error.code,
+        hint: error.hint
+      });
+      toast({ 
+        title: "Error", 
+        description: `Update failed: ${error.message || 'Unknown error'}`, 
+        variant: "destructive" 
+      });
     } finally {
       setLoading(false);
     }
@@ -725,13 +785,94 @@ const AdminPurchaseDetailPage = () => {
                 <CardDescription>Created on: {formatDateSafe(purchase.created_at)}</CardDescription>
             </div>
             <div className="flex flex-col items-end gap-2">
-                <Badge variant={getStatusBadgeVariant(isEditing ? editableFields.status : purchase.status)} className="text-sm px-3 py-1 capitalize">
+                <div className="flex items-center gap-2">
+                  <Badge variant={getStatusBadgeVariant(isEditing ? editableFields.status : purchase.status)} className="text-sm px-3 py-1 capitalize flex items-center gap-1">
                     {isEditing ? editableFields.status : purchase.status}
-                </Badge>
+                    {!isEditing && purchase.status === 'Flagged' && (
+                      <AlertTriangle className="w-3 h-3" />
+                    )}
+                  </Badge>
+                  {!isEditing && (
+                    <Button 
+                      onClick={handleFlagPurchase}
+                      size="sm" 
+                      variant="outline"
+                      className="text-xs px-2 py-1 bg-white border-yellow-500 text-yellow-600 hover:bg-yellow-50"
+                      disabled={loading}
+                    >
+                      <Flag className="w-3 h-3 mr-1" />
+                      {purchase.status === 'Flagged' ? 'Unflag' : 'Flag'}
+                    </Button>
+                  )}
+                </div>
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
+          {purchase.status === 'Flagged' && !isEditing && (
+            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <div className="flex justify-between items-start mb-2">
+                    <h4 className="font-semibold text-yellow-800 dark:text-yellow-200">Flagged Purchase</h4>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="text-xs px-2 py-1 border-yellow-300 text-yellow-700 hover:bg-yellow-100"
+                      onClick={() => setIsEditingFlagReason(true)}
+                    >
+                      <Edit2 className="w-3 h-3 mr-1" />
+                      Edit Reason
+                    </Button>
+                  </div>
+                  {isEditingFlagReason ? (
+                    <div className="space-y-2">
+                      <Textarea 
+                        value={flagReasonInput}
+                        onChange={(e) => setFlagReasonInput(e.target.value)}
+                        placeholder="Enter the reason for flagging this purchase..."
+                        className="bg-white dark:bg-slate-800 border-yellow-300 dark:border-yellow-700 text-sm resize-none h-20"
+                        rows={3}
+                        autoFocus
+                      />
+                      <div className="flex gap-2">
+                        <Button 
+                          size="sm" 
+                          onClick={handleSaveFlagReason}
+                          className="bg-yellow-500 text-white hover:bg-yellow-600"
+                        >
+                          Save
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          onClick={() => {
+                            setIsEditingFlagReason(false);
+                            setFlagReasonInput(purchase.notes || '');
+                          }}
+                          className="border-yellow-300 text-yellow-700 hover:bg-yellow-100"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {purchase.notes ? (
+                        <div className="bg-white dark:bg-slate-800 rounded p-3 border border-yellow-300 dark:border-yellow-700">
+                          <p className="text-sm text-gray-700 dark:text-gray-300">{purchase.notes}</p>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-yellow-700 dark:text-yellow-300 italic">No reason provided for flagging this purchase.</p>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+          
           {isEditing ? (
             <div className="space-y-4 p-4 border rounded-md bg-slate-50 dark:bg-slate-800/50">
                 <h3 className="text-lg font-semibold mb-2 flex items-center">
@@ -792,6 +933,26 @@ const AdminPurchaseDetailPage = () => {
                     onInputChange={handleInputChange} 
                     onSelectChange={handleSelectChange}
                 />
+
+                <div className="md:col-span-2">
+                    <Label htmlFor="notes" className="text-sm font-medium text-gray-500 w-36 shrink-0">
+                        {editableFields.status === 'Flagged' ? 'Flag Reason (Required)' : 'Internal Notes'}
+                    </Label>
+                    <Textarea 
+                        id="notes" 
+                        name="notes" 
+                        value={editableFields.notes} 
+                        onChange={handleInputChange} 
+                        placeholder={editableFields.status === 'Flagged' 
+                            ? 'Please explain why this purchase is flagged...' 
+                            : 'Add any internal notes about this purchase...'}
+                        className="mt-1 text-sm resize-none h-20"
+                        rows={3}
+                    />
+                    {editableFields.status === 'Flagged' && !editableFields.notes && (
+                        <p className="text-xs text-yellow-600 mt-1">Flag reason is required when status is Flagged.</p>
+                    )}
+                </div>
 
                 <div className="md:col-span-2">
                     <Label htmlFor="status" className="text-sm font-medium text-gray-500 w-36 shrink-0">Status</Label>
