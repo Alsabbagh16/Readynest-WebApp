@@ -26,9 +26,11 @@ const CompactProductCards = () => {
             property_type,
             image_url,
             isActive,
+            hidden_from_website,
             categories (id, name)
           `)
           .eq("isActive", true)
+          .eq("hidden_from_website", false)
           .order("created_at", { ascending: false })
           .limit(6); // Limit to 6 for compact view
 

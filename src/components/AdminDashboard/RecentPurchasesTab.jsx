@@ -5,8 +5,16 @@ import { format } from 'date-fns';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import { RefreshCcw, Download, Edit, XCircle, ShoppingCart, ExternalLink, Phone, Tag, Mail, User, PlusCircle, FileText, CalendarDays } from 'lucide-react';
+import { RefreshCcw, Download, Edit, XCircle, ShoppingCart, ExternalLink, Phone, Tag, Mail, User, PlusCircle, FileText, CalendarDays, ChevronLeft, ChevronRight, Search, Filter } from 'lucide-react';
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -221,18 +229,30 @@ const createColumnConfig = (onUpdateStatus) => [
   }
 ];
 
-const RecentPurchasesTab = () => {
+const RecentPurchasesTab = ({ refreshTrigger }) => {
   const [purchases, setPurchases] = useState([]);
+  const [filteredPurchases, setFilteredPurchases] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    totalPages: 0,
+    totalItems: 0,
+    itemsPerPage: 10
+  });
   const { toast } = useToast();
   const { adminProfile, adminUser } = useAdminAuth();
   const { hasPerm, isSuperadmin, hasUiRoles } = usePermissionContext();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [activeInvoicePurchase, setActiveInvoicePurchase] = useState(null);
 
-  const fetchPurchases = useCallback(async () => {
+  const fetchPurchases = useCallback(async (page = 1, resetPagination = false) => {
     setLoading(true);
     try {
+      const itemsPerPage = pagination.itemsPerPage;
+      const offset = (page - 1) * itemsPerPage;
+      
       let query = supabase
         .from('purchases')
         .select(`
@@ -256,12 +276,38 @@ const RecentPurchasesTab = () => {
           final_amount_due_on_arrival,
           profiles!purchases_user_id_fkey ( phone, first_name, last_name ) 
         `)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .range(offset, itemsPerPage);
+
+      // Get total count for pagination
+      const { count } = await supabase
+        .from('purchases')
+        .select('count', { count: 'exact', head: true });
 
       const canViewAll = isSuperadmin || (hasUiRoles && hasPerm('purchases.view_all'));
 
       if (!canViewAll && adminUser?.id) {
           query = query.eq('user_id', adminUser.id);
+          
+          // Get filtered count
+          const { count: filteredCount } = await supabase
+            .from('purchases')
+            .select('count', { count: 'exact', head: true })
+            .eq('user_id', adminUser.id);
+          
+          if (filteredCount !== null) {
+            setPagination(prev => ({
+              ...prev,
+              totalItems: filteredCount,
+              totalPages: Math.ceil(filteredCount / itemsPerPage)
+            }));
+          }
+      } else {
+        setPagination(prev => ({
+          ...prev,
+          totalItems: count || 0,
+          totalPages: Math.ceil((count || 0) / itemsPerPage)
+        }));
       }
 
       const { data, error } = await query;
@@ -270,18 +316,69 @@ const RecentPurchasesTab = () => {
         console.error("Supabase select error in RecentPurchasesTab:", error);
         throw error;
       }
+      
+      if (resetPagination) {
+        setPagination(prev => ({
+          ...prev,
+          currentPage: 1,
+          totalItems: count || 0,
+          totalPages: Math.ceil((count || 0) / itemsPerPage)
+        }));
+      }
+      
       setPurchases(data || []);
+      setFilteredPurchases(data || []);
     } catch (error) {
       console.error("Error fetching purchases:", error, { hasUiRoles, isSuperadmin });
       toast({ title: "Error", description: "Could not fetch purchases.", variant: "destructive" });
     } finally {
       setLoading(false);
     }
-  }, [toast, adminUser, hasPerm, isSuperadmin, hasUiRoles]);
+  }, [toast, adminUser, hasPerm, isSuperadmin, hasUiRoles, pagination.itemsPerPage]);
+
+  const handlePageChange = (newPage) => {
+    setPagination(prev => ({ ...prev, currentPage: newPage }));
+    fetchPurchases(newPage);
+  };
+
+  const handleItemsPerPageChange = (newItemsPerPage) => {
+    setPagination(prev => ({
+      ...prev,
+      itemsPerPage: newItemsPerPage,
+      currentPage: 1,
+      totalPages: Math.ceil(prev.totalItems / newItemsPerPage)
+    }));
+    fetchPurchases(1, true);
+  };
 
   useEffect(() => {
-    fetchPurchases();
-  }, [fetchPurchases]);
+    fetchPurchases(1, true);
+  }, [fetchPurchases, refreshTrigger]);
+
+  useEffect(() => {
+    // Filter purchases based on search term and status filter
+    let filtered = purchases;
+    
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
+      filtered = filtered.filter(purchase => {
+        return (
+          purchase.purchase_ref_id?.toLowerCase().includes(searchLower) ||
+          purchase.name?.toLowerCase().includes(searchLower) ||
+          purchase.email?.toLowerCase().includes(searchLower) ||
+          purchase.user_phone?.toLowerCase().includes(searchLower) ||
+          purchase.product_name?.toLowerCase().includes(searchLower) ||
+          purchase.coupon_code?.toLowerCase().includes(searchLower)
+        );
+      });
+    }
+    
+    if (statusFilter !== 'All') {
+      filtered = filtered.filter(purchase => purchase.status === statusFilter);
+    }
+    
+    setFilteredPurchases(filtered);
+  }, [purchases, searchTerm, statusFilter]);
 
   const updatePurchaseStatusInList = async (purchaseRefId, newStatus, successMessage) => {
     try {
@@ -291,7 +388,7 @@ const RecentPurchasesTab = () => {
         .eq('purchase_ref_id', purchaseRefId);
       if (error) throw error;
       toast({ title: "Success", description: successMessage });
-      fetchPurchases(); 
+      fetchPurchases(1, true); 
     } catch (error) {
       console.error(`Error updating status to ${newStatus}:`, error);
       toast({ title: "Error", description: `Could not update purchase status to ${newStatus}.`, variant: "destructive" });
@@ -336,30 +433,67 @@ const RecentPurchasesTab = () => {
 
   return (
     <Card className="border-0 shadow-none rounded-none">
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <div className="space-y-1">
-          <CardTitle className="flex items-center text-2xl font-bold">
-            <ShoppingCart className="mr-3 h-7 w-7 text-primary" />
-            Recent Purchases
-          </CardTitle>
-          <CardDescription>View and manage all customer purchases.</CardDescription>
+      <CardHeader className="flex flex-col space-y-4 pb-2">
+        <div className="flex flex-row items-center justify-between">
+          <div className="space-y-1">
+            <CardTitle className="flex items-center text-2xl font-bold">
+              <ShoppingCart className="mr-3 h-7 w-7 text-primary" />
+              Recent Purchases
+            </CardTitle>
+            <CardDescription>View and manage all customer purchases.</CardDescription>
+          </div>
+          
+          <div className="flex gap-2">
+              <Button onClick={handleExport} size="sm" variant="outline" disabled={purchases.length === 0}>
+                  <Download className="mr-2 h-4 w-4" /> Export CSV
+              </Button>
+              
+              <PermissionGate permission="purchases.create">
+                  <Button size="sm" onClick={() => setIsCreateModalOpen(true)}>
+                      <PlusCircle className="mr-2 h-4 w-4" /> Create Purchase
+                  </Button>
+              </PermissionGate>
+          </div>
         </div>
         
-        <div className="flex gap-2">
-            <Button onClick={handleExport} size="sm" variant="outline" disabled={purchases.length === 0}>
-                <Download className="mr-2 h-4 w-4" /> Export CSV
-            </Button>
-            
-            <PermissionGate permission="purchases.create">
-                <Button size="sm" onClick={() => setIsCreateModalOpen(true)}>
-                    <PlusCircle className="mr-2 h-4 w-4" /> Create Purchase
-                </Button>
-            </PermissionGate>
+        {/* Search and Filter Controls */}
+        <div className="flex flex-col sm:flex-row gap-4 w-full">
+          <div className="relative flex-1 sm:max-w-md">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+            <Input
+              placeholder="Search purchases..."
+              className="pl-9 bg-white"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          
+          <div className="relative">
+            <Filter className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="pl-9 bg-white w-full sm:w-40">
+                <SelectValue placeholder="Filter status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All">All Status</SelectItem>
+                <SelectItem value="Pending">Pending</SelectItem>
+                <SelectItem value="Confirmed">Confirmed</SelectItem>
+                <SelectItem value="Completed">Completed</SelectItem>
+                <SelectItem value="Cancelled">Cancelled</SelectItem>
+                <SelectItem value="Refunded">Refunded</SelectItem>
+                <SelectItem value="Failed">Failed</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
-        {purchases.length === 0 ? (
-          <p className="text-center py-10 text-muted-foreground">No purchases recorded yet.</p>
+        {filteredPurchases.length === 0 ? (
+          <p className="text-center py-10 text-muted-foreground">
+            {searchTerm || statusFilter !== 'All' 
+              ? 'No purchases found matching your criteria.' 
+              : 'No purchases recorded yet.'}
+          </p>
         ) : (
           <div className="overflow-x-auto border rounded-md">
             <Table>
@@ -374,7 +508,7 @@ const RecentPurchasesTab = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {purchases.map((purchase) => (
+                {filteredPurchases.map((purchase) => (
                   <TableRow key={purchase.purchase_ref_id}>
                     {columnConfig.map((col, idx) => (
                       <TableCell key={idx} className={col.className}>
@@ -472,12 +606,92 @@ const RecentPurchasesTab = () => {
             </Table>
           </div>
         )}
+
+        {/* Pagination Controls */}
+        {!loading && pagination.totalItems > 0 && (
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mt-4 p-4 bg-gray-50 border-t">
+            <div className="text-sm text-gray-600">
+              Showing {((pagination.currentPage - 1) * pagination.itemsPerPage) + 1} to{' '}
+              {Math.min(pagination.currentPage * pagination.itemsPerPage, pagination.totalItems)} of{' '}
+              {pagination.totalItems} purchases
+            </div>
+            
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Items per page:</span>
+                <Select 
+                  value={pagination.itemsPerPage.toString()} 
+                  onValueChange={(value) => handleItemsPerPageChange(parseInt(value))}
+                >
+                  <SelectTrigger className="w-20 h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5">5</SelectItem>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="25">25</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handlePageChange(pagination.currentPage - 1)}
+                  disabled={pagination.currentPage <= 1}
+                  className="h-8 w-8 p-0"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                    let pageNum;
+                    if (pagination.totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (pagination.currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (pagination.currentPage >= pagination.totalPages - 2) {
+                      pageNum = pagination.totalPages - 4 + i;
+                    } else {
+                      pageNum = pagination.currentPage - 2 + i;
+                    }
+                    
+                    return (
+                      <Button
+                        key={pageNum}
+                        variant={pagination.currentPage === pageNum ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => handlePageChange(pageNum)}
+                        className="h-8 w-8 p-0"
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  })}
+                </div>
+                
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handlePageChange(pagination.currentPage + 1)}
+                  disabled={pagination.currentPage >= pagination.totalPages}
+                  className="h-8 w-8 p-0"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </CardContent>
 
       <CreatePurchaseModal 
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        onSuccess={fetchPurchases}
+        onSuccess={() => fetchPurchases(1, true)}
       />
       
       <InvoiceModal 

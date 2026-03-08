@@ -27,7 +27,9 @@ import {
   Calendar,
   MoreHorizontal,
   PlusCircle,
-  Filter
+  Filter,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { format } from 'date-fns';
 import { Link } from 'react-router-dom';
@@ -59,16 +61,39 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    totalPages: 0,
+    totalItems: 0,
+    itemsPerPage: 10
+  });
   const { adminProfile } = useAdminAuth();
   const { hasPerm, isSuperadmin, hasUiRoles, currentEmployee } = usePermissionContext();
 
   useEffect(() => {
-    fetchJobs();
+    fetchJobs(1, true);
   }, [adminProfile, refreshTrigger, hasPerm, isSuperadmin, hasUiRoles, currentEmployee]);
 
-  const fetchJobs = async () => {
+  const handlePageChange = (newPage) => {
+    setPagination(prev => ({ ...prev, currentPage: newPage }));
+    fetchJobs(newPage);
+  };
+
+  const handleItemsPerPageChange = (newItemsPerPage) => {
+    setPagination(prev => ({
+      ...prev,
+      itemsPerPage: newItemsPerPage,
+      currentPage: 1,
+      totalPages: Math.ceil(prev.totalItems / newItemsPerPage)
+    }));
+    fetchJobs(1, true);
+  };
+
+  const fetchJobs = async (page = 1, resetPagination = false) => {
     try {
       setLoading(true);
+      const itemsPerPage = pagination.itemsPerPage;
+      const offset = (page - 1) * itemsPerPage;
 
       let query = supabase
         .from('jobs')
@@ -77,7 +102,13 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
             purchase:purchases(product_name, purchase_ref_id),
             user:profiles(first_name, last_name, email)
         `)
-        .order('preferred_date', { ascending: false });
+        .order('preferred_date', { ascending: false })
+        .range(offset, itemsPerPage);
+
+      // Get total count for pagination
+      const { count } = await supabase
+        .from('jobs')
+        .select('count', { count: 'exact', head: true });
 
       // Task 6 Logic: if isSuperadmin OR (hasUiRoles AND hasPerm('jobs.view_all')) -> fetch all
       const canViewAll = isSuperadmin || (hasUiRoles && hasPerm('jobs.view_all'));
@@ -93,6 +124,26 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
           // Fallback to adminProfile.id if currentEmployee not available
           query = query.contains('assigned_employees_ids', [adminProfile.id]);
         }
+        
+        // Also get filtered count
+        const { count: filteredCount } = await supabase
+          .from('jobs')
+          .select('count', { count: 'exact', head: true })
+          .contains('assigned_employees_ids', [employeeId || adminProfile?.id]);
+        
+        if (filteredCount !== null) {
+          setPagination(prev => ({
+            ...prev,
+            totalItems: filteredCount,
+            totalPages: Math.ceil(filteredCount / itemsPerPage)
+          }));
+        }
+      } else {
+        setPagination(prev => ({
+          ...prev,
+          totalItems: count || 0,
+          totalPages: Math.ceil((count || 0) / itemsPerPage)
+        }));
       }
 
       const { data, error } = await query;
@@ -108,6 +159,15 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
         throw error;
       }
 
+      if (resetPagination) {
+        setPagination(prev => ({
+          ...prev,
+          currentPage: 1,
+          totalItems: count || 0,
+          totalPages: Math.ceil((count || 0) / itemsPerPage)
+        }));
+      }
+      
       setJobs(data || []);
     } catch (error) {
       console.error("Failed to fetch jobs:", error, {
@@ -306,6 +366,86 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
           </TableBody>
         </Table>
       </div>
+
+      {/* Pagination Controls */}
+      {!loading && pagination.totalItems > 0 && (
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mt-4 p-4 bg-gray-50 border-t">
+          <div className="text-sm text-gray-600">
+            Showing {((pagination.currentPage - 1) * pagination.itemsPerPage) + 1} to{' '}
+            {Math.min(pagination.currentPage * pagination.itemsPerPage, pagination.totalItems)} of{' '}
+            {pagination.totalItems} jobs
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600">Items per page:</span>
+              <Select 
+                value={pagination.itemsPerPage.toString()} 
+                onValueChange={(value) => handleItemsPerPageChange(parseInt(value))}
+              >
+                <SelectTrigger className="w-20 h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="5">5</SelectItem>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="25">25</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(pagination.currentPage - 1)}
+                disabled={pagination.currentPage <= 1}
+                className="h-8 w-8 p-0"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                  let pageNum;
+                  if (pagination.totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (pagination.currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (pagination.currentPage >= pagination.totalPages - 2) {
+                    pageNum = pagination.totalPages - 4 + i;
+                  } else {
+                    pageNum = pagination.currentPage - 2 + i;
+                  }
+                  
+                  return (
+                    <Button
+                      key={pageNum}
+                      variant={pagination.currentPage === pageNum ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handlePageChange(pageNum)}
+                      className="h-8 w-8 p-0"
+                    >
+                      {pageNum}
+                    </Button>
+                  );
+                })}
+              </div>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(pagination.currentPage + 1)}
+                disabled={pagination.currentPage >= pagination.totalPages}
+                className="h-8 w-8 p-0"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -51,6 +51,7 @@ const ServiceForm = ({ initialData, onSubmit, isLoading, submitButtonText = "Sub
   const [productValue, setProductValue] = useState(initialData?.value || '');
   const [productImageUrl, setProductImageUrl] = useState(initialData?.image_url || '');
   const [isActive, setIsActive] = useState(initialData?.isActive === undefined ? true : initialData.isActive);
+  const [hiddenFromWebsite, setHiddenFromWebsite] = useState(initialData?.hidden_from_website === undefined ? false : initialData.hidden_from_website);
   const [selectedAddonTemplateIds, setSelectedAddonTemplateIds] = useState([]);
 
   const [isFetchingCategories, setIsFetchingCategories] = useState(true);
@@ -89,6 +90,7 @@ const ServiceForm = ({ initialData, onSubmit, isLoading, submitButtonText = "Sub
       setProductValue(initialData.value || '');
       setProductImageUrl(initialData.image_url || '');
       setIsActive(initialData.isActive === undefined ? true : initialData.isActive);
+      setHiddenFromWebsite(initialData.hidden_from_website === undefined ? false : initialData.hidden_from_website);
       
       if (initialData.product_addon_links && initialData.product_addon_links.length > 0) {
         const initialSelectedIds = initialData.product_addon_links.map(link => link.addon_id);
@@ -154,6 +156,7 @@ const ServiceForm = ({ initialData, onSubmit, isLoading, submitButtonText = "Sub
       image_url: productImageUrl.trim() || null,
       category_id: categoryIdToUse,
       isActive: isActive,
+      hidden_from_website: hiddenFromWebsite,
     };
     
     onSubmit(productData, selectedAddonTemplateIds);
@@ -321,6 +324,18 @@ const ServiceForm = ({ initialData, onSubmit, isLoading, submitButtonText = "Sub
         />
         <Label htmlFor="isActive" className="text-slate-300">
           Product is Active
+        </Label>
+      </div>
+
+      <div className="flex items-center space-x-2 pt-2">
+        <Switch
+          id="hiddenFromWebsite"
+          checked={hiddenFromWebsite}
+          onCheckedChange={setHiddenFromWebsite}
+          className="data-[state=checked]:bg-orange-500 data-[state=unchecked]:bg-slate-600"
+        />
+        <Label htmlFor="hiddenFromWebsite" className="text-slate-300">
+          Hide from Website
         </Label>
       </div>
       

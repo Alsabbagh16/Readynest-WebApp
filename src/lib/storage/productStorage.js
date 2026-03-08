@@ -76,6 +76,7 @@ export const fetchProductsWithCategories = async () => {
       image_url,
       value,
       isActive,
+      hidden_from_website,
       created_at,
       updated_at,
       categories (id, name)

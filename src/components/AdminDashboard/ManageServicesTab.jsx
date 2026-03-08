@@ -6,7 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
-import { PlusCircle, Edit3, PackagePlus, Loader2, ImageOff, AlertTriangle } from 'lucide-react';
+import { PlusCircle, Edit3, PackagePlus, Loader2, ImageOff, AlertTriangle, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { fetchProductsWithCategories, updateProduct } from '@/lib/storage/productStorage';
 import PermissionGate from '@/components/PermissionGate';
@@ -23,6 +23,7 @@ const ManageServicesTab = () => {
     setError(null);
     try {
       const fetchedProducts = await fetchProductsWithCategories();
+      // Show all products in admin dashboard (including hidden ones)
       setProducts(fetchedProducts);
     } catch (err) {
       console.error("Error loading products:", err);
@@ -71,6 +72,28 @@ const ManageServicesTab = () => {
     }
   };
 
+  const handleToggleHidden = async (product) => {
+    const newHiddenStatus = !product.hidden_from_website;
+    try {
+      await updateProduct(product.id, { hidden_from_website: newHiddenStatus });
+      setProducts(prevProducts =>
+        prevProducts.map(p =>
+          p.id === product.id ? { ...p, hidden_from_website: newHiddenStatus } : p
+        )
+      );
+      toast({
+        title: "Visibility Updated",
+        description: `${product.name} is now ${newHiddenStatus ? 'hidden from' : 'visible on'} website.`,
+      });
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: `Failed to update visibility for ${product.name}: ${err.message}`,
+        variant: "destructive",
+      });
+    }
+  };
+
   const ProductRow = ({ product, index }) => (
     <motion.tr
       initial={{ opacity: 0, y: 20 }}
@@ -92,21 +115,45 @@ const ManageServicesTab = () => {
       <TableCell className="text-slate-300">${parseFloat(product.price).toFixed(2)}</TableCell>
       <TableCell className="text-slate-400">{product.type}</TableCell>
       <TableCell>
-        <Badge variant={product.isActive ? "default" : "destructive"} className={product.isActive ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-red-500/20 text-red-400 border-red-500/30"}>
-          {product.isActive ? 'Active' : 'Inactive'}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant={product.isActive ? "default" : "destructive"} className={product.isActive ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-red-500/20 text-red-400 border-red-500/30"}>
+            {product.isActive ? 'Active' : 'Inactive'}
+          </Badge>
+          {product.hidden_from_website && (
+            <Badge variant="secondary" className="bg-orange-500/20 text-orange-400 border-orange-500/30 flex items-center gap-1">
+              <EyeOff className="h-3 w-3" />
+              Hidden
+            </Badge>
+          )}
+        </div>
       </TableCell>
-      <TableCell className="text-right space-x-2">
+      <TableCell className="text-right">
         <PermissionGate permission="products.create">
-            <Switch
-            checked={product.isActive}
-            onCheckedChange={() => handleToggleActive(product)}
-            className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-slate-600"
-            aria-label={`Toggle active status for ${product.name}`}
-            />
+          <div className="flex items-center justify-end gap-3">
+            <div className="flex items-center gap-2">
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-[10px] text-slate-400">Active</span>
+                <Switch
+                  checked={product.isActive}
+                  onCheckedChange={() => handleToggleActive(product)}
+                  className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-slate-600"
+                  aria-label={`Toggle active status for ${product.name}`}
+                />
+              </div>
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-[10px] text-slate-400">Visible</span>
+                <Switch
+                  checked={!product.hidden_from_website}
+                  onCheckedChange={() => handleToggleHidden(product)}
+                  className="data-[state=checked]:bg-blue-600 data-[state=unchecked]:bg-orange-600"
+                  aria-label={`Toggle website visibility for ${product.name}`}
+                />
+              </div>
+            </div>
             <Button variant="outline" size="sm" onClick={() => handleEditService(product.id)} className="border-sky-500/50 text-sky-400 hover:bg-sky-500/10 hover:text-sky-300">
-            <Edit3 className="mr-1 h-4 w-4" /> Edit
+              <Edit3 className="mr-1 h-4 w-4" /> Edit
             </Button>
+          </div>
         </PermissionGate>
       </TableCell>
     </motion.tr>
