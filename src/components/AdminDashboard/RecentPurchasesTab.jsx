@@ -5,7 +5,7 @@ import { format } from 'date-fns';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import { RefreshCcw, Download, Edit, XCircle, ShoppingCart, ExternalLink, Phone, Tag, Mail, User, PlusCircle, FileText, CalendarDays, ChevronLeft, ChevronRight, Search, Filter, AlertTriangle } from 'lucide-react';
+import { RefreshCcw, Download, Edit, XCircle, ShoppingCart, ExternalLink, Phone, Tag, Mail, User, PlusCircle, FileText, CalendarDays, Calendar, ChevronLeft, ChevronRight, Search, Filter, AlertTriangle, Trash2 } from 'lucide-react';
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
@@ -35,16 +35,48 @@ import InvoiceModal from '@/components/AdminDashboard/InvoiceModal';
 import PermissionGate from '@/components/PermissionGate';
 import { formatPreferredBookingDateForAdmin } from '@/lib/dateTimeHelpers';
 
-const formatDateSafe = (dateString, includeTime = true) => {
+const formatDateSafe = (dateString, formatStr) => {
   try {
-    if (!dateString) return '—';
+    if (!dateString) return 'N/A';
     const cleanDateString = dateString.replace(/(Z|[+-]\d{2}:?\d{2})$/, '');
-    const dateObj = new Date(cleanDateString);
-    if (isNaN(dateObj.getTime())) return '—';
-    return format(dateObj, includeTime ? 'MMM d, yyyy, HH:mm' : 'MMM d, yyyy');
+    const date = new Date(cleanDateString);
+    if (isNaN(date.getTime())) return 'N/A';
+    return format(date, formatStr);
   } catch (error) {
     console.error("Error formatting date:", dateString, error);
-    return '—';
+    return 'Invalid Date';
+  }
+};
+
+const getDateRange = (filter) => {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  switch (filter) {
+    case 'today':
+      return { start: today, end: new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1) };
+    case 'yesterday':
+      return { start: yesterday, end: new Date(yesterday.getTime() + 24 * 60 * 60 * 1000 - 1) };
+    case 'thisWeek': {
+      const startOfWeek = new Date(today);
+      startOfWeek.setDate(today.getDate() - today.getDay());
+      startOfWeek.setHours(0, 0, 0, 0);
+      return { start: startOfWeek, end: new Date(now.getTime() + 24 * 60 * 60 * 1000 - 1) };
+    }
+    case 'thisMonth': {
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      return { start: startOfMonth, end: new Date(now.getTime() + 24 * 60 * 60 * 1000 - 1) };
+    }
+    case 'lastMonth': {
+      const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+      endOfLastMonth.setHours(23, 59, 59, 999);
+      return { start: startOfLastMonth, end: endOfLastMonth };
+    }
+    default:
+      return null;
   }
 };
 
@@ -238,6 +270,8 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [dateRangeFilter, setDateRangeFilter] = useState('all'); // preset date ranges
+  const [customDateRange, setCustomDateRange] = useState({ start: '', end: '' }); // custom date range
   const [pagination, setPagination] = useState({
     currentPage: 1,
     totalPages: 0,
@@ -359,7 +393,7 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
   }, [fetchPurchases, refreshTrigger]);
 
   useEffect(() => {
-    // Filter purchases based on search term and status filter
+    // Filter purchases based on search term, status filter, and date range
     let filtered = purchases;
     
     if (searchTerm) {
@@ -380,8 +414,44 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
       filtered = filtered.filter(purchase => purchase.status === statusFilter);
     }
     
+    // Date range filtering
+    if (dateRangeFilter !== 'all') {
+      if (dateRangeFilter === 'custom') {
+        // Custom date range filtering
+        if (customDateRange.start || customDateRange.end) {
+          filtered = filtered.filter(purchase => {
+            const purchaseDate = new Date(purchase.created_at);
+            const startDate = customDateRange.start ? new Date(customDateRange.start) : null;
+            const endDate = customDateRange.end ? new Date(customDateRange.end) : null;
+            
+            if (startDate && purchaseDate < startDate) return false;
+            if (endDate) {
+              const endOfDay = new Date(endDate);
+              endOfDay.setHours(23, 59, 59, 999);
+              if (purchaseDate > endOfDay) return false;
+            }
+            
+            return true;
+          });
+        }
+      } else {
+        // Preset date range filtering
+        const range = getDateRange(dateRangeFilter);
+        if (range) {
+          filtered = filtered.filter(purchase => {
+            const purchaseDate = new Date(purchase.created_at);
+            
+            if (range.start && purchaseDate < range.start) return false;
+            if (range.end && purchaseDate > range.end) return false;
+            
+            return true;
+          });
+        }
+      }
+    }
+    
     setFilteredPurchases(filtered);
-  }, [purchases, searchTerm, statusFilter]);
+  }, [purchases, searchTerm, statusFilter, dateRangeFilter, customDateRange]);
 
   const updatePurchaseStatusInList = async (purchaseRefId, newStatus, successMessage) => {
     try {
@@ -395,6 +465,21 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
     } catch (error) {
       console.error(`Error updating status to ${newStatus}:`, error);
       toast({ title: "Error", description: `Could not update purchase status to ${newStatus}.`, variant: "destructive" });
+    }
+  };
+
+  const deletePurchase = async (purchaseRefId) => {
+    try {
+      const { error } = await supabase
+        .from('purchases')
+        .delete()
+        .eq('purchase_ref_id', purchaseRefId);
+      if (error) throw error;
+      toast({ title: "Success", description: `Purchase ${purchaseRefId} has been permanently deleted.` });
+      fetchPurchases(1, true); 
+    } catch (error) {
+      console.error(`Error deleting purchase:`, error);
+      toast({ title: "Error", description: `Could not delete purchase ${purchaseRefId}.`, variant: "destructive" });
     }
   };
 
@@ -489,6 +574,49 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
               </SelectContent>
             </Select>
           </div>
+          
+          <div className="relative">
+            <Calendar className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+            <Select value={dateRangeFilter} onValueChange={setDateRangeFilter}>
+              <SelectTrigger className="pl-9 bg-white w-full sm:w-40">
+                <SelectValue placeholder="Date range" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Time</SelectItem>
+                <SelectItem value="today">Today</SelectItem>
+                <SelectItem value="yesterday">Yesterday</SelectItem>
+                <SelectItem value="thisWeek">This Week</SelectItem>
+                <SelectItem value="thisMonth">This Month</SelectItem>
+                <SelectItem value="lastMonth">Last Month</SelectItem>
+                <SelectItem value="custom">Custom Range</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          
+          {dateRangeFilter === 'custom' && (
+            <div className="flex gap-2">
+              <div className="relative">
+                <Calendar className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500 pointer-events-none" />
+                <input
+                  type="date"
+                  placeholder="Start date"
+                  className="pl-9 pr-3 py-2 bg-white border border-gray-300 rounded-md w-full sm:w-36 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  value={customDateRange.start}
+                  onChange={(e) => setCustomDateRange(prev => ({ ...prev, start: e.target.value }))}
+                />
+              </div>
+              <div className="relative">
+                <Calendar className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500 pointer-events-none" />
+                <input
+                  type="date"
+                  placeholder="End date"
+                  className="pl-9 pr-3 py-2 bg-white border border-gray-300 rounded-md w-full sm:w-36 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  value={customDateRange.end}
+                  onChange={(e) => setCustomDateRange(prev => ({ ...prev, end: e.target.value }))}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </CardHeader>
       <CardContent>
@@ -533,9 +661,9 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
                       </PermissionGate>
                       
                       <PermissionGate permission="purchases.edit">
-                          <Button variant="outline" size="sm" asChild>
+                          <Button variant="outline" size="sm" asChild title="Edit Purchase">
                             <Link to={`/admin-dashboard/purchase/${purchase.purchase_ref_id}`}>
-                              <Edit className="h-3 w-3 mr-1" /> Edit
+                              <Edit className="h-3 w-3" />
                             </Link>
                           </Button>
                       </PermissionGate>
@@ -548,8 +676,9 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
                                 size="sm"
                                 className="text-yellow-600 border-yellow-500 hover:bg-yellow-50 hover:text-yellow-700"
                                 disabled={purchase.status === 'Refunded' || purchase.status === 'Cancelled'}
+                                title="Refund Purchase"
                               >
-                                <RefreshCcw className="h-3 w-3 mr-1" /> Refund
+                                <RefreshCcw className="h-3 w-3" />
                               </Button>
                             </AlertDialogTrigger>
                             <AlertDialogContent>
@@ -572,37 +701,39 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
                           </AlertDialog>
                       </PermissionGate>
                       
-                      <PermissionGate permission="purchases.edit">
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button
-                                variant="destructiveOutline"
-                                size="sm"
-                                className="text-red-600 border-red-500 hover:bg-red-50 hover:text-red-700"
-                                disabled={purchase.status === 'Cancelled' || purchase.status === 'Refunded' || purchase.status === 'Completed'}
+                      {/* Delete button - only for superadmins */}
+                      {(adminProfile?.role === 'superadmin' || isSuperadmin) && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-red-600 border-red-500 bg-white hover:bg-red-50 hover:text-red-700"
+                              title="Delete Purchase"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Confirm Permanent Deletion</AlertDialogTitle>
+                              <AlertDialogDescription className="text-red-600">
+                                Are you sure you want to permanently delete purchase {purchase.purchase_ref_id}? 
+                                This action cannot be undone and will remove all associated data.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                className="bg-red-500 hover:bg-red-600"
+                                onClick={() => deletePurchase(purchase.purchase_ref_id)}
                               >
-                                <XCircle className="h-3 w-3 mr-1" /> Cancel
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Confirm Cancellation</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Cancel purchase {purchase.purchase_ref_id}?
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                  className="bg-red-500 hover:bg-red-600"
-                                  onClick={() => updatePurchaseStatusInList(purchase.purchase_ref_id, 'Cancelled', `Marked as cancelled.`)}
-                                >
-                                  Confirm
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                      </PermissionGate>
+                                Delete Permanently
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}

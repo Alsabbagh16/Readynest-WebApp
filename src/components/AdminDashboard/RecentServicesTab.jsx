@@ -29,7 +29,8 @@ import {
   PlusCircle,
   Filter,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Trash2
 } from "lucide-react";
 import { format } from 'date-fns';
 import { Link } from 'react-router-dom';
@@ -42,6 +43,18 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { useToast } from "@/components/ui/use-toast";
 
 const formatDateSafe = (dateString, formatStr) => {
   try {
@@ -56,11 +69,45 @@ const formatDateSafe = (dateString, formatStr) => {
   }
 };
 
+const getDateRange = (filter) => {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  
+  switch (filter) {
+    case 'today':
+      return { start: today, end: new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1) };
+    case 'yesterday':
+      return { start: yesterday, end: new Date(yesterday.getTime() + 24 * 60 * 60 * 1000 - 1) };
+    case 'thisWeek': {
+      const startOfWeek = new Date(today);
+      startOfWeek.setDate(today.getDate() - today.getDay());
+      startOfWeek.setHours(0, 0, 0, 0);
+      return { start: startOfWeek, end: new Date(now.getTime() + 24 * 60 * 60 * 1000 - 1) };
+    }
+    case 'thisMonth': {
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      return { start: startOfMonth, end: new Date(now.getTime() + 24 * 60 * 60 * 1000 - 1) };
+    }
+    case 'lastMonth': {
+      const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+      endOfLastMonth.setHours(23, 59, 59, 999);
+      return { start: startOfLastMonth, end: endOfLastMonth };
+    }
+    default:
+      return null;
+  }
+};
+
 const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [dateRangeFilter, setDateRangeFilter] = useState('all'); // preset date ranges
+  const [customDateRange, setCustomDateRange] = useState({ start: '', end: '' }); // custom date range
   const [pagination, setPagination] = useState({
     currentPage: 1,
     totalPages: 0,
@@ -69,6 +116,7 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
   });
   const { adminProfile } = useAdminAuth();
   const { hasPerm, isSuperadmin, hasUiRoles, currentEmployee } = usePermissionContext();
+  const { toast } = useToast();
 
   useEffect(() => {
     fetchJobs(1, true);
@@ -191,6 +239,21 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
     }
   };
 
+  const deleteJob = async (jobRefId) => {
+    try {
+      const { error } = await supabase
+        .from('jobs')
+        .delete()
+        .eq('job_ref_id', jobRefId);
+      if (error) throw error;
+      toast({ title: "Success", description: `Job ${jobRefId} has been permanently deleted.` });
+      fetchJobs(1, true); 
+    } catch (error) {
+      console.error(`Error deleting job:`, error);
+      toast({ title: "Error", description: `Could not delete job ${jobRefId}.`, variant: "destructive" });
+    }
+  };
+
   const filteredJobs = jobs.filter(job => {
     const searchLower = searchTerm.toLowerCase();
     const matchesSearch = 
@@ -200,7 +263,36 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
     
     const matchesStatus = statusFilter === 'All' || job.status === statusFilter;
 
-    return matchesSearch && matchesStatus;
+    // Date range filtering
+    let matchesDateRange = true;
+    if (dateRangeFilter !== 'all') {
+      if (dateRangeFilter === 'custom') {
+        // Custom date range filtering
+        if (customDateRange.start || customDateRange.end) {
+          const jobDate = new Date(job.preferred_date);
+          const startDate = customDateRange.start ? new Date(customDateRange.start) : null;
+          const endDate = customDateRange.end ? new Date(customDateRange.end) : null;
+          
+          if (startDate && jobDate < startDate) matchesDateRange = false;
+          if (endDate) {
+            const endOfDay = new Date(endDate);
+            endOfDay.setHours(23, 59, 59, 999);
+            if (jobDate > endOfDay) matchesDateRange = false;
+          }
+        }
+      } else {
+        // Preset date range filtering
+        const range = getDateRange(dateRangeFilter);
+        if (range) {
+          const jobDate = new Date(job.preferred_date);
+          
+          if (range.start && jobDate < range.start) matchesDateRange = false;
+          if (range.end && jobDate > range.end) matchesDateRange = false;
+        }
+      }
+    }
+
+    return matchesSearch && matchesStatus && matchesDateRange;
   });
 
   const canCreateJob = isSuperadmin || (hasUiRoles ? hasPerm('jobs.create') : true);
@@ -238,6 +330,49 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
                   </SelectContent>
                 </Select>
               </div>
+              
+              <div className="relative">
+                <Calendar className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+                <Select value={dateRangeFilter} onValueChange={setDateRangeFilter}>
+                  <SelectTrigger className="pl-9 bg-white w-full md:w-40">
+                    <SelectValue placeholder="Date range" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Time</SelectItem>
+                    <SelectItem value="today">Today</SelectItem>
+                    <SelectItem value="yesterday">Yesterday</SelectItem>
+                    <SelectItem value="thisWeek">This Week</SelectItem>
+                    <SelectItem value="thisMonth">This Month</SelectItem>
+                    <SelectItem value="lastMonth">Last Month</SelectItem>
+                    <SelectItem value="custom">Custom Range</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {dateRangeFilter === 'custom' && (
+                <div className="flex gap-2">
+                  <div className="relative">
+                    <Calendar className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500 pointer-events-none" />
+                    <input
+                      type="date"
+                      placeholder="Start date"
+                      className="pl-9 pr-3 py-2 bg-white border border-gray-300 rounded-md w-full md:w-36 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      value={customDateRange.start}
+                      onChange={(e) => setCustomDateRange(prev => ({ ...prev, start: e.target.value }))}
+                    />
+                  </div>
+                  <div className="relative">
+                    <Calendar className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500 pointer-events-none" />
+                    <input
+                      type="date"
+                      placeholder="End date"
+                      className="pl-9 pr-3 py-2 bg-white border border-gray-300 rounded-md w-full md:w-36 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      value={customDateRange.end}
+                      onChange={(e) => setCustomDateRange(prev => ({ ...prev, end: e.target.value }))}
+                    />
+                  </div>
+                </div>
+              )}
               
               {canCreateJob && (
                 <Button asChild className="shrink-0">
@@ -356,6 +491,36 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
                                             <Eye className="mr-2 h-4 w-4" /> View Details
                                         </Link>
                                     </DropdownMenuItem>
+                                    {(adminProfile?.role === 'superadmin' || isSuperadmin) && (
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <DropdownMenuItem 
+                                                    className="text-red-600 focus:text-red-600"
+                                                    onSelect={(e) => e.preventDefault()}
+                                                >
+                                                    <Trash2 className="mr-2 h-4 w-4" /> Delete Job
+                                                </DropdownMenuItem>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>Confirm Permanent Deletion</AlertDialogTitle>
+                                                    <AlertDialogDescription className="text-red-600">
+                                                        Are you sure you want to permanently delete job {job.job_ref_id}? 
+                                                        This action cannot be undone and will remove all associated data.
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                    <AlertDialogAction
+                                                        className="bg-red-500 hover:bg-red-600"
+                                                        onClick={() => deleteJob(job.job_ref_id)}
+                                                    >
+                                                        Delete Permanently
+                                                    </AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    )}
                                 </DropdownMenuContent>
                             </DropdownMenu>
                         </div>
