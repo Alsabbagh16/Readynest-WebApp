@@ -84,7 +84,7 @@ const calculateTransactionTotals = (baseAmountStr, discountType, discountValueSt
     };
 };
 
-const availableStatuses = ["Pending Confirmation", "Pending", "Confirmed", "Paid", "Processing", "Completed", "Cancelled", "Refunded", "Failed", "Flagged"];
+const availableStatuses = ["Pending", "Confirmed", "Paid", "Processing", "Completed", "Cancelled", "Refunded", "Failed", "Flagged"];
 
 // --- Components ---
 

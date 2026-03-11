@@ -264,7 +264,7 @@ const AdminCreateJobPage = () => {
     job_ref_id: generateJobRefId(),
     document_urls: [],
     preferred_date: '',
-    status: 'Pending Assignment',
+    status: 'Scheduled',
     user_name: '',
     user_email: '',
     user_phone: '',

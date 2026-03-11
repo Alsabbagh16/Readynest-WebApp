@@ -287,9 +287,7 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
   const fetchPurchases = useCallback(async (page = 1, resetPagination = false) => {
     setLoading(true);
     try {
-      const itemsPerPage = pagination.itemsPerPage;
-      const offset = (page - 1) * itemsPerPage;
-      
+      // Fetch all purchases for client-side filtering
       let query = supabase
         .from('purchases')
         .select(`
@@ -313,38 +311,13 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
           final_amount_due_on_arrival,
           profiles!purchases_user_id_fkey ( phone, first_name, last_name ) 
         `)
-        .order('created_at', { ascending: false })
-        .range(offset, itemsPerPage);
+        .order('created_at', { ascending: false });
 
-      // Get total count for pagination
-      const { count } = await supabase
-        .from('purchases')
-        .select('count', { count: 'exact', head: true });
-
+      // Task 6 Logic: if isSuperadmin OR (hasUiRoles AND hasPerm('purchases.view_all')) -> fetch all
       const canViewAll = isSuperadmin || (hasUiRoles && hasPerm('purchases.view_all'));
 
       if (!canViewAll && adminUser?.id) {
-          query = query.eq('user_id', adminUser.id);
-          
-          // Get filtered count
-          const { count: filteredCount } = await supabase
-            .from('purchases')
-            .select('count', { count: 'exact', head: true })
-            .eq('user_id', adminUser.id);
-          
-          if (filteredCount !== null) {
-            setPagination(prev => ({
-              ...prev,
-              totalItems: filteredCount,
-              totalPages: Math.ceil(filteredCount / itemsPerPage)
-            }));
-          }
-      } else {
-        setPagination(prev => ({
-          ...prev,
-          totalItems: count || 0,
-          totalPages: Math.ceil((count || 0) / itemsPerPage)
-        }));
+        query = query.eq('user_id', adminUser.id);
       }
 
       const { data, error } = await query;
@@ -354,16 +327,27 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
         throw error;
       }
       
+      // Set all purchases for client-side filtering
+      setPurchases(data || []);
+      
+      // Get total count for pagination
+      const totalCount = data?.length || 0;
+      
       if (resetPagination) {
         setPagination(prev => ({
           ...prev,
           currentPage: 1,
-          totalItems: count || 0,
-          totalPages: Math.ceil((count || 0) / itemsPerPage)
+          totalItems: totalCount,
+          totalPages: Math.ceil(totalCount / prev.itemsPerPage)
+        }));
+      } else {
+        setPagination(prev => ({
+          ...prev,
+          totalItems: totalCount,
+          totalPages: Math.ceil(totalCount / prev.itemsPerPage)
         }));
       }
       
-      setPurchases(data || []);
       setFilteredPurchases(data || []);
     } catch (error) {
       console.error("Error fetching purchases:", error, { hasUiRoles, isSuperadmin });
@@ -371,19 +355,19 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
     } finally {
       setLoading(false);
     }
-  }, [toast, adminUser, hasPerm, isSuperadmin, hasUiRoles, pagination.itemsPerPage]);
+  }, [toast, adminUser, hasPerm, isSuperadmin, hasUiRoles]);
 
   const handlePageChange = (newPage) => {
     setPagination(prev => ({ ...prev, currentPage: newPage }));
-    fetchPurchases(newPage);
   };
 
   const handleItemsPerPageChange = (newItemsPerPage) => {
+    const itemsPerPage = newItemsPerPage === 'all' ? filteredPurchases.length : newItemsPerPage;
     setPagination(prev => ({
       ...prev,
-      itemsPerPage: newItemsPerPage,
+      itemsPerPage: itemsPerPage,
       currentPage: 1,
-      totalPages: Math.ceil(prev.totalItems / newItemsPerPage)
+      totalPages: Math.ceil(prev.totalItems / itemsPerPage)
     }));
     fetchPurchases(1, true);
   };
@@ -451,7 +435,22 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
     }
     
     setFilteredPurchases(filtered);
+    
+    // Update pagination based on filtered results
+    setPagination(prev => ({
+      ...prev,
+      totalItems: filtered.length,
+      totalPages: Math.ceil(filtered.length / prev.itemsPerPage),
+      currentPage: 1 // Reset to first page when filters change
+    }));
   }, [purchases, searchTerm, statusFilter, dateRangeFilter, customDateRange]);
+
+  // Get paginated data from filtered results
+  const getPaginatedPurchases = () => {
+    const startIndex = (pagination.currentPage - 1) * pagination.itemsPerPage;
+    const endIndex = startIndex + pagination.itemsPerPage;
+    return filteredPurchases.slice(startIndex, endIndex);
+  };
 
   const updatePurchaseStatusInList = async (purchaseRefId, newStatus, successMessage) => {
     try {
@@ -566,6 +565,7 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
                 <SelectItem value="All">All Status</SelectItem>
                 <SelectItem value="Pending">Pending</SelectItem>
                 <SelectItem value="Confirmed">Confirmed</SelectItem>
+                <SelectItem value="Paid">Paid</SelectItem>
                 <SelectItem value="Completed">Completed</SelectItem>
                 <SelectItem value="Cancelled">Cancelled</SelectItem>
                 <SelectItem value="Refunded">Refunded</SelectItem>
@@ -620,7 +620,7 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
         </div>
       </CardHeader>
       <CardContent>
-        {filteredPurchases.length === 0 ? (
+        {getPaginatedPurchases().length === 0 ? (
           <p className="text-center py-10 text-muted-foreground">
             {searchTerm || statusFilter !== 'All' 
               ? 'No purchases found matching your criteria.' 
@@ -640,7 +640,7 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredPurchases.map((purchase) => (
+                {getPaginatedPurchases().map((purchase) => (
                   <TableRow key={purchase.purchase_ref_id}>
                     {columnConfig.map((col, idx) => (
                       <TableCell key={idx} className={col.className}>
@@ -755,8 +755,8 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
               <div className="flex items-center gap-2">
                 <span className="text-sm text-gray-600">Items per page:</span>
                 <Select 
-                  value={pagination.itemsPerPage.toString()} 
-                  onValueChange={(value) => handleItemsPerPageChange(parseInt(value))}
+                  value={pagination.itemsPerPage === filteredPurchases.length ? 'all' : pagination.itemsPerPage.toString()} 
+                  onValueChange={(value) => handleItemsPerPageChange(value === 'all' ? 'all' : parseInt(value))}
                 >
                   <SelectTrigger className="w-20 h-8">
                     <SelectValue />
@@ -766,6 +766,7 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
                     <SelectItem value="10">10</SelectItem>
                     <SelectItem value="25">25</SelectItem>
                     <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="all">All</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

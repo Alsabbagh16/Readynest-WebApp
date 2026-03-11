@@ -140,9 +140,8 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
   const fetchJobs = async (page = 1, resetPagination = false) => {
     try {
       setLoading(true);
-      const itemsPerPage = pagination.itemsPerPage;
-      const offset = (page - 1) * itemsPerPage;
-
+      
+      // Fetch all jobs for client-side filtering
       let query = supabase
         .from('jobs')
         .select(`
@@ -150,13 +149,7 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
             purchase:purchases(product_name, purchase_ref_id),
             user:profiles(first_name, last_name, email)
         `)
-        .order('preferred_date', { ascending: false })
-        .range(offset, itemsPerPage);
-
-      // Get total count for pagination
-      const { count } = await supabase
-        .from('jobs')
-        .select('count', { count: 'exact', head: true });
+        .order('preferred_date', { ascending: false });
 
       // Task 6 Logic: if isSuperadmin OR (hasUiRoles AND hasPerm('jobs.view_all')) -> fetch all
       const canViewAll = isSuperadmin || (hasUiRoles && hasPerm('jobs.view_all'));
@@ -172,26 +165,6 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
           // Fallback to adminProfile.id if currentEmployee not available
           query = query.contains('assigned_employees_ids', [adminProfile.id]);
         }
-        
-        // Also get filtered count
-        const { count: filteredCount } = await supabase
-          .from('jobs')
-          .select('count', { count: 'exact', head: true })
-          .contains('assigned_employees_ids', [employeeId || adminProfile?.id]);
-        
-        if (filteredCount !== null) {
-          setPagination(prev => ({
-            ...prev,
-            totalItems: filteredCount,
-            totalPages: Math.ceil(filteredCount / itemsPerPage)
-          }));
-        }
-      } else {
-        setPagination(prev => ({
-          ...prev,
-          totalItems: count || 0,
-          totalPages: Math.ceil((count || 0) / itemsPerPage)
-        }));
       }
 
       const { data, error } = await query;
@@ -206,17 +179,27 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
         });
         throw error;
       }
-
+      
+      // Set all jobs for client-side filtering
+      setJobs(data || []);
+      
+      // Get total count for pagination
+      const totalCount = data?.length || 0;
+      
       if (resetPagination) {
         setPagination(prev => ({
           ...prev,
           currentPage: 1,
-          totalItems: count || 0,
-          totalPages: Math.ceil((count || 0) / itemsPerPage)
+          totalItems: totalCount,
+          totalPages: Math.ceil(totalCount / prev.itemsPerPage)
+        }));
+      } else {
+        setPagination(prev => ({
+          ...prev,
+          totalItems: totalCount,
+          totalPages: Math.ceil(totalCount / prev.itemsPerPage)
         }));
       }
-      
-      setJobs(data || []);
     } catch (error) {
       console.error("Failed to fetch jobs:", error, {
         hasUiRoles,
@@ -261,7 +244,9 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
       job.user_name?.toLowerCase().includes(searchLower) ||
       job.user_email?.toLowerCase().includes(searchLower);
     
-    const matchesStatus = statusFilter === 'All' || job.status === statusFilter;
+    const matchesStatus = statusFilter === 'All' || 
+    (statusFilter === 'Pending' && (job.status === 'Pending' || job.status === 'Pending Assignment')) ||
+    (statusFilter !== 'Pending' && job.status === statusFilter);
 
     // Date range filtering
     let matchesDateRange = true;
@@ -294,6 +279,23 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
 
     return matchesSearch && matchesStatus && matchesDateRange;
   });
+
+  // Update pagination based on filtered results
+  useEffect(() => {
+    setPagination(prev => ({
+      ...prev,
+      totalItems: filteredJobs.length,
+      totalPages: Math.ceil(filteredJobs.length / prev.itemsPerPage),
+      currentPage: 1 // Reset to first page when filters change
+    }));
+  }, [filteredJobs.length, pagination.itemsPerPage]);
+
+  // Get paginated data from filtered results
+  const getPaginatedJobs = () => {
+    const startIndex = (pagination.currentPage - 1) * pagination.itemsPerPage;
+    const endIndex = startIndex + pagination.itemsPerPage;
+    return filteredJobs.slice(startIndex, endIndex);
+  };
 
   const canCreateJob = isSuperadmin || (hasUiRoles ? hasPerm('jobs.create') : true);
 
@@ -404,12 +406,12 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
                 <TableRow>
                     <TableCell colSpan={8} className="h-24 text-center">Loading jobs...</TableCell>
                 </TableRow>
-            ) : filteredJobs.length === 0 ? (
+            ) : getPaginatedJobs().length === 0 ? (
                 <TableRow>
                     <TableCell colSpan={8} className="h-24 text-center text-gray-500">No jobs found matching your criteria.</TableCell>
                 </TableRow>
             ) : (
-                filteredJobs.map((job) => (
+                getPaginatedJobs().map((job) => (
                 <TableRow key={job.job_ref_id} className="hover:bg-gray-50/50">
                     <TableCell className="font-medium">
                         <Link to={`/admin-dashboard/job/${job.job_ref_id}`} className="text-primary hover:underline">
