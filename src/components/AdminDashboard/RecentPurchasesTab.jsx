@@ -485,15 +485,15 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
   const columnConfig = createColumnConfig(updatePurchaseStatusInList);
   
   const handleExport = () => {
-    if (purchases.length === 0) {
-      toast({ title: "No Data", description: "There are no purchases to export." });
+    if (filteredPurchases.length === 0) {
+      toast({ title: "No Data", description: "There are no purchases to export with the current filters." });
       return;
     }
 
     const headers = columnConfig.map(col => col.header);
     const csvRows = [headers.join(",")];
 
-    purchases.forEach(p => {
+    filteredPurchases.forEach(p => {
       const row = columnConfig.map(col => {
          let val = col.csvFn ? col.csvFn(p) : (p[col.accessor] || '');
          const stringVal = String(val).replace(/"/g, '""');
@@ -506,12 +506,22 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
     link.setAttribute("href", url);
-    link.setAttribute("download", `purchases_export_${new Date().toISOString().split('T')[0]}.csv`);
+    const filename = searchTerm || statusFilter !== 'all' || dateRangeFilter !== 'all' 
+      ? `filtered_purchases_export_${new Date().toISOString().split('T')[0]}.csv`
+      : `purchases_export_${new Date().toISOString().split('T')[0]}.csv`;
+    link.setAttribute("download", filename);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast({ title: "Export Successful", description: "Purchases CSV file downloaded." });
+    
+    const itemCount = filteredPurchases.length;
+    const totalItems = purchases.length;
+    const message = itemCount === totalItems 
+      ? `Exported all ${itemCount} purchases.`
+      : `Exported ${itemCount} of ${totalItems} purchases (filtered results).`;
+    
+    toast({ title: "Export Successful", description: message });
   };
 
   if (loading) {
@@ -531,7 +541,7 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
           </div>
           
           <div className="flex gap-2">
-              <Button onClick={handleExport} size="sm" variant="outline" disabled={purchases.length === 0}>
+              <Button onClick={handleExport} size="sm" variant="outline" disabled={filteredPurchases.length === 0}>
                   <Download className="mr-2 h-4 w-4" /> Export CSV
               </Button>
               

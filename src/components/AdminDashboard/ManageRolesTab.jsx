@@ -60,11 +60,22 @@ const ManageRolesTab = () => {
         .order('module');
       if (permsError) throw permsError;
 
+      // Add hardcoded create customer permission
+      const allPermissions = [
+        ...permsData,
+        {
+          id: 'accounts_create_customer',
+          key: 'accounts.create_customer',
+          description: 'Create new customer accounts',
+          module: 'accounts'
+        }
+      ];
+
       // Fetch Employees
       const fetchedEmployees = await getEmployees();
 
       setRoles(rolesData);
-      setPermissions(permsData);
+      setPermissions(allPermissions);
       setEmployees(fetchedEmployees);
       
       // Fetch Users with assigned roles
@@ -124,11 +135,21 @@ const ManageRolesTab = () => {
   const handleEditRole = (role) => {
     setEditingRole(role);
     const rolePerms = role.ui_role_permissions.map(rp => rp.permission_id);
+    
+    // Check if this role should have the hardcoded create customer permission
+    // For now, we'll add it if the role has any accounts permissions
+    const hasCreateCustomer = rolePerms.some(pid => {
+      const perm = permissions.find(p => p.id === pid);
+      return perm && perm.module === 'accounts' && perm.key === 'accounts.update_delete';
+    });
+    
+    const allPerms = hasCreateCustomer ? [...rolePerms, 'accounts_create_customer'] : rolePerms;
+    
     setRoleForm({ 
       name: role.name, 
       description: role.description || '', 
       mapped_backend_role: role.mapped_backend_role || '',
-      permissions: rolePerms 
+      permissions: allPerms 
     });
     setIsRoleDialogOpen(true);
   };
@@ -161,8 +182,11 @@ const ManageRolesTab = () => {
 
       await supabase.from('ui_role_permissions').delete().eq('role_id', roleId);
       
-      if (roleForm.permissions.length > 0) {
-        const permInserts = roleForm.permissions.map(pid => ({ role_id: roleId, permission_id: pid }));
+      // Only save database permissions (filter out hardcoded permissions)
+      const dbPermissions = roleForm.permissions.filter(pid => pid !== 'accounts_create_customer');
+      
+      if (dbPermissions.length > 0) {
+        const permInserts = dbPermissions.map(pid => ({ role_id: roleId, permission_id: pid }));
         const { error: permError } = await supabase.from('ui_role_permissions').insert(permInserts);
         if (permError) throw permError;
       }

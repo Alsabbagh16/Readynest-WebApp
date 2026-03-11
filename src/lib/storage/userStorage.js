@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { v4 as uuidv4 } from 'uuid';
+import { createClient } from '@supabase/supabase-js';
 
 export const getAllUsers = async () => {
   const { data, error } = await supabase
@@ -18,7 +19,40 @@ export const getAllUsers = async () => {
     dob: u.dob ? u.dob : null, 
     name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email || 'Unnamed User',
     userType: u.user_type || 'Personal',
+    createdByAdmin: u.created_by_admin || null
   }));
+};
+
+export const createUser = async (userData) => {
+  try {
+    // Get current admin session before creating user
+    const { data: { session } } = await supabase.auth.getSession();
+    const adminName = session?.user?.user_metadata?.first_name || session?.user?.email || 'Unknown Admin';
+
+    // Call the Edge Function to create user without auto-login
+    const { data, error } = await supabase.functions.invoke('create-user', {
+      body: {
+        userData: {
+          ...userData,
+          createdByAdmin: adminName
+        }
+      }
+    });
+
+    if (error) {
+      console.error('Error calling create-user function:', error);
+      throw new Error(`Failed to create user account: ${error.message}`);
+    }
+
+    if (!data?.success) {
+      throw new Error(data?.error || 'Failed to create user account');
+    }
+
+    return data.user;
+  } catch (error) {
+    console.error('Error in createUser:', error);
+    throw error;
+  }
 };
 
 export const findUserById = async (userId) => {
@@ -44,7 +78,8 @@ export const findUserById = async (userId) => {
     notes: data.user_notes && data.user_notes.length > 0 ? data.user_notes[0].notes : '',
     userType: data.user_type || 'Personal',
     addresses: data.addresses || [], 
-    document_urls: data.document_urls || [], 
+    document_urls: data.document_urls || [],
+    createdByAdmin: data.created_by_admin || null,
   } : null;
 };
 
@@ -159,21 +194,36 @@ export const adminUpdateCredits = async (userId, newCreditsTotal) => {
 };
 
 export const deleteUser = async (userId) => {
-  await supabase.from('addresses').delete().eq('user_id', userId);
-  await supabase.from('user_notes').delete().eq('user_id', userId);
-  await supabase.from('bookings').update({ user_id: null }).eq('user_id', userId); 
+  try {
+    // Call the Edge Function to delete the user completely
+    const { data, error } = await supabase.functions.invoke('delete-user', {
+      body: { userId }
+    });
 
-  const { error: profileError } = await supabase
-    .from('profiles')
-    .delete()
-    .eq('id', userId);
+    if (error) {
+      console.error(`Error calling delete-user function:`, error);
+      
+      // Fallback: try to delete just the profile data
+      console.log('Falling back to profile-only deletion...');
+      await supabase.from('addresses').delete().eq('user_id', userId);
+      await supabase.from('user_notes').delete().eq('user_id', userId);
+      await supabase.from('bookings').update({ user_id: null }).eq('user_id', userId); 
 
-  if (profileError) {
-    console.error(`Error deleting profile for user ${userId}:`, profileError);
-    throw profileError;
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('id', userId);
+
+      if (profileError) {
+        throw new Error(`Error deleting profile: ${profileError.message}`);
+      }
+    }
+
+    return true;
+  } catch (error) {
+    console.error(`Error deleting user ${userId}:`, error);
+    throw error;
   }
-  
-  return true;
 };
 
 export const saveUserNotes = async (userId, notes) => {

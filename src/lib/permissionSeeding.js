@@ -14,6 +14,7 @@ const REQUIRED_PERMISSIONS = [
   { key: 'products.create', description: 'Manage products and services', module: 'products' },
   { key: 'addons_templates.create', description: 'Manage addons', module: 'products' },
   { key: 'coupons.create', description: 'Manage coupons', module: 'coupons' },
+  { key: 'accounts.create_customer', description: 'Create new customer accounts', module: 'accounts' },
   { key: 'accounts.update_delete', description: 'Manage registered user accounts', module: 'accounts' },
   { key: 'roles.manage', description: 'Manage RBAC roles', module: 'settings' },
   { key: 'tab.recent_purchases.view', description: 'View Recent Purchases tab', module: 'purchases' },

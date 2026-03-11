@@ -107,7 +107,7 @@ const SavedAddressesSection = ({ addresses }) => {
     );
 };
 
-const AdminNotesSection = ({ notes, setNotes, handleSaveNotes }) => (
+const AdminNotesSection = ({ notes, setNotes, handleSaveNotes, createdByAdmin }) => (
     <section>
         <div className="flex justify-between items-center border-b pb-2 mb-3 dark:border-slate-700">
            <h3 className="font-semibold text-lg dark:text-slate-100">Admin Notes</h3>
@@ -115,6 +115,13 @@ const AdminNotesSection = ({ notes, setNotes, handleSaveNotes }) => (
                <Save className="mr-2 h-4 w-4" /> Save Notes
            </Button>
         </div>
+        {createdByAdmin && (
+            <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded-md dark:bg-blue-900/20 dark:border-blue-800">
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                    <strong>Created by:</strong> {createdByAdmin}
+                </p>
+            </div>
+        )}
         <Textarea
             placeholder="Enter private notes for this user (visible to admins only)..."
             value={notes}
@@ -473,7 +480,7 @@ const AdminUserProfilePage = () => {
                 <CardContent className="space-y-6">
                     <UserInfoSection user={user} />
                     <SavedAddressesSection addresses={user.addresses || []} />
-                    <AdminNotesSection notes={notes} setNotes={setNotes} handleSaveNotes={handleSaveNotes} />
+                    <AdminNotesSection notes={notes} setNotes={setNotes} handleSaveNotes={handleSaveNotes} createdByAdmin={user.createdByAdmin} />
                     <PurchaseHistorySection purchaseHistory={purchaseHistory} />
                     <UserDocumentsManager 
                         userId={user.id}

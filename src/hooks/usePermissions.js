@@ -74,6 +74,11 @@ export const usePermissions = () => {
         }
       });
 
+      // Add hardcoded create customer permission if user has accounts.update_delete
+      if (permsSet.has('accounts.update_delete')) {
+        permsSet.add('accounts.create_customer');
+      }
+
       setPermissions(permsSet);
       setAssignedUiRoles(rolesList);
       setHasUiRoles(rolesList.length > 0);
