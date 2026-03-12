@@ -141,7 +141,7 @@ const createColumnConfig = (onUpdateStatus) => [
             {displayDate}
           </div>
           <span className="text-xs text-muted-foreground ml-5">
-            Created: {formatDateSafe(purchase.created_at, false)}
+            Created: {formatDateSafe(purchase.created_at, 'MMM d, yyyy')}
           </span>
         </div>
       );

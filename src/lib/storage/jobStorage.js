@@ -56,11 +56,18 @@ export const updateJob = async (jobRefId, updateData) => {
         if (!val.isValid) throw new Error("Job time must be between 08:30 and 17:00.");
     }
 
-    const { error } = await supabase
+    const { data, error } = await supabase
         .from('jobs')
         .update({ ...updateData, updated_at: new Date().toISOString() })
-        .eq('job_ref_id', jobRefId);
+        .eq('job_ref_id', jobRefId)
+        .select('job_ref_id');
+
     if (error) throw error;
+
+    if (!data || data.length === 0) {
+        throw new Error('Update was not applied (no rows updated). You may not have permission to edit this job.');
+    }
+
     return true;
 };
 

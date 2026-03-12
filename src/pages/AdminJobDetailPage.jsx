@@ -432,6 +432,70 @@ const JobEditForm = ({ editableFields, handleInputChange, handleStatusChange, al
                 </Select>
             </div>
         </div>
+
+        <div className="space-y-4 p-4 border rounded bg-white dark:bg-slate-800 dark:border-slate-600">
+            <Label className="flex items-center dark:text-slate-300 mb-2">
+                <MapPin className="h-4 w-4 mr-2" /> Service Address
+            </Label>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <Label htmlFor="user_address_street_edit" className="dark:text-slate-300">Street</Label>
+                    <Input
+                        id="user_address_street_edit"
+                        name="user_address_street"
+                        value={editableFields.user_address_street}
+                        onChange={handleInputChange}
+                        className="mt-1 dark:bg-slate-700 dark:border-slate-600"
+                    />
+                </div>
+
+                <div>
+                    <Label htmlFor="user_address_city_edit" className="dark:text-slate-300">City</Label>
+                    <Input
+                        id="user_address_city_edit"
+                        name="user_address_city"
+                        value={editableFields.user_address_city}
+                        onChange={handleInputChange}
+                        className="mt-1 dark:bg-slate-700 dark:border-slate-600"
+                    />
+                </div>
+
+                <div>
+                    <Label htmlFor="user_address_zip_edit" className="dark:text-slate-300">Block</Label>
+                    <Input
+                        id="user_address_zip_edit"
+                        name="user_address_zip"
+                        value={editableFields.user_address_zip}
+                        onChange={handleInputChange}
+                        className="mt-1 dark:bg-slate-700 dark:border-slate-600"
+                    />
+                </div>
+
+                <div>
+                    <Label htmlFor="user_address_phone_edit" className="dark:text-slate-300">Address Phone</Label>
+                    <Input
+                        id="user_address_phone_edit"
+                        name="user_address_phone"
+                        value={editableFields.user_address_phone}
+                        onChange={handleInputChange}
+                        className="mt-1 dark:bg-slate-700 dark:border-slate-600"
+                    />
+                </div>
+
+                <div>
+                    <Label htmlFor="user_address_alt_phone_edit" className="dark:text-slate-300">Alt. Phone</Label>
+                    <Input
+                        id="user_address_alt_phone_edit"
+                        name="user_address_alt_phone"
+                        value={editableFields.user_address_alt_phone}
+                        onChange={handleInputChange}
+                        className="mt-1 dark:bg-slate-700 dark:border-slate-600"
+                    />
+                </div>
+            </div>
+        </div>
+
         <JobCustomerInfoSection job={{}} purchaseDetails={{}} isEditing={true} editableFields={editableFields} handleInputChange={handleInputChange} />
         <JobAssignedEmployeesSection isEditing={true} editableFields={editableFields} allEmployees={allEmployees} handleEmployeeSelect={handleEmployeeSelect} />
         <JobInternalNotesSection job={{}} isEditing={true} editableFields={editableFields} handleInputChange={handleInputChange} />
@@ -472,6 +536,11 @@ const AdminJobDetailPage = () => {
     assigned_employees_ids: [],
     notes: '',
     user_phone: '', 
+    user_address_street: '',
+    user_address_city: '',
+    user_address_zip: '',
+    user_address_phone: '',
+    user_address_alt_phone: '',
     purchase_ref_id: null,
   });
   
@@ -493,6 +562,11 @@ const AdminJobDetailPage = () => {
         assigned_employees_ids: jobData.assigned_employees_ids || [],
         notes: jobData.notes || '',
         user_phone: jobData.user_phone || '',
+        user_address_street: jobData.user_address?.street || '',
+        user_address_city: jobData.user_address?.city || '',
+        user_address_zip: jobData.user_address?.zip || '',
+        user_address_phone: jobData.user_address?.phone || '',
+        user_address_alt_phone: jobData.user_address?.alt_phone || '',
         purchase_ref_id: jobData.purchase_ref_id || null,
       });
 
@@ -614,6 +688,14 @@ const AdminJobDetailPage = () => {
         assigned_employees_ids: editableFields.assigned_employees_ids,
         notes: editableFields.notes,
         user_phone: editableFields.user_phone,
+        user_address: {
+          ...(job?.user_address || {}),
+          street: editableFields.user_address_street,
+          city: editableFields.user_address_city,
+          zip: editableFields.user_address_zip,
+          phone: editableFields.user_address_phone,
+          alt_phone: editableFields.user_address_alt_phone,
+        },
         purchase_ref_id: finalPurchaseId
       };
 
@@ -641,6 +723,11 @@ const AdminJobDetailPage = () => {
             assigned_employees_ids: job.assigned_employees_ids || [],
             notes: job.notes || '',
             user_phone: job.user_phone || (purchaseDetails?.user_phone) || '',
+            user_address_street: job.user_address?.street || '',
+            user_address_city: job.user_address?.city || '',
+            user_address_zip: job.user_address?.zip || '',
+            user_address_phone: job.user_address?.phone || '',
+            user_address_alt_phone: job.user_address?.alt_phone || '',
             purchase_ref_id: job.purchase_ref_id || null,
         });
     }
