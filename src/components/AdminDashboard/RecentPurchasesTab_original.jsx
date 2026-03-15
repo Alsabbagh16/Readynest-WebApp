@@ -5,7 +5,7 @@ import { format } from 'date-fns';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import { RefreshCcw, Download, Edit, XCircle, ShoppingCart, ExternalLink, Phone, Tag, Mail, User, PlusCircle, FileText, CalendarDays, Calendar, ChevronLeft, ChevronRight, Search, Filter, AlertTriangle, Trash2 } from 'lucide-react';
+import { RefreshCcw, Download, Edit, XCircle, ShoppingCart, ExternalLink, Phone, Tag, Mail, User, PlusCircle, FileText, CalendarDays, Calendar, ChevronLeft, ChevronRight, Search, Filter, AlertTriangle, Trash2, Clock, Eye, MoreHorizontal } from 'lucide-react';
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
@@ -143,7 +143,7 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
     const created = new Date(createdAt);
     const now = new Date();
     const hoursSinceCreation = (now - created) / (1000 * 60 * 60);
-    return hoursSinceCreation <= 48;
+    return hoursSinceCreation <= 48; // Consider "new" if created within 48 hours
   };
 
   const fetchPurchases = useCallback(async (page = 1, resetPagination = false) => {
@@ -344,7 +344,7 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
     }
   };
 
-  const createColumnConfig = (onUpdateStatus) => [
+  const createColumnConfig = (onUpdateStatus, markAsViewed) => [
     {
       header: "Ref No.",
       accessor: "purchase_ref_id",
@@ -355,14 +355,14 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
           <div className="flex flex-col">
             <div className="flex items-center gap-2">
               {isNew && (
-                <Badge variant="destructive" className="text-[10px] px-1.5 py-0.5 h-5">
+                <Badge variant="destructive" className="text-[10px] px-1.5 py-0.5 h-5 animate-pulse">
                   NEW
                 </Badge>
               )}
               <Link 
                   to={`/admin-dashboard/purchase/${purchase.purchase_ref_id}`} 
                   className="text-primary hover:underline flex items-center"
-                  onClick={() => markPurchaseAsViewed(purchase.purchase_ref_id)}
+                  onClick={() => markAsViewed(purchase.purchase_ref_id)}
               >
                   {purchase.purchase_ref_id} <ExternalLink className="h-3 w-3 ml-1"/>
               </Link>
@@ -384,14 +384,18 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
       cell: (purchase) => {
         const displayDate = formatPreferredBookingDateForAdmin(purchase.preferred_booking_date);
         return (
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center text-sm font-medium text-foreground">
-              <CalendarDays className="h-3.5 w-3.5 mr-1.5 text-primary" />
+          <div className="flex flex-col">
+            <div className="flex items-center gap-1">
+              <Calendar className="h-3 w-3 text-gray-400" />
               {displayDate}
             </div>
-            <span className="text-xs text-muted-foreground ml-5">
+            <div className="flex items-center gap-1 text-gray-500 text-xs">
+              <Clock className="h-3 w-3" />
+              {formatDateSafe(purchase.preferred_booking_date, 'h:mm a')}
+            </div>
+            <div className="flex items-center gap-1 text-gray-400 text-xs">
               Created: {formatDateSafe(purchase.created_at, 'MMM d, yyyy')}
-            </span>
+            </div>
           </div>
         );
       },
@@ -400,120 +404,161 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
     {
       header: "Customer",
       accessor: "name",
-      className: "min-w-[180px]",
+      className: "w-[200px]",
       cell: (purchase) => (
-        <div>
-          <div className="flex items-center font-medium">
-             <User className="h-3 w-3 mr-1 text-muted-foreground" /> {purchase.name || 'Guest'}
+        <div className="flex flex-col">
+          <span className="font-medium text-sm">{purchase.name || 'Guest'}</span>
+          <div className="flex items-center gap-1 text-xs text-gray-500">
+            <Mail className="h-3 w-3" />
+            {purchase.email || 'N/A'}
           </div>
-          <div className="text-xs text-muted-foreground flex items-center mt-0.5">
-             <Mail className="h-3 w-3 mr-1" /> {purchase.email || 'N/A'}
-          </div>
-          <div className="text-xs text-muted-foreground flex items-center mt-0.5">
-              <Phone className="h-3 w-3 mr-1" /> 
-              {purchase.user_phone || (purchase.profiles?.phone) || 'N/A'}
-          </div>
+          {purchase.user_phone && (
+            <div className="flex items-center gap-1 text-xs text-gray-500">
+              <Phone className="h-3 w-3" />
+              {purchase.user_phone}
+            </div>
+          )}
         </div>
       ),
-      csvFn: (purchase) => {
-        const parts = [purchase.name || 'Guest'];
-        if (purchase.email) parts.push(`<${purchase.email}>`);
-        const phone = purchase.user_phone || purchase.profiles?.phone;
-        if (phone) parts.push(`(Ph: ${phone})`);
-        return parts.join(' ');
-      }
+      csvFn: (purchase) => purchase.name || 'Guest'
     },
     {
-      header: "Product",
+      header: "Service",
       accessor: "product_name",
-      className: "min-w-[120px]",
-      cell: (purchase) => {
-        const productName = purchase.product_name || 'Unknown Product';
-        if (!purchase.product_id) {
-            return (
-                <span className="text-slate-500 italic flex items-center">
-                    <span className="w-2 h-2 rounded-full bg-slate-300 mr-2"></span>
-                    {productName}
-                </span>
-            );
-        }
-        return productName;
-      },
-      csvFn: (purchase) => !purchase.product_id ? 'Custom Purchase' : (purchase.product_name || 'N/A')
+      className: "w-[180px]",
+      cell: (purchase) => (
+        <div className="flex flex-col">
+          <span className="text-sm">{purchase.product_name || 'N/A'}</span>
+          {purchase.selected_addons && purchase.selected_addons.length > 0 && (
+            <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
+              <Tag className="h-3 w-3" />
+              {purchase.selected_addons.length} addon(s)
+            </div>
+          )}
+        </div>
+      ),
+      csvFn: (purchase) => purchase.product_name || 'N/A'
     },
     {
-      header: "Base Amount",
+      header: "Amount",
       accessor: "paid_amount",
-      className: "text-right",
-      cell: (purchase) => `BHD ${Number(purchase.paid_amount).toFixed(3)}`,
-      csvFn: (purchase) => Number(purchase.paid_amount).toFixed(3)
-    },
-    {
-      header: "Discount",
-      accessor: "discount_amount",
-      className: "text-right",
-      cell: (purchase) => {
-         const discount = Number(purchase.discount_amount || 0);
-         return discount > 0 ? (
-           <span className="text-green-600 dark:text-green-400 font-medium">
-             - BHD {discount.toFixed(3)}
-           </span>
-         ) : '-';
-      },
-      csvFn: (purchase) => Number(purchase.discount_amount || 0).toFixed(3)
-    },
-    {
-      header: "Final Amount",
-      accessor: "final_amount_due_on_arrival",
-      className: "text-right",
-      cell: (purchase) => {
-        const finalAmount = purchase.final_amount_due_on_arrival !== null 
-          ? Number(purchase.final_amount_due_on_arrival)
-          : Number(purchase.paid_amount);
-        const isDiscounted = Number(purchase.discount_amount) > 0 || !!purchase.coupon_code;
-        
-        return (
-          <div className={`py-1 px-2 rounded-md inline-block ${isDiscounted ? 'bg-green-50 dark:bg-green-900/30' : ''}`}>
-             <span className={`font-bold ${isDiscounted ? 'text-green-700 dark:text-green-400' : ''}`}>
-               BHD {finalAmount.toFixed(3)}
-             </span>
-          </div>
-        );
-      },
-      csvFn: (purchase) => {
-         const val = purchase.final_amount_due_on_arrival !== null 
-          ? Number(purchase.final_amount_due_on_arrival) 
-          : Number(purchase.paid_amount);
-         return val.toFixed(3);
-      }
-    },
-    {
-      header: "Coupon",
-      accessor: "coupon_code",
-      className: "text-center",
-      cell: (purchase) => purchase.coupon_code ? (
-        <Badge variant="outline" className="border-green-200 text-green-700 bg-green-50/80 dark:bg-green-900/30 dark:border-green-800 dark:text-green-300">
-          <Tag className="w-3 h-3 mr-1" />
-          {purchase.coupon_code}
-        </Badge>
-      ) : '-',
-      csvFn: (purchase) => purchase.coupon_code || ''
+      className: "w-[120px]",
+      cell: (purchase) => (
+        <div className="flex flex-col">
+          <span className="font-medium text-sm">
+            {purchase.paid_amount ? `BHD ${purchase.paid_amount.toFixed(3)}` : 'N/A'}
+          </span>
+          {purchase.final_amount_due_on_arrival && purchase.final_amount_due_on_arrival > 0 && (
+            <span className="text-xs text-gray-500">
+              Due: BHD {purchase.final_amount_due_on_arrival.toFixed(3)}
+            </span>
+          )}
+        </div>
+      ),
+      csvFn: (purchase) => purchase.paid_amount ? `BHD ${purchase.paid_amount.toFixed(3)}` : 'N/A'
     },
     {
       header: "Status",
       accessor: "status",
-      className: "text-center",
+      className: "w-[120px]",
+      cell: (purchase) => {
+        const status = purchase.status || 'pending';
+        return (
+          <Badge variant={getStatusBadgeVariant(status)} className="text-xs">
+            {status}
+          </Badge>
+        );
+      },
+      csvFn: (purchase) => purchase.status || 'pending'
+    },
+    {
+      header: "Payment",
+      accessor: "payment_type",
+      className: "w-[100px]",
       cell: (purchase) => (
-        <Badge variant={getStatusBadgeVariant(purchase.status)} className="capitalize whitespace-nowrap flex items-center gap-1">
-          {purchase.status || 'Unknown'}
-          {purchase.status === 'Flagged' && <AlertTriangle className="w-3 h-3" />}
-        </Badge>
+        <span className="text-sm">{purchase.payment_type || 'N/A'}</span>
       ),
-      csvFn: (purchase) => purchase.status || 'Unknown'
+      csvFn: (purchase) => purchase.payment_type || 'N/A'
+    },
+    {
+      header: "Actions",
+      accessor: "actions",
+      className: "w-[120px]",
+      cell: (purchase) => (
+        <div className="flex items-center justify-end gap-2">
+          <Button variant="outline" size="sm" asChild title="View Purchase">
+            <Link to={`/admin-dashboard/purchase/${purchase.purchase_ref_id}`}>
+              <Eye className="h-3 w-3" />
+            </Link>
+          </Button>
+          
+          <PermissionGate permission="purchases.edit">
+            <Button variant="outline" size="sm" asChild title="Edit Purchase">
+              <Link to={`/admin-dashboard/purchase/${purchase.purchase_ref_id}`}>
+                <Edit className="h-3 w-3" />
+              </Link>
+            </Button>
+          </PermissionGate>
+
+          <PermissionGate permission="purchases.delete">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                <DropdownMenuItem asChild>
+                  <Link to={`/admin-dashboard/purchase/${purchase.purchase_ref_id}`}>
+                    <Eye className="mr-2 h-4 w-4" /> View Details
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to={`/admin-dashboard/purchase/${purchase.purchase_ref_id}`}>
+                    <Edit className="mr-2 h-4 w-4" /> Edit Purchase
+                  </Link>
+                </DropdownMenuItem>
+                {(adminProfile?.role === 'superadmin' || isSuperadmin) && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <DropdownMenuItem 
+                        className="text-red-600 focus:text-red-600"
+                        onSelect={(e) => e.preventDefault()}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" /> Delete Purchase
+                      </DropdownMenuItem>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Confirm Permanent Deletion</AlertDialogTitle>
+                        <AlertDialogDescription className="text-red-600">
+                          Are you sure you want to permanently delete purchase {purchase.purchase_ref_id}? 
+                          This action cannot be undone and will remove all associated data.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          className="bg-red-500 hover:bg-red-600"
+                          onClick={() => deletePurchase(purchase.purchase_ref_id)}
+                        >
+                          Delete Permanently
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </PermissionGate>
+        </div>
+      ),
+      csvFn: () => ''
     }
   ];
 
-  const columnConfig = createColumnConfig(updatePurchaseStatusInList);
+  const columnConfig = createColumnConfig(updatePurchaseStatusInList, markPurchaseAsViewed);
   
   const handleExport = () => {
     if (filteredPurchases.length === 0) {

@@ -218,6 +218,7 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
       case 'in progress': return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'scheduled': return 'bg-purple-100 text-purple-800 border-purple-200';
       case 'cancelled': return 'bg-red-100 text-red-800 border-red-200';
+      case 'on hold': return 'bg-orange-100 text-orange-800 border-orange-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
@@ -327,6 +328,7 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
                     <SelectItem value="Pending">Pending</SelectItem>
                     <SelectItem value="Scheduled">Scheduled</SelectItem>
                     <SelectItem value="In Progress">In Progress</SelectItem>
+                    <SelectItem value="On Hold">On Hold</SelectItem>
                     <SelectItem value="Completed">Completed</SelectItem>
                     <SelectItem value="Cancelled">Cancelled</SelectItem>
                   </SelectContent>
