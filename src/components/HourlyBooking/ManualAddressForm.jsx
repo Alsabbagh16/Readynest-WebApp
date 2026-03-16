@@ -13,6 +13,7 @@ const ManualAddressForm = ({ onCancel, onChange, onManualPhoneChange, defaultVal
   const [formData, setFormData] = useState({
     label: defaultValues.label || '',
     fullName: defaultValues.fullName || '',
+    email: defaultValues.email || '',
     phone: defaultValues.phone || '',
     city: defaultValues.city || '',
     street: defaultValues.street || '',
@@ -32,7 +33,7 @@ const ManualAddressForm = ({ onCancel, onChange, onManualPhoneChange, defaultVal
   }, [formData]);
 
   const isValid = () => {
-    return formData.city.trim() !== '' && formData.street.trim() !== '' && formData.phone.trim() !== '';
+    return formData.city.trim() !== '' && formData.street.trim() !== '' && formData.phone.trim() !== '' && formData.fullName.trim() !== '';
   };
 
   const validateForm = () => {
@@ -40,6 +41,7 @@ const ManualAddressForm = ({ onCancel, onChange, onManualPhoneChange, defaultVal
     if (!formData.city.trim()) newErrors.city = "City/Area is required";
     if (!formData.street.trim()) newErrors.street = "Street address is required";
     if (!formData.phone.trim()) newErrors.phone = "Phone number is required";
+    if (!formData.fullName.trim()) newErrors.fullName = "Contact name is required";
     setErrors(newErrors);
   };
 
@@ -114,12 +116,25 @@ const ManualAddressForm = ({ onCancel, onChange, onManualPhoneChange, defaultVal
         </div>
 
         <div className="space-y-2 md:col-span-2">
-          <Label htmlFor="fullName">Contact Name (Optional)</Label>
+          <Label htmlFor="fullName">Contact Name <span className="text-red-500">*</span></Label>
           <Input 
             id="fullName" 
             value={formData.fullName} 
             onChange={(e) => handleChange('fullName', e.target.value)} 
             placeholder="Name of person at this address"
+            className={errors.fullName ? "border-red-500" : ""}
+          />
+          {errors.fullName && <p className="text-xs text-red-500 flex items-center"><AlertCircle className="h-3 w-3 mr-1"/>{errors.fullName}</p>}
+        </div>
+
+        <div className="space-y-2 md:col-span-2">
+          <Label htmlFor="email">Email</Label>
+          <Input 
+            id="email" 
+            type="email"
+            value={formData.email} 
+            onChange={(e) => handleChange('email', e.target.value)} 
+            placeholder="Email for booking confirmation"
           />
         </div>
 

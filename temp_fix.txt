@@ -1,0 +1,7 @@
+// SECURITY FIX: Always filter by user_id first  
+  
+let query = supabase  
+.from('purchases')  
+.select('*')  
+.eq('user_id', user.id) // ALWAYS filter by current user  
+.order('created_at', { ascending: false }); 

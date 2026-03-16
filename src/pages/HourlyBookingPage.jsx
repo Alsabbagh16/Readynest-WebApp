@@ -7,6 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useToast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
 import HourlyBookingHeroSection from '@/components/HourlyBooking/HourlyBookingHeroSection';
@@ -31,6 +38,7 @@ const HourlyBookingPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmationDetails, setConfirmationDetails] = useState(null);
   const [submitError, setSubmitError] = useState(''); // Inline submission error state
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   // Step A: Inputs State
   const [serviceType, setServiceType] = useState('One-Time');
@@ -78,6 +86,13 @@ const HourlyBookingPage = () => {
       setHours(rates.minHours);
     }
   }, [rates?.minHours]);
+
+  // Show auth modal for non-authenticated users when entering step 2
+  useEffect(() => {
+    if (currentStep === 2 && !user) {
+      setShowAuthModal(true);
+    }
+  }, [currentStep, user]);
 
   // Set default address if available
   useEffect(() => {
@@ -175,14 +190,6 @@ const HourlyBookingPage = () => {
 
   const handleContinueToReview = () => {
     if (!isStep1Valid) return;
-    if (!user) {
-        toast({
-            title: "Authentication Required",
-            description: "Please log in or create an account to proceed with booking.",
-            variant: "destructive"
-        });
-        // return; // Uncomment to strictly enforce auth
-    }
     setCurrentStep(2);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -267,7 +274,7 @@ const HourlyBookingPage = () => {
 
     const purchasePayload = {
       user_id: user?.id || null,
-      email: user?.email || '',
+      email: user?.email || manualAddressData.email || `guest-${Date.now()}@readynest.com`, // Use manual email if provided, otherwise placeholder
       name: manualAddressData.fullName || user?.user_metadata?.full_name || 'Guest User',
       user_phone: activePhone,
       product_name: derivedProductName,
@@ -596,6 +603,42 @@ const HourlyBookingPage = () => {
           details={confirmationDetails}
         />
       )}
+
+      <Dialog open={showAuthModal} onOpenChange={setShowAuthModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-medium">Log in or Continue as guest</DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground">
+              Choose how you'd like to proceed with your booking
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <Button className="w-full" size="sm" onClick={() => window.location.href = '/auth'}>
+              Log in or register
+            </Button>
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-border/50" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">
+                  Or
+                </span>
+              </div>
+            </div>
+            <Button 
+              variant="outline" 
+              className="w-full" 
+              onClick={() => setShowAuthModal(false)}
+            >
+              Continue as Guest
+            </Button>
+            <p className="text-xs text-muted-foreground leading-relaxed text-center">
+              Continue without an account. Your service address will be used to collect your information.
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

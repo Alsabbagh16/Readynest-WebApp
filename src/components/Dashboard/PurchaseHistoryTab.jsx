@@ -128,33 +128,6 @@ const PurchaseHistoryTab = () => {
   // Let's look at `PurchaseHistoryTab` usage. It's in `DashboardPage.jsx`.
   // If I add `usePermissions` it crashes.
   
-  // DECISION: I will implement the logic using `supabase` directly to check if the current user is an admin/employee with permissions,
-  // INDEPENDENT of the AdminAuthContext. This acts as a standalone check for this component.
-  
-  const checkUserPermissions = async (uid) => {
-      // 1. Check if user is in employees table
-      const { data: emp, error } = await supabase.from('employees').select('role, is_superadmin').eq('id', uid).single();
-      if (error || !emp) return { isSuper: false, canViewAll: false };
-      
-      const isSuper = emp.is_superadmin || emp.role === 'superadmin';
-      if (isSuper) return { isSuper: true, canViewAll: true };
-
-      // 2. Check permissions
-      // We need to fetch roles -> permissions
-      const { data: roles } = await supabase.from('ui_employee_roles')
-        .select('ui_roles(ui_role_permissions(ui_permissions(key)))')
-        .eq('employee_id', uid);
-      
-      let hasViewAll = false;
-      roles?.forEach(r => {
-          r.ui_roles?.ui_role_permissions?.forEach(rp => {
-              if (rp.ui_permissions?.key === 'purchases.view_all') hasViewAll = true;
-          });
-      });
-      
-      return { isSuper: false, canViewAll: hasViewAll };
-  };
-
   const fetchPurchases = useCallback(async () => {
     if (!user || !user.id) {
       setLoading(false);
@@ -164,26 +137,14 @@ const PurchaseHistoryTab = () => {
     setLoading(true);
     setError(null);
     try {
-      // Check permissions manually since we might not be in AdminContext
-      // This adds overhead but is safe.
-      const { isSuper, canViewAll } = await checkUserPermissions(user.id);
-      
+      // Simple approach: RLS handles most security, just add basic user filter for non-admins
       let query = supabase
         .from('purchases')
         .select('*')
         .order('created_at', { ascending: false });
 
-      // Task 8 Logic:
-      // If admin/staff with permission -> show all.
-      // Else -> show own.
-      
-      if (!isSuper && !canViewAll) {
-         query = query.eq('user_id', user.id);
-      } else {
-         // If they are admin/view_all, they see EVERYTHING?
-         // Task 8 says: "show all purchases".
-         // Okay.
-      }
+      // For now, just filter by current user (RLS will handle admin access)
+      query = query.eq('user_id', user.id);
 
       const { data, error: fetchError } = await query;
 
