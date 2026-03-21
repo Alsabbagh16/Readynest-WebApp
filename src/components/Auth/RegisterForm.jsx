@@ -1,13 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from '@/lib/supabase';
 import { Loader2 } from 'lucide-react';
+import { Turnstile } from '@marsidev/react-turnstile';
 
 const RegisterForm = () => {
   const [firstName, setFirstName] = useState('');
@@ -17,9 +16,9 @@ const RegisterForm = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [dob, setDob] = useState('');
-  const [userType, setUserType] = useState('home_owner');
-  const [notRobot, setNotRobot] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState(null);
   const [loading, setLoading] = useState(false);
+  const turnstileRef = useRef(null);
 
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -28,10 +27,10 @@ const RegisterForm = () => {
   const handleRegister = async (e) => {
     e.preventDefault();
     
-    if (!notRobot) {
+    if (!turnstileToken) {
       toast({
         title: "Verification Required",
-        description: "Please confirm you are not a robot.",
+        description: "Please complete the CAPTCHA verification.",
         variant: "destructive"
       });
       return;
@@ -61,12 +60,13 @@ const RegisterForm = () => {
         password,
         options: {
           emailRedirectTo,
+          captchaToken: turnstileToken,
           data: {
             first_name: firstName,
             last_name: lastName,
             phone: phone,
             dob: dob,
-            user_type: userType,
+            user_type: 'home_owner',
             credits: 0,
           }
         }
@@ -153,19 +153,6 @@ const RegisterForm = () => {
       </div>
       
       <div className="space-y-2">
-        <Label htmlFor="user-type">Account Type</Label>
-        <Select value={userType} onValueChange={setUserType}>
-          <SelectTrigger className="dark:bg-slate-800 dark:text-white dark:border-slate-700">
-            <SelectValue placeholder="Select account type" />
-          </SelectTrigger>
-          <SelectContent className="dark:bg-slate-800 dark:text-white dark:border-slate-700">
-            <SelectItem value="home_owner" className="dark:hover:bg-slate-700 dark:focus:bg-slate-700">Home Owner</SelectItem>
-            <SelectItem value="business" className="dark:hover:bg-slate-700 dark:focus:bg-slate-700">Business</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      
-      <div className="space-y-2">
         <Label htmlFor="register-password">Password</Label>
         <Input
           id="register-password"
@@ -189,17 +176,14 @@ const RegisterForm = () => {
         />
       </div>
       
-      <div className="flex items-center space-x-2">
-        <Checkbox 
-          id="not-robot" 
-          checked={notRobot}
-          onCheckedChange={setNotRobot}
-          required
-          className="dark:border-slate-700 data-[state=checked]:dark:bg-primary data-[state=checked]:dark:text-primary-foreground"
+      <div className="flex justify-center">
+        <Turnstile
+          ref={turnstileRef}
+          siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY || '1x00000000000000000000AA'}
+          onSuccess={(token) => setTurnstileToken(token)}
+          onError={() => setTurnstileToken(null)}
+          onExpire={() => setTurnstileToken(null)}
         />
-        <Label htmlFor="not-robot" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 dark:text-gray-300">
-          I am not a robot
-        </Label>
       </div>
       
       <Button type="submit" className="w-full" disabled={loading}>
