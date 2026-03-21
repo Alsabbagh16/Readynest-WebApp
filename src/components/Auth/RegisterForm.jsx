@@ -74,11 +74,21 @@ const RegisterForm = () => {
 
       if (error) throw error;
 
-      // Navigate to verification pending page
-      // We pass the email so they can see it, and original search params to keep context if they click "Back" or manual navigation
-      navigate(`/verify-email${location.search}`, { 
-        state: { email } 
+      toast({
+        title: "Account Created!",
+        description: "Welcome to ReadyNest!",
+        variant: "default",
+        className: "bg-green-50 border-green-200 text-green-900"
       });
+
+      // Navigate to dashboard after successful registration
+      const urlParams = new URLSearchParams(location.search);
+      const redirectPath = urlParams.get('redirect');
+      if (redirectPath) {
+        navigate(redirectPath, { replace: true });
+      } else {
+        navigate('/dashboard', { replace: true });
+      }
 
     } catch (error) {
       console.error("Registration failed:", error);
