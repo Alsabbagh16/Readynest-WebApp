@@ -14,6 +14,7 @@ import { ArrowLeft, Save, User, Briefcase, Users, Hash, MapPin, CalendarClock, P
 import { generateJobRefId } from '@/lib/storage/jobStorage';
 import { validateBookingTime } from '@/lib/timeWindowValidator';
 import { toLocalDatetimeInputString } from '@/lib/dateTimeHelpers';
+import { sendJobCreatedNotification } from '@/lib/whatsappService';
 
 // Helper to convert DB timestamp to local input string by stripping timezone info
 // treating the stored time as "Face Value" / Wall Clock time
@@ -501,6 +502,17 @@ const AdminCreateJobPage = () => {
           console.error("Email exception:", emailException);
           toast({ title: "Email Error", description: "Job saved, but email system encountered an error.", variant: "destructive" });
       }
+      // ----------------------------------
+
+      // --- Trigger WhatsApp Notification ---
+      const fullAddress = `${formData.user_address.street}, ${formData.user_address.city}`;
+      sendJobCreatedNotification({
+        jobRefId: formData.job_ref_id,
+        customerName: formData.user_name,
+        customerPhone: formData.user_address.phone,
+        scheduledDate: formData.preferred_date,
+        address: fullAddress
+      }).catch(err => console.error('WhatsApp job notification failed:', err));
       // ----------------------------------
 
       navigate('/admin-dashboard/jobs');

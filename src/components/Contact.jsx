@@ -7,6 +7,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { MapPin, Phone, Mail, Clock, Loader2 } from "lucide-react";
 import { supabase } from '@/lib/supabase';
 import { useLocation } from "react-router-dom";
+import { sendContactReportNotification } from '@/lib/whatsappService';
 
 const Contact = () => {
   const { toast } = useToast();
@@ -57,6 +58,16 @@ const Contact = () => {
         variant: "default", 
         className: "bg-green-50 border-green-200 text-green-900"
       });
+
+      // Send WhatsApp notification (non-blocking)
+      if (phone) {
+        sendContactReportNotification({
+          name,
+          email,
+          phone,
+          message
+        }).catch(err => console.error('WhatsApp contact notification failed:', err));
+      }
 
       setName("");
       setEmail("");

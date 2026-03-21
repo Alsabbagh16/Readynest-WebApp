@@ -27,6 +27,8 @@ import { useServiceRates } from '@/hooks/useServiceRates';
 import { validateBookingTime } from '@/lib/timeWindowValidator';
 import { useAuth } from '@/contexts/AuthContext';
 import { createPurchase } from '@/lib/storage/purchaseStorage';
+import { sendPurchaseNotification } from '@/lib/whatsappService';
+import { supabase } from '@/lib/supabase';
 
 const HourlyBookingPage = () => {
   const { rates, loading: loadingRates } = useServiceRates();
@@ -316,6 +318,36 @@ const HourlyBookingPage = () => {
       
       console.log('Purchase created successfully! ID:', result.purchase_ref_id);
       console.log('Stored preferred_booking_date in DB:', result.preferred_booking_date);
+
+      // Send WhatsApp notification (non-blocking)
+      sendPurchaseNotification({
+        customerName: purchasePayload.name,
+        customerPhone: purchasePayload.user_phone,
+        bookingDate: derivedDates.booking_date,
+        bookingTime: `${derivedDates.booking_start_time} - ${derivedDates.booking_end_time}`,
+        amount: finalPrice.toString(),
+        referenceId: result.purchase_ref_id
+      }).catch(err => console.error('WhatsApp notification failed:', err));
+
+      // Send email confirmation (non-blocking)
+      supabase.functions.invoke('send-purchase-confirmation', {
+        body: {
+          record: {
+            purchase_ref_id: result.purchase_ref_id,
+            name: purchasePayload.name,
+            email: purchasePayload.email,
+            user_phone: purchasePayload.user_phone,
+            product_name: derivedProductName,
+            paid_amount: finalPrice,
+            booking_date: derivedDates.booking_date,
+            booking_start_time: derivedDates.booking_start_time,
+            booking_end_time: derivedDates.booking_end_time,
+            address: purchasePayload.address,
+            cleaners: cleaners,
+            hours: hours
+          }
+        }
+      }).catch(err => console.error('Email notification failed:', err));
 
       setConfirmationDetails({
         purchase_ref_id: result.purchase_ref_id,
