@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -141,6 +141,14 @@ const LoginForm = () => {
           required
           className="dark:bg-slate-800 dark:text-white dark:border-slate-700"
         />
+      </div>
+      <div className="text-right">
+        <Link 
+          to="/forgot-password" 
+          className="text-sm text-primary hover:underline"
+        >
+          Forgot password?
+        </Link>
       </div>
       <Button type="submit" className="w-full">Login</Button>
       <div className="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">
