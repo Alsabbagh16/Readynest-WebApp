@@ -8,6 +8,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { RefreshCcw, Download, Edit, XCircle, ShoppingCart, ExternalLink, Phone, Tag, Mail, User, PlusCircle, FileText, CalendarDays, Calendar, ChevronLeft, ChevronRight, Search, Filter, AlertTriangle, Trash2 } from 'lucide-react';
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -110,6 +111,8 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
   const [statusFilter, setStatusFilter] = useState('All');
   const [dateRangeFilter, setDateRangeFilter] = useState('all'); // preset date ranges
   const [customDateRange, setCustomDateRange] = useState({ start: '', end: '' }); // custom date range
+  const [bulkSelectMode, setBulkSelectMode] = useState(false);
+  const [selectedPurchases, setSelectedPurchases] = useState(new Set());
   const [pagination, setPagination] = useState({
     currentPage: 1,
     totalPages: 0,
@@ -384,14 +387,9 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
       cell: (purchase) => {
         const displayDate = formatPreferredBookingDateForAdmin(purchase.preferred_booking_date);
         return (
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center text-sm font-medium text-foreground">
-              <CalendarDays className="h-3.5 w-3.5 mr-1.5 text-primary" />
-              {displayDate}
-            </div>
-            <span className="text-xs text-muted-foreground ml-5">
-              Created: {formatDateSafe(purchase.created_at, 'MMM d, yyyy')}
-            </span>
+          <div className="flex items-center text-sm font-medium text-foreground">
+            <CalendarDays className="h-3.5 w-3.5 mr-1.5 text-primary" />
+            {displayDate}
           </div>
         );
       },
@@ -424,6 +422,46 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
       }
     },
     {
+      header: "Address",
+      accessor: "address",
+      className: "min-w-[200px]",
+      cell: (purchase) => {
+        if (!purchase.address) return '-';
+        
+        // If address is an object, format it
+        if (typeof purchase.address === 'object') {
+          const { street, city, zip, phone, alt_phone } = purchase.address;
+          const parts = [];
+          if (street) parts.push(street);
+          if (city) parts.push(city);
+          if (zip) parts.push(zip);
+          if (phone) parts.push(`Ph: ${phone}`);
+          if (alt_phone) parts.push(`Alt: ${alt_phone}`);
+          return parts.length > 0 ? parts.join(', ') : '-';
+        }
+        
+        // If address is a string, return it as is
+        return purchase.address;
+      },
+      csvFn: (purchase) => {
+        if (!purchase.address) return '';
+        
+        // If address is an object, format it for CSV
+        if (typeof purchase.address === 'object') {
+          const { street, city, zip, phone, alt_phone } = purchase.address;
+          const parts = [];
+          if (street) parts.push(street);
+          if (city) parts.push(city);
+          if (zip) parts.push(zip);
+          if (phone) parts.push(`Ph: ${phone}`);
+          if (alt_phone) parts.push(`Alt: ${alt_phone}`);
+          return parts.join(', ');
+        }
+        
+        return purchase.address;
+      }
+    },
+    {
       header: "Product",
       accessor: "product_name",
       className: "min-w-[120px]",
@@ -447,20 +485,6 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
       className: "text-right",
       cell: (purchase) => `BHD ${Number(purchase.paid_amount).toFixed(3)}`,
       csvFn: (purchase) => Number(purchase.paid_amount).toFixed(3)
-    },
-    {
-      header: "Discount",
-      accessor: "discount_amount",
-      className: "text-right",
-      cell: (purchase) => {
-         const discount = Number(purchase.discount_amount || 0);
-         return discount > 0 ? (
-           <span className="text-green-600 dark:text-green-400 font-medium">
-             - BHD {discount.toFixed(3)}
-           </span>
-         ) : '-';
-      },
-      csvFn: (purchase) => Number(purchase.discount_amount || 0).toFixed(3)
     },
     {
       header: "Final Amount",
@@ -488,18 +512,6 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
       }
     },
     {
-      header: "Coupon",
-      accessor: "coupon_code",
-      className: "text-center",
-      cell: (purchase) => purchase.coupon_code ? (
-        <Badge variant="outline" className="border-green-200 text-green-700 bg-green-50/80 dark:bg-green-900/30 dark:border-green-800 dark:text-green-300">
-          <Tag className="w-3 h-3 mr-1" />
-          {purchase.coupon_code}
-        </Badge>
-      ) : '-',
-      csvFn: (purchase) => purchase.coupon_code || ''
-    },
-    {
       header: "Status",
       accessor: "status",
       className: "text-center",
@@ -515,17 +527,70 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
 
   const columnConfig = createColumnConfig(updatePurchaseStatusInList);
   
+  // Separate config for CSV export that includes hidden columns
+  const exportColumnConfig = [
+    ...columnConfig.slice(0, columnConfig.length - 1), // All columns except Status
+    {
+      header: "Discount",
+      accessor: "discount_amount",
+      className: "text-right",
+      cell: () => null, // Not displayed in table
+      csvFn: (purchase) => Number(purchase.discount_amount || 0).toFixed(3)
+    },
+    {
+      header: "Coupon",
+      accessor: "coupon_code",
+      className: "text-center",
+      cell: () => null, // Not displayed in table
+      csvFn: (purchase) => purchase.coupon_code || ''
+    },
+    columnConfig[columnConfig.length - 1] // Status column
+  ];
+  
+  const handleBulkMarkAsPaid = async () => {
+    if (selectedPurchases.size === 0) {
+      toast({ title: "No Selection", description: "Please select at least one purchase to mark as paid." });
+      return;
+    }
+
+    try {
+      const purchaseIds = Array.from(selectedPurchases);
+      const { error } = await supabase
+        .from('purchases')
+        .update({ status: 'Paid', updated_at: new Date().toISOString() })
+        .in('purchase_ref_id', purchaseIds);
+      
+      if (error) throw error;
+      
+      toast({ 
+        title: "Success", 
+        description: `Marked ${purchaseIds.length} purchase(s) as paid.` 
+      });
+      
+      setSelectedPurchases(new Set());
+      setBulkSelectMode(false);
+      fetchPurchases(1, true);
+    } catch (error) {
+      console.error("Error bulk updating purchases:", error);
+      toast({ 
+        title: "Error", 
+        description: "Could not update purchases. Please try again.", 
+        variant: "destructive" 
+      });
+    }
+  };
+
   const handleExport = () => {
     if (filteredPurchases.length === 0) {
       toast({ title: "No Data", description: "There are no purchases to export with the current filters." });
       return;
     }
 
-    const headers = columnConfig.map(col => col.header);
+    const headers = exportColumnConfig.map(col => col.header);
     const csvRows = [headers.join(",")];
 
     filteredPurchases.forEach(p => {
-      const row = columnConfig.map(col => {
+      const row = exportColumnConfig.map(col => {
          let val = col.csvFn ? col.csvFn(p) : (p[col.accessor] || '');
          const stringVal = String(val).replace(/"/g, '""');
          return `"${stringVal}"`;
@@ -572,6 +637,41 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
           </div>
           
           <div className="flex gap-2">
+              {!bulkSelectMode ? (
+                <Button 
+                  onClick={() => {
+                    setBulkSelectMode(true);
+                    setSelectedPurchases(new Set());
+                  }} 
+                  size="sm" 
+                  variant="outline" 
+                  disabled={filteredPurchases.length === 0}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" /> Bulk Select
+                </Button>
+              ) : (
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={handleBulkMarkAsPaid} 
+                    size="sm" 
+                    variant="default"
+                    disabled={selectedPurchases.size === 0}
+                  >
+                    Mark as Paid ({selectedPurchases.size})
+                  </Button>
+                  <Button 
+                    onClick={() => {
+                      setBulkSelectMode(false);
+                      setSelectedPurchases(new Set());
+                    }} 
+                    size="sm" 
+                    variant="outline"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              )}
+              
               <Button onClick={handleExport} size="sm" variant="outline" disabled={filteredPurchases.length === 0}>
                   <Download className="mr-2 h-4 w-4" /> Export CSV
               </Button>
@@ -672,6 +772,20 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  {bulkSelectMode && (
+                    <TableHead className="w-[50px] min-w-[50px] max-w-[50px]">
+                      <Checkbox
+                        checked={selectedPurchases.size === getPaginatedPurchases().length}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedPurchases(new Set(getPaginatedPurchases().map(p => p.purchase_ref_id)));
+                          } else {
+                            setSelectedPurchases(new Set());
+                          }
+                        }}
+                      />
+                    </TableHead>
+                  )}
                   {columnConfig.map((col, idx) => (
                     <TableHead key={idx} className={col.className}>
                       {col.header}
@@ -683,6 +797,22 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
               <TableBody>
                 {getPaginatedPurchases().map((purchase) => (
                   <TableRow key={purchase.purchase_ref_id}>
+                    {bulkSelectMode && (
+                      <TableCell className="w-[50px] min-w-[50px] max-w-[50px]">
+                        <Checkbox
+                          checked={selectedPurchases.has(purchase.purchase_ref_id)}
+                          onCheckedChange={(checked) => {
+                            const newSelected = new Set(selectedPurchases);
+                            if (checked) {
+                              newSelected.add(purchase.purchase_ref_id);
+                            } else {
+                              newSelected.delete(purchase.purchase_ref_id);
+                            }
+                            setSelectedPurchases(newSelected);
+                          }}
+                        />
+                      </TableCell>
+                    )}
                     {columnConfig.map((col, idx) => (
                       <TableCell key={idx} className={col.className}>
                         {col.cell(purchase)}
@@ -709,39 +839,7 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
                           </Button>
                       </PermissionGate>
                       
-                      <PermissionGate permission="purchases.edit">
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="text-yellow-600 border-yellow-500 hover:bg-yellow-50 hover:text-yellow-700"
-                                disabled={purchase.status === 'Refunded' || purchase.status === 'Cancelled'}
-                                title="Refund Purchase"
-                              >
-                                <RefreshCcw className="h-3 w-3" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Confirm Refund</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Mark purchase {purchase.purchase_ref_id} as refunded?
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                  className="bg-yellow-500 hover:bg-yellow-600"
-                                  onClick={() => updatePurchaseStatusInList(purchase.purchase_ref_id, 'Refunded', `Marked as refunded.`)}
-                                >
-                                  Confirm
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                      </PermissionGate>
-                      
+                                            
                       {/* Delete button - only for superadmins */}
                       {(adminProfile?.role === 'superadmin' || isSuperadmin) && (
                         <AlertDialog>

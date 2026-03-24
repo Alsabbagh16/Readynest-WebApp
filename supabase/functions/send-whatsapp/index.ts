@@ -6,7 +6,7 @@ const corsHeaders = {
 }
 
 interface WhatsAppRequest {
-  messageType: 'purchase_confirmation' | 'job_created' | 'contact_report';
+  messageType: 'purchase_confirmation' | 'job_created' | 'contact_report' | 'test';
   recipientPhone: string;
   templateVariables: string[];
   sendToAdmin?: boolean;
@@ -30,16 +30,90 @@ const formatPhoneNumber = (phone: string): string => {
   return cleaned;
 }
 
+// Build template components based on message type
+const buildTemplateComponents = (messageType: string, templateVariables: string[]) => {
+  // test template has no variables - just static text
+  if (messageType === 'test') {
+    return []; // No components needed for static template
+  }
+  
+  // contact_report has: Header {{1}} (name), Body {{1}} (email), {{2}} (phone), {{3}} (message)
+  if (messageType === 'contact_report') {
+    const [name, email, phone, message] = templateVariables;
+    return [
+      {
+        type: 'header',
+        parameters: [
+          { type: 'text', text: name || 'Anonymous' }
+        ]
+      },
+      {
+        type: 'body',
+        parameters: [
+          { type: 'text', text: email || 'Not provided' },
+          { type: 'text', text: phone || 'Not provided' },
+          { type: 'text', text: message || 'No message' }
+        ]
+      }
+    ];
+  }
+  
+  // job_created has: Body {{1}} (job ID), {{2}} (customer), {{3}} (date), {{4}} (address)
+  if (messageType === 'job_created') {
+    const [jobId, customer, date, address] = templateVariables;
+    return [
+      {
+        type: 'body',
+        parameters: [
+          { type: 'text', text: jobId || 'N/A' },
+          { type: 'text', text: customer || 'Customer' },
+          { type: 'text', text: date || 'TBD' },
+          { type: 'text', text: address || 'Address on file' }
+        ]
+      }
+    ];
+  }
+  
+  // purchase_confirmation has: Body {{1}} (name), {{2}} (purchase ID), {{3}} (date/time), {{4}} (amount)
+  if (messageType === 'purchase_confirmation') {
+    const [name, purchaseId, dateTime, amount] = templateVariables;
+    return [
+      {
+        type: 'body',
+        parameters: [
+          { type: 'text', text: name || 'Valued Customer' },
+          { type: 'text', text: purchaseId || 'N/A' },
+          { type: 'text', text: dateTime || 'TBD' },
+          { type: 'text', text: amount || '0' }
+        ]
+      }
+    ];
+  }
+  
+  // Fallback: just map all variables to body
+  return [
+    {
+      type: 'body',
+      parameters: templateVariables.map(variable => ({
+        type: 'text',
+        text: variable || ''
+      }))
+    }
+  ];
+};
+
 // Send WhatsApp message via Facebook Graph API
 const sendWhatsAppMessage = async (
   recipientPhone: string,
   templateName: string,
   templateVariables: string[],
+  messageType: string,
   phoneNumberId: string,
   accessToken: string
 ): Promise<{ success: boolean; error?: string; messageId?: string }> => {
   try {
     const formattedPhone = formatPhoneNumber(recipientPhone);
+    const components = buildTemplateComponents(messageType, templateVariables);
     
     const response = await fetch(
       `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`,
@@ -59,15 +133,7 @@ const sendWhatsAppMessage = async (
             language: {
               code: 'en'
             },
-            components: [
-              {
-                type: 'body',
-                parameters: templateVariables.map(variable => ({
-                  type: 'text',
-                  text: variable
-                }))
-              }
-            ]
+            components: components
           }
         })
       }
@@ -132,7 +198,8 @@ serve(async (req: Request) => {
     const templateMap: Record<string, string> = {
       'purchase_confirmation': 'purchase_confirmation',
       'job_created': 'job_created',
-      'contact_report': 'contact_report'
+      'contact_report': 'contact_report',
+      'test': 'test'
     };
 
     const templateName = templateMap[messageType];
@@ -151,6 +218,7 @@ serve(async (req: Request) => {
       recipientPhone,
       templateName,
       templateVariables,
+      messageType,
       phoneNumberId,
       accessToken
     );
@@ -163,6 +231,7 @@ serve(async (req: Request) => {
         adminPhone,
         templateName,
         templateVariables,
+        messageType,
         phoneNumberId,
         accessToken
       );
