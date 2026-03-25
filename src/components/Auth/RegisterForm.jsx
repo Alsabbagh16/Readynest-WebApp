@@ -26,20 +26,11 @@ const RegisterForm = () => {
 
   const handleRegister = async (e) => {
     e.preventDefault();
-    
+
     if (!turnstileToken) {
       toast({
-        title: "Verification Required",
+        title: "CAPTCHA Required",
         description: "Please complete the CAPTCHA verification.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      toast({
-        title: "Password Mismatch",
-        description: "The passwords you entered do not match.",
         variant: "destructive"
       });
       return;
@@ -48,6 +39,43 @@ const RegisterForm = () => {
     setLoading(true);
 
     try {
+      // Verify Turnstile token with our custom function
+      console.log('Verifying Turnstile token...');
+      const { data: verifyData, error: verifyError } = await supabase.functions.invoke('verify-turnstile', {
+        body: { token: turnstileToken }
+      });
+
+      console.log('Verify response:', { verifyData, verifyError });
+
+      if (verifyError) {
+        console.error('Turnstile verification error:', verifyError);
+        toast({
+          title: "CAPTCHA Verification Failed",
+          description: `Server error: ${verifyError.message}`,
+          variant: "destructive"
+        });
+        // Reset the Turnstile widget
+        if (turnstileRef.current) {
+          turnstileRef.current.reset();
+        }
+        setTurnstileToken(null);
+        return;
+      }
+
+      if (!verifyData?.success) {
+        console.error('Turnstile verification failed:', verifyData);
+        toast({
+          title: "CAPTCHA Verification Failed",
+          description: verifyData?.error || "Invalid CAPTCHA. Please try again.",
+          variant: "destructive"
+        });
+        // Reset the Turnstile widget
+        if (turnstileRef.current) {
+          turnstileRef.current.reset();
+        }
+        setTurnstileToken(null);
+        return;
+      }
       // Build redirect URL for verification success
       const searchParams = new URLSearchParams(location.search);
       // We want to preserve existing query params (like redirect=/book) so the success page knows where to send them
@@ -55,13 +83,12 @@ const RegisterForm = () => {
       const redirectBase = `${window.location.origin}/verification-success`;
       const emailRedirectTo = queryString ? `${redirectBase}?${queryString}` : redirectBase;
 
-      const { data, error } = await supabase.auth.signUp({
+      const { data: { session }, error: sessionError } = await supabase.auth.signUp({
         email,
         password,
         options: {
           emailRedirectTo,
-          captchaToken: turnstileToken,
-          data: {
+                    data: {
             first_name: firstName,
             last_name: lastName,
             phone: phone,
@@ -72,7 +99,7 @@ const RegisterForm = () => {
         }
       });
 
-      if (error) throw error;
+      if (sessionError) throw sessionError;
 
       toast({
         title: "Account Created!",
