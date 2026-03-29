@@ -4,10 +4,12 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { AlertCircle, Calendar, Clock, Users, Hourglass, Info, Phone } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { AlertCircle, Calendar, Clock, Users, Hourglass, Info, Phone, PackagePlus } from 'lucide-react';
 import { format as formatTz, utcToZonedTime } from 'date-fns-tz';
+import PromoCodeInput from '@/components/BookingProcess/PromoCodeInput';
 
-const HourlyBookingReviewCard = ({ details, rates }) => {
+const HourlyBookingReviewCard = ({ details, rates, userId, userEmail, onCouponApplied, appliedCoupon, availableAddons, selectedAddons, onAddonsChange }) => {
   const { 
     serviceType, 
     derivedDates, 
@@ -34,7 +36,23 @@ const HourlyBookingReviewCard = ({ details, rates }) => {
     return base;
   };
 
-  const totalPrice = calculatePrice();
+  const basePrice = calculatePrice();
+  
+  // Calculate addons total
+  const addonsTotal = selectedAddons.reduce((sum, addonId) => {
+    const addon = availableAddons?.find(a => a.id === addonId);
+    return sum + (addon?.price || 0);
+  }, 0);
+
+  const totalPrice = basePrice + addonsTotal;
+
+  const handleAddonToggle = (addonId) => {
+    if (selectedAddons.includes(addonId)) {
+      onAddonsChange(selectedAddons.filter(id => id !== addonId));
+    } else {
+      onAddonsChange([...selectedAddons, addonId]);
+    }
+  };
 
   let displayDate = '—';
   let displayTime = '—';
@@ -121,17 +139,89 @@ const HourlyBookingReviewCard = ({ details, rates }) => {
             </div>
           )}
         </div>
+
+        {/* Promo Code Section */}
+        <div className="mt-4">
+          <Label className="text-sm font-medium text-muted-foreground mb-2 block">Have a promo code?</Label>
+          <PromoCodeInput
+            bookingTotal={totalPrice}
+            userId={userId}
+            userEmail={userEmail}
+            onCouponApplied={onCouponApplied}
+          />
+        </div>
+
+        {/* Addons Section */}
+        {availableAddons && availableAddons.length > 0 && (
+          <div className="mt-4 p-4 bg-muted/20 rounded-lg border border-border">
+            <Label className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
+              <PackagePlus className="h-4 w-4 text-primary" />
+              Would you like to add-on?
+            </Label>
+            <div className="space-y-3">
+              {availableAddons.map((addon) => (
+                <div 
+                  key={addon.id} 
+                  className="flex items-center justify-between p-3 bg-background rounded-md border border-border/50 hover:border-primary/30 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <Checkbox
+                      id={`addon-${addon.id}`}
+                      checked={selectedAddons.includes(addon.id)}
+                      onCheckedChange={() => handleAddonToggle(addon.id)}
+                      className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                    />
+                    <label 
+                      htmlFor={`addon-${addon.id}`}
+                      className="text-sm font-medium text-foreground cursor-pointer"
+                    >
+                      {addon.name}
+                      {addon.description && (
+                        <span className="block text-xs text-muted-foreground mt-0.5">{addon.description}</span>
+                      )}
+                    </label>
+                  </div>
+                  <span className="text-sm font-semibold text-primary">
+                    +BHD {parseFloat(addon.price || 0).toFixed(3)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         
-        <div className="bg-muted/30 p-4 rounded-lg border border-border">
+        <div className="bg-muted/30 p-4 rounded-lg border border-border mt-4">
           <div className="flex justify-between items-center mb-2">
             <span className="text-muted-foreground text-sm">Base Rate</span>
             <span className="text-sm">BHD {(rates?.pricePerCleaner || 0).toFixed(3)} / cleaner / hr</span>
           </div>
+
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-muted-foreground text-sm">Service Subtotal</span>
+            <span className="text-sm">BHD {basePrice.toFixed(3)}</span>
+          </div>
+
+          {addonsTotal > 0 && (
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-muted-foreground text-sm">Add-ons ({selectedAddons.length})</span>
+              <span className="text-sm">+BHD {addonsTotal.toFixed(3)}</span>
+            </div>
+          )}
+          
+          {appliedCoupon && (
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-green-600 dark:text-green-400 text-sm">Discount ({appliedCoupon.coupon?.code})</span>
+              <span className="text-green-600 dark:text-green-400 text-sm">-BHD {appliedCoupon.discountAmount.toFixed(3)}</span>
+            </div>
+          )}
           
           <div className="flex justify-between items-center border-t border-border/50 pt-3 mt-1">
             <span className="text-foreground font-semibold">Total Estimated</span>
             <span className="text-2xl font-bold text-primary dark:text-sky-400">
-              {totalPrice > 0 ? `BHD ${totalPrice.toFixed(3)}` : '--'}
+              {appliedCoupon 
+                ? `BHD ${(totalPrice - appliedCoupon.discountAmount).toFixed(3)}`
+                : totalPrice > 0 ? `BHD ${totalPrice.toFixed(3)}` : '--'
+              }
             </span>
           </div>
           

@@ -18,7 +18,7 @@ const HourlyBookingConfirmation = ({ isOpen, onClose, details }) => {
 
   const handleReturnHome = () => {
     onClose();
-    navigate('/account');
+    navigate('/dashboard');
   };
 
   return (
@@ -64,6 +64,27 @@ const HourlyBookingConfirmation = ({ isOpen, onClose, details }) => {
               {details?.derivedDates ? `${details.derivedDates.booking_start_time} - ${details.derivedDates.booking_end_time}` : 'N/A'}
             </span>
           </div>
+
+          {details?.addons && details.addons.length > 0 && (
+            <div className="text-sm">
+              <span className="text-muted-foreground">Add-ons:</span>
+              <div className="mt-1 space-y-1">
+                {details.addons.map((addon, idx) => (
+                  <div key={idx} className="flex justify-between text-xs">
+                    <span className="text-foreground">{addon.name}</span>
+                    <span className="text-muted-foreground">+BHD {parseFloat(addon.price).toFixed(3)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {details?.coupon && details?.discount > 0 && (
+            <div className="flex items-center text-sm text-green-600 dark:text-green-400">
+              <span className="text-muted-foreground mr-2">Coupon ({details.coupon}):</span>
+              <span className="font-medium ml-auto">-BHD {details.discount.toFixed(3)}</span>
+            </div>
+          )}
 
           <div className="border-t border-border pt-3 mt-1 flex items-center text-base font-bold">
             <DollarSign className="h-5 w-5 text-primary mr-1" />

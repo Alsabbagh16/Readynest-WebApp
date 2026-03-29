@@ -30,6 +30,7 @@ import AdminUserProfilePage from '@/pages/AdminUserProfilePage';
 import AdminCreateServicePage from "@/pages/AdminCreateServicePage";
 import AdminEditServicePage from "@/pages/AdminEditServicePage";
 import AdminCreateAddonPage from "@/pages/AdminCreateAddonPage";
+import ManageAddonsPage from "@/pages/ManageAddonsPage";
 import JobsDayViewPage from '@/pages/JobsDayViewPage'; 
 
 import { PermissionProvider, usePermissionContext } from '@/contexts/PermissionContext';
@@ -140,6 +141,7 @@ const AdminDashboardContent = () => {
     if (pathSegments[2] === 'manage-services' && pathSegments[3] === 'create-service') return 'Create New Service';
     if (pathSegments[2] === 'manage-services' && pathSegments[3] === 'edit-service' && pathSegments[4]) return 'Edit Service';
     if (pathSegments[2] === 'manage-services' && pathSegments[3] === 'create-addon') return 'Create Add-on';
+    if (pathSegments[2] === 'manage-services' && pathSegments[3] === 'manage-addons') return 'Manage Addons';
     if (pathSegments[2] === 'service-rates') return 'Service Rates';
     if (pathSegments[2] === 'manage-roles') return 'Role Management';
     
@@ -387,6 +389,11 @@ const AdminDashboardContent = () => {
                   <Route path="manage-services/create-addon" element={
                      <PermissionGate permission="addons_templates.create" fallback={<PermissionDeniedPage />}>
                         <AdminCreateAddonPage />
+                     </PermissionGate>
+                  } />
+                  <Route path="manage-services/manage-addons" element={
+                     <PermissionGate permission="addons_templates.create" fallback={<PermissionDeniedPage />}>
+                        <ManageAddonsPage />
                      </PermissionGate>
                   } />
                   

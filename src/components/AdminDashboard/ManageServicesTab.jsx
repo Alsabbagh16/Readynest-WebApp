@@ -6,7 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
-import { PlusCircle, Edit3, PackagePlus, Loader2, ImageOff, AlertTriangle, EyeOff } from 'lucide-react';
+import { PlusCircle, Edit3, PackagePlus, Loader2, ImageOff, AlertTriangle, EyeOff, Settings2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { fetchProductsWithCategories, updateProduct } from '@/lib/storage/productStorage';
 import PermissionGate from '@/components/PermissionGate';
@@ -44,6 +44,10 @@ const ManageServicesTab = () => {
 
   const handleCreateAddon = () => {
     navigate('/admin-dashboard/manage-services/create-addon');
+  };
+
+  const handleManageAddons = () => {
+    navigate('/admin-dashboard/manage-services/manage-addons');
   };
 
   const handleEditService = (productId) => {
@@ -172,6 +176,11 @@ const ManageServicesTab = () => {
             </CardDescription>
           </div>
           <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            <PermissionGate permission="addons_templates.create">
+                <Button onClick={handleManageAddons} variant="outline" className="w-full sm:w-auto bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border-purple-500/50">
+                <Settings2 className="mr-2 h-5 w-5" /> Manage Addons
+                </Button>
+            </PermissionGate>
             <PermissionGate permission="addons_templates.create">
                 <Button onClick={handleCreateAddon} variant="outline" className="w-full sm:w-auto bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border-indigo-500/50">
                 <PackagePlus className="mr-2 h-5 w-5" /> Create Addon Template

@@ -64,6 +64,13 @@ const HourlyBookingPage = () => {
   const [dateTimeError, setDateTimeError] = useState('');
   const [phoneError, setPhoneError] = useState('');
 
+  // Coupon State
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+
+  // Addons State
+  const [availableAddons, setAvailableAddons] = useState([]);
+  const [selectedAddons, setSelectedAddons] = useState([]);
+
   // Initialize minimum allowed date for picker
   const minDateTime = useMemo(() => {
     const now = new Date();
@@ -81,6 +88,25 @@ const HourlyBookingPage = () => {
       setHours(rates.minHours);
     }
   }, [rates.minHours, hours]);
+
+  // Fetch active addons
+  useEffect(() => {
+    const fetchAddons = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('addon_templates')
+          .select('*')
+          .eq('is_active', true)
+          .order('name', { ascending: true });
+        
+        if (error) throw error;
+        setAvailableAddons(data || []);
+      } catch (err) {
+        console.error('Error fetching addons:', err);
+      }
+    };
+    fetchAddons();
+  }, []);
 
   // Save booking details to sessionStorage when user needs to auth
   const saveBookingDetails = () => {
@@ -388,7 +414,23 @@ const HourlyBookingPage = () => {
       }
     }
 
-    const finalPrice = calculatePrice();
+    const basePrice = calculatePrice();
+    
+    // Calculate addons total
+    const addonsTotal = selectedAddons.reduce((sum, addonId) => {
+      const addon = availableAddons.find(a => a.id === addonId);
+      return sum + (addon?.price || 0);
+    }, 0);
+    
+    const priceWithAddons = basePrice + addonsTotal;
+    const finalPrice = appliedCoupon ? (priceWithAddons - appliedCoupon.discountAmount) : priceWithAddons;
+    const discountAmount = appliedCoupon ? appliedCoupon.discountAmount : 0;
+    
+    // Get selected addon details for storage
+    const selectedAddonDetails = selectedAddons.map(addonId => {
+      const addon = availableAddons.find(a => a.id === addonId);
+      return addon ? { id: addon.id, name: addon.name, price: addon.price } : null;
+    }).filter(Boolean);
     
     const humanReadableNotes = [
       manualAddressData.notes ? `User Note: ${manualAddressData.notes}` : '',
@@ -418,7 +460,8 @@ const HourlyBookingPage = () => {
         hours,
         workCondition,
         ratesSnapshot: rates,
-        derivedDates
+        derivedDates,
+        selectedAddons: selectedAddonDetails
       },
       
       // Map top-level fields for reporting
@@ -426,7 +469,17 @@ const HourlyBookingPage = () => {
       hours: hours,
       hourly_rate_used: rates.pricePerCleaner,
       rate_multiplier_used: rates.subscriptionRate,
-      pricing_model: 'hourly'
+      pricing_model: 'hourly',
+      
+      // Coupon data
+      coupon_code: appliedCoupon?.coupon?.code || null,
+      coupon_id: appliedCoupon?.coupon?.id || null,
+      discount_amount: discountAmount,
+      original_amount: basePrice,
+      
+      // Addons data
+      addons: selectedAddonDetails,
+      addons_total: addonsTotal
     };
 
     // Logging as requested
@@ -478,7 +531,12 @@ const HourlyBookingPage = () => {
         cleaners,
         hours,
         price: finalPrice,
-        product_name: derivedProductName
+        product_name: derivedProductName,
+        coupon: appliedCoupon?.coupon?.code || null,
+        discount: discountAmount,
+        originalPrice: basePrice,
+        addons: selectedAddonDetails,
+        addonsTotal: addonsTotal
       });
 
     } catch (error) {
@@ -733,6 +791,13 @@ const HourlyBookingPage = () => {
                 phoneError
               }}
               rates={rates}
+              userId={user?.id}
+              userEmail={user?.email}
+              onCouponApplied={setAppliedCoupon}
+              appliedCoupon={appliedCoupon}
+              availableAddons={availableAddons}
+              selectedAddons={selectedAddons}
+              onAddonsChange={setSelectedAddons}
             />
             
             {submitError && (

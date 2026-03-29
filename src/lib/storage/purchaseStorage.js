@@ -45,6 +45,12 @@ export const createPurchase = async (purchaseData) => {
         preferred_booking_date: purchaseData.preferred_booking_date || null,
         scheduled_at: purchaseData.scheduled_at || null,
         
+        // Addons data - use selected_addons which is the existing column
+        selected_addons: purchaseData.addons || purchaseData.selected_addons || null,
+        
+        // Raw selections for detailed booking info
+        raw_selections: purchaseData.raw_selections || null,
+        
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
     };

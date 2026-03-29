@@ -287,6 +287,35 @@ const PurchaseServicePaymentInfo = ({ purchase, isEditing, editableFields, onInp
             <DetailItem label="Payment Type" value={purchase.payment_type || 'N/A'} />
             
             <div className="mt-4 pt-3 border-t border-dashed">
+                {(() => {
+                    // Check for addons in multiple locations (selected_addons is the DB column)
+                    const addons = purchase.selected_addons || purchase.addons || purchase.raw_selections?.selectedAddons || [];
+                    const addonsTotal = purchase.addons_total || addons.reduce((sum, a) => sum + (parseFloat(a.price) || 0), 0);
+                    
+                    if (addons && addons.length > 0) {
+                        return (
+                            <div className="mb-3 pb-2 border-b border-dashed">
+                                <dt className="font-medium text-sm text-muted-foreground mb-1">Add-ons:</dt>
+                                <div className="space-y-1 pl-2">
+                                    {addons.map((addon, idx) => (
+                                        <div key={idx} className="flex justify-between text-sm">
+                                            <span className="text-foreground">{addon.name}</span>
+                                            <span className="text-muted-foreground">+BHD {parseFloat(addon.price).toFixed(3)}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                                {addonsTotal > 0 && (
+                                    <div className="flex justify-between text-sm mt-1 pt-1 border-t border-dashed">
+                                        <span className="font-medium">Add-ons Total:</span>
+                                        <span className="font-medium">+BHD {Number(addonsTotal).toFixed(3)}</span>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    }
+                    return null;
+                })()}
+
                 {Number(purchase.discount_amount) > 0 ? (
                     <DetailItem 
                         label="Base Amount" 
@@ -298,7 +327,7 @@ const PurchaseServicePaymentInfo = ({ purchase, isEditing, editableFields, onInp
                         value={`BHD ${Number(purchase.paid_amount).toFixed(3)}`} 
                     />
                 )}
-                
+
                 {Number(purchase.discount_amount) > 0 && (
                     <div className="flex items-start text-sm py-1 text-green-700 dark:text-green-400">
                         <dt className="font-medium w-36 shrink-0 flex items-center">

@@ -160,6 +160,45 @@ export const createAddonTemplate = async (addonTemplateData) => {
   return data;
 };
 
+export const updateAddonTemplate = async (addonId, updatedData) => {
+  const { data, error } = await supabase
+    .from('addon_templates')
+    .update({ ...updatedData, updated_at: new Date().toISOString() })
+    .eq('id', addonId)
+    .select()
+    .single();
+  if (error) {
+    console.error('Error updating addon template:', error);
+    throw error;
+  }
+  return data;
+};
+
+export const deleteAddonTemplate = async (addonId) => {
+  // First, remove any product links
+  const { error: linkError } = await supabase
+    .from('product_addon_links')
+    .delete()
+    .eq('addon_id', addonId);
+  
+  if (linkError) {
+    console.error('Error removing addon links:', linkError);
+    throw linkError;
+  }
+
+  // Then delete the addon template
+  const { error } = await supabase
+    .from('addon_templates')
+    .delete()
+    .eq('id', addonId);
+  
+  if (error) {
+    console.error('Error deleting addon template:', error);
+    throw error;
+  }
+  return true;
+};
+
 export const fetchProductById = async (productId) => {
   const { data, error } = await supabase
     .from('products')

@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import { ArrowLeft, Save, User, Briefcase, Users, Hash, MapPin, CalendarClock, Phone, AlertCircle, ShoppingBag } from 'lucide-react';
+import { ArrowLeft, Save, User, Briefcase, Users, Hash, MapPin, CalendarClock, Phone, AlertCircle, ShoppingBag, PackagePlus } from 'lucide-react';
 import { generateJobRefId } from '@/lib/storage/jobStorage';
 import { validateBookingTime } from '@/lib/timeWindowValidator';
 import { toLocalDatetimeInputString } from '@/lib/dateTimeHelpers';
@@ -210,6 +210,57 @@ const NotesFormSection = ({ formData, handleInputChange }) => (
   </Card>
 );
 
+const AddonsFormSection = ({ formData, handleAddonToggle, availableAddons, loadingAddons }) => (
+  <Card>
+    <CardHeader>
+      <CardTitle className="flex items-center dark:text-white">
+        <PackagePlus className="mr-2 h-5 w-5 text-primary" />Add-ons
+      </CardTitle>
+    </CardHeader>
+    <CardContent>
+      {loadingAddons ? (
+        <p className="text-muted-foreground text-sm dark:text-slate-400">Loading add-ons...</p>
+      ) : availableAddons.length > 0 ? (
+        <div className="space-y-2 max-h-60 overflow-y-auto border p-3 rounded-md dark:border-slate-600">
+          {availableAddons.map(addon => {
+            const isSelected = formData.addons?.some(a => a.id === addon.id);
+            return (
+              <div key={addon.id} className="flex items-center justify-between space-x-2 p-2 rounded hover:bg-slate-50 dark:hover:bg-slate-700">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`addon-${addon.id}`}
+                    checked={isSelected}
+                    onCheckedChange={() => handleAddonToggle(addon)}
+                    className="dark:border-slate-500 dark:data-[state=checked]:bg-primary dark:data-[state=checked]:text-primary-foreground"
+                  />
+                  <Label htmlFor={`addon-${addon.id}`} className="text-sm font-normal dark:text-slate-300 cursor-pointer">
+                    {addon.name}
+                    {addon.description && (
+                      <span className="block text-xs text-muted-foreground dark:text-slate-400">{addon.description}</span>
+                    )}
+                  </Label>
+                </div>
+                <span className="text-sm font-medium text-primary dark:text-sky-400">
+                  +BHD {parseFloat(addon.price || 0).toFixed(3)}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="text-muted-foreground text-sm dark:text-slate-400">No add-ons available.</p>
+      )}
+      {formData.addons && formData.addons.length > 0 && (
+        <div className="mt-3 pt-3 border-t dark:border-slate-600">
+          <p className="text-sm font-medium dark:text-slate-300">
+            Selected Add-ons Total: <span className="text-primary dark:text-sky-400">BHD {formData.addons.reduce((sum, a) => sum + parseFloat(a.price || 0), 0).toFixed(3)}</span>
+          </p>
+        </div>
+      )}
+    </CardContent>
+  </Card>
+);
+
 const PurchaseLinkFormSection = ({ formData, handlePurchaseSelect, availablePurchases, loadingPurchases }) => (
   <Card>
     <CardHeader>
@@ -277,6 +328,7 @@ const AdminCreateJobPage = () => {
       alt_phone: ''
     },
     assigned_employees_ids: [],
+    addons: [],
     notes: '',
     purchase_ref_id: null,
   });
@@ -288,7 +340,9 @@ const AdminCreateJobPage = () => {
 
   const [allEmployees, setAllEmployees] = useState([]);
   const [availablePurchases, setAvailablePurchases] = useState([]);
+  const [availableAddons, setAvailableAddons] = useState([]);
   const [loadingPurchases, setLoadingPurchases] = useState(false);
+  const [loadingAddons, setLoadingAddons] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [dateError, setDateError] = useState(null);
 
@@ -297,6 +351,7 @@ const AdminCreateJobPage = () => {
   const fetchPurchasesAndEmployees = useCallback(async () => {
     try {
       setLoadingPurchases(true);
+      setLoadingAddons(true);
       
       const { data: purchasesData, error: purchasesError } = await supabase
         .from('purchases')
@@ -312,11 +367,21 @@ const AdminCreateJobPage = () => {
         .select('id, full_name, position');
       if (employeesError) throw employeesError;
       setAllEmployees(employeesData || []);
+
+      // Fetch available addons
+      const { data: addonsData, error: addonsError } = await supabase
+        .from('addon_templates')
+        .select('*')
+        .eq('is_active', true)
+        .order('name', { ascending: true });
+      if (addonsError) throw addonsError;
+      setAvailableAddons(addonsData || []);
     } catch (error) {
       console.error("Error fetching purchases or employees:", error);
       toast({ title: "Error", description: "Could not load necessary data.", variant: "destructive" });
     } finally {
       setLoadingPurchases(false);
+      setLoadingAddons(false);
     }
   }, [toast]);
 
@@ -401,6 +466,19 @@ const AdminCreateJobPage = () => {
         ? prev.assigned_employees_ids.filter(id => id !== employeeId)
         : [...prev.assigned_employees_ids, employeeId];
       return { ...prev, assigned_employees_ids: newAssignedIds };
+    });
+  };
+
+  const handleAddonToggle = (addon) => {
+    setFormData(prev => {
+      const currentAddons = prev.addons || [];
+      const isSelected = currentAddons.some(a => a.id === addon.id);
+      
+      const newAddons = isSelected
+        ? currentAddons.filter(a => a.id !== addon.id)
+        : [...currentAddons, { id: addon.id, name: addon.name, price: addon.price }];
+      
+      return { ...prev, addons: newAddons };
     });
   };
   
@@ -545,6 +623,12 @@ const AdminCreateJobPage = () => {
             handleInputChange={handleInputChange} 
             availableStatuses={availableStatuses} 
             dateError={dateError}
+        />
+        <AddonsFormSection
+            formData={formData}
+            handleAddonToggle={handleAddonToggle}
+            availableAddons={availableAddons}
+            loadingAddons={loadingAddons}
         />
         <CustomerInfoFormSection 
             formData={formData} 
