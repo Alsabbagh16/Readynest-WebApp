@@ -75,19 +75,141 @@ const HourlyBookingPage = () => {
     return `${year}-${month}-${day}T${hoursStr}:${minutesStr}`;
   }, []);
 
-  // Sync hours if service rates load slower
+  // Sync hours if service rates load slower and ensure minimum
   useEffect(() => {
     if (rates.minHours && hours < rates.minHours) {
       setHours(rates.minHours);
     }
   }, [rates.minHours, hours]);
 
-  // Update hours to minimum when rates load
-  useEffect(() => {
-    if (rates?.minHours && hours !== rates.minHours) {
-      setHours(rates.minHours);
+  // Save booking details to sessionStorage when user needs to auth
+  const saveBookingDetails = () => {
+    const bookingData = {
+      serviceType,
+      dateTime,
+      cleaners,
+      hours,
+      workCondition,
+      useSavedAddress,
+      selectedAddressId,
+      manualAddressData,
+      isManualAddressValid,
+      savedPhone,
+      manualPhone,
+      currentStep: 2 // We want to return to step 2
+    };
+    console.log('Saving booking data:', bookingData);
+    sessionStorage.setItem('hourlyBookingPending', JSON.stringify(bookingData));
+  };
+
+  // Handle Google login with booking data preservation
+  const handleGoogleLogin = async () => {
+    console.log('Starting Google login from hourly booking...');
+    
+    // Save booking details to both sessionStorage and localStorage for reliability
+    const bookingData = {
+      serviceType,
+      dateTime,
+      cleaners,
+      hours,
+      workCondition,
+      useSavedAddress,
+      selectedAddressId,
+      manualAddressData,
+      isManualAddressValid,
+      savedPhone,
+      manualPhone,
+      currentStep: 2
+    };
+    
+    // Use localStorage instead of sessionStorage for Google OAuth
+    // sessionStorage doesn't persist across domain redirects
+    localStorage.setItem('hourlyBookingPending', JSON.stringify(bookingData));
+    localStorage.setItem('postLoginRedirect', '/hourlybooking');
+    console.log('Stored booking data and redirect in localStorage');
+    
+    // Initiate Google OAuth
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { 
+        redirectTo: window.location.origin,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        }
+      }
+    });
+
+    if (error) {
+      console.error('Google login error:', error);
+      toast({
+        title: "Google Sign-In Error",
+        description: error.message,
+        variant: "destructive"
+      });
+      // Clean up on error
+      localStorage.removeItem('hourlyBookingPending');
+      localStorage.removeItem('postLoginRedirect');
     }
-  }, [rates?.minHours]);
+  };
+
+  // Restore booking details from localStorage or sessionStorage
+  const restoreBookingDetails = () => {
+    // Check localStorage first (used for Google OAuth), then sessionStorage
+    let saved = localStorage.getItem('hourlyBookingPending');
+    let storageType = 'localStorage';
+    
+    if (!saved) {
+      saved = sessionStorage.getItem('hourlyBookingPending');
+      storageType = 'sessionStorage';
+    }
+    
+    if (saved) {
+      try {
+        const bookingData = JSON.parse(saved);
+        console.log(`Restoring booking data from ${storageType}:`, bookingData);
+        setServiceType(bookingData.serviceType || 'One-Time');
+        setDateTime(bookingData.dateTime || '');
+        setCleaners(bookingData.cleaners || 1);
+        // Use the saved hours directly, don't fall back to minHours
+        if (bookingData.hours) {
+          setHours(bookingData.hours);
+        }
+        setWorkCondition(bookingData.workCondition || '');
+        setUseSavedAddress(bookingData.useSavedAddress !== false);
+        setSelectedAddressId(bookingData.selectedAddressId);
+        setManualAddressData(bookingData.manualAddressData || {});
+        setIsManualAddressValid(bookingData.isManualAddressValid || false);
+        setSavedPhone(bookingData.savedPhone || '');
+        setManualPhone(bookingData.manualPhone || '');
+        setCurrentStep(bookingData.currentStep || 2);
+        
+        // Clear the saved data after restoring from both storages
+        localStorage.removeItem('hourlyBookingPending');
+        sessionStorage.removeItem('hourlyBookingPending');
+        return true;
+      } catch (e) {
+        console.error('Error restoring booking details:', e);
+        localStorage.removeItem('hourlyBookingPending');
+        sessionStorage.removeItem('hourlyBookingPending');
+      }
+    }
+    return false;
+  };
+
+  // Check for saved booking details on component mount or when user logs in
+  useEffect(() => {
+    const pendingBookingLocal = localStorage.getItem('hourlyBookingPending');
+    const pendingBookingSession = sessionStorage.getItem('hourlyBookingPending');
+    console.log('[HourlyBooking] Checking for pending booking - user:', !!user, 'localStorage:', !!pendingBookingLocal, 'sessionStorage:', !!pendingBookingSession);
+    
+    if (pendingBookingLocal || pendingBookingSession) {
+      // Restore booking details regardless of user state
+      // This handles the case where user just logged in via Google
+      const wasRestored = restoreBookingDetails();
+      console.log('[HourlyBooking] Restore result:', wasRestored);
+    }
+  }, [user]); // Run when user state changes (e.g., after Google login)
 
   // Show auth modal for non-authenticated users when entering step 2
   useEffect(() => {
@@ -388,6 +510,12 @@ const HourlyBookingPage = () => {
 
       <div className="max-w-7xl mx-auto px-4 py-8 md:py-12">
         
+        {/* Main Title */}
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-foreground mb-2">Book Your Cleaning</h1>
+          <p className="text-lg text-muted-foreground">Schedule your professional cleaning service in just a few steps</p>
+        </div>
+        
         {/* Step Indicator */}
         <div className="mb-8 flex items-center justify-center max-w-xl mx-auto">
           <div className="flex items-center w-full">
@@ -405,7 +533,7 @@ const HourlyBookingPage = () => {
               {/* Service Type Toggle */}
               <Card className="shadow-md border-border dark:bg-slate-800 dark:border-slate-700">
                 <CardHeader className="pb-4">
-                  <CardTitle className="text-2xl font-bold text-foreground tracking-tight">Service Frequency</CardTitle>
+                  <CardTitle className="text-2xl font-bold text-foreground tracking-tight">How Often Would You Like Us To Visit</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="flex rounded-lg overflow-hidden border border-border p-1 bg-muted/50 dark:bg-slate-900/50">
@@ -468,7 +596,7 @@ const HourlyBookingPage = () => {
               {/* Cleaners & Hours */}
               <Card className="shadow-md border-border dark:bg-slate-800 dark:border-slate-700">
                 <CardHeader className="pb-4">
-                  <CardTitle className="text-2xl font-bold text-foreground tracking-tight">Service Requirements</CardTitle>
+                  <CardTitle className="text-2xl font-bold text-foreground tracking-tight">How Many Cleaners & Hours</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-8">
                   <div>
@@ -512,11 +640,11 @@ const HourlyBookingPage = () => {
               {/* Work Conditions */}
               <Card className="shadow-md border-border dark:bg-slate-800 dark:border-slate-700">
                 <CardHeader className="pb-4">
-                  <CardTitle className="text-2xl font-bold text-foreground tracking-tight">Work Conditions (Optional)</CardTitle>
+                  <CardTitle className="text-2xl font-bold text-foreground tracking-tight">Special Instructions (Optional)</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <Input 
-                    placeholder="e.g., Deep cleaning needed, Post-construction..." 
+                    placeholder="e.g., Please clean under the furniture, Extra attention to kitchen..." 
                     value={workCondition}
                     onChange={(e) => setWorkCondition(e.target.value)}
                     className="w-full text-base h-12 bg-background border-border"
@@ -645,7 +773,10 @@ const HourlyBookingPage = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-4">
-            <Button className="w-full" size="sm" onClick={() => window.location.href = '/auth'}>
+            <Button className="w-full" size="sm" onClick={() => {
+              saveBookingDetails();
+              window.location.href = '/auth?redirect=/hourlybooking';
+            }}>
               Log in or register
             </Button>
             <div className="relative">
@@ -658,6 +789,20 @@ const HourlyBookingPage = () => {
                 </span>
               </div>
             </div>
+            <Button 
+              className="w-full" 
+              size="sm" 
+              variant="outline"
+              onClick={handleGoogleLogin}
+            >
+              <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+              </svg>
+              Continue with Google
+            </Button>
             <Button 
               variant="outline" 
               className="w-full" 

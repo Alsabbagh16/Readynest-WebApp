@@ -94,12 +94,14 @@ const HourlyBookingSummary = ({
               <span className="font-medium text-foreground">{phone}</span>
             </div>
           )}
-          <div className="flex justify-between items-center pb-2 border-b border-border/50">
-            <span className="text-muted-foreground flex items-center gap-2">Condition</span>
-            <span className="font-medium text-foreground truncate max-w-[140px] text-right" title={workCondition || 'None'}>
-              {workCondition || 'None'}
-            </span>
-          </div>
+          {workCondition && (
+            <div className="flex justify-between items-center pb-2 border-b border-border/50">
+              <span className="text-muted-foreground flex items-center gap-2">Work Conditions</span>
+              <span className="font-medium text-foreground text-right" title={workCondition}>
+                {workCondition}
+              </span>
+            </div>
+          )}
         </div>
         
         <div className="bg-muted/30 p-4 rounded-lg border border-border mb-6">

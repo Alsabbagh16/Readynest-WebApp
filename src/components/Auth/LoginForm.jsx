@@ -80,6 +80,16 @@ const LoginForm = () => {
         finalDestination = '/' + finalDestination;
       }
       
+      // Check if we're coming from hourly booking and need to save booking data
+      const urlParams = new URLSearchParams(window.location.search);
+      const isFromHourlyBooking = urlParams.get('redirect') === '/hourlybooking';
+      
+      if (isFromHourlyBooking) {
+        // Check if there's booking data in the current page's context
+        // This will be handled by the hourlybooking page before redirect
+        console.log('Google login from hourly booking detected');
+      }
+      
       // Store for retrieval in App.jsx after successful callback
       localStorage.setItem('postLoginRedirect', finalDestination);
 

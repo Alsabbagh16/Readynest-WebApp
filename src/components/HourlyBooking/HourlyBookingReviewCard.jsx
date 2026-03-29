@@ -114,7 +114,7 @@ const HourlyBookingReviewCard = ({ details, rates }) => {
           </div>
           {workCondition && (
             <div className="flex justify-between items-center pb-2 border-b border-border/50">
-              <span className="text-muted-foreground flex items-center gap-2">Condition</span>
+              <span className="text-muted-foreground flex items-center gap-2">Special Instructions</span>
               <span className="font-medium text-foreground truncate max-w-[140px] text-right" title={workCondition}>
                 {workCondition}
               </span>

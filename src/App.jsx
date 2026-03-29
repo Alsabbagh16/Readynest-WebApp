@@ -120,14 +120,9 @@ function App() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Clean up OAuth params from URL after successful auth
   useEffect(() => {
     if (user && !authLoading) {
-      const storedRedirect = localStorage.getItem('postLoginRedirect');
-      if (storedRedirect) {
-        localStorage.removeItem('postLoginRedirect');
-        navigate(storedRedirect, { replace: true });
-        return;
-      }
       const searchParams = new URLSearchParams(location.search);
       if (searchParams.has('code') || searchParams.has('access_token') || searchParams.has('error')) {
           navigate(location.pathname, { replace: true });

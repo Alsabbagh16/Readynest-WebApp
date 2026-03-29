@@ -127,6 +127,19 @@ export const useAuthCore = () => {
            setAuthError(null);
         } else if (session?.user) {
            setUser(session.user);
+           
+           // Handle post-login redirect (especially for Google OAuth)
+           if (event === 'SIGNED_IN') {
+             const storedRedirect = localStorage.getItem('postLoginRedirect');
+             console.log('[AuthCore] SIGNED_IN event - checking redirect:', storedRedirect);
+             if (storedRedirect) {
+               localStorage.removeItem('postLoginRedirect');
+               // Use setTimeout to ensure state updates complete before navigation
+               setTimeout(() => {
+                 window.location.href = storedRedirect;
+               }, 100);
+             }
+           }
         }
       }
     );
