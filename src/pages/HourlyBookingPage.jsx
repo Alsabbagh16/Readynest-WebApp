@@ -52,8 +52,6 @@ import { createPurchase } from '@/lib/storage/purchaseStorage';
 import { sendPurchaseNotification } from '@/lib/whatsappService';
 import { supabase } from '@/lib/supabase';
 import { fetchAddonTemplates } from '@/lib/storage/productStorage';
-import { Checkbox } from '@/components/ui/checkbox';
-import { PackagePlus } from 'lucide-react';
 
 
 const HourlyBookingPage = () => {
@@ -444,13 +442,6 @@ const HourlyBookingPage = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleAddonToggle = (addonId) => {
-    if (selectedAddons.includes(addonId)) {
-      setSelectedAddons(selectedAddons.filter(id => id !== addonId));
-    } else {
-      setSelectedAddons([...selectedAddons, addonId]);
-    }
-  };
 
   const saveBookingDetails = () => {
     const formData = {
@@ -1239,50 +1230,6 @@ const HourlyBookingPage = () => {
               </CardContent>
 
             </Card>
-
-            {/* Addons Section */}
-            {availableAddons && availableAddons.length > 0 && (
-              <Card className="shadow-md border-border dark:bg-slate-800 dark:border-slate-700">
-                <CardHeader className="pb-4 bg-muted/30 border-b border-border/50">
-                  <CardTitle className="text-2xl font-bold text-foreground tracking-tight flex items-center gap-2">
-                    <PackagePlus className="h-6 w-6 text-primary" />
-                    Would You Like To Add-On?
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-6">
-                  <div className="space-y-3">
-                    {availableAddons.map((addon) => (
-                      <div 
-                        key={addon.id} 
-                        className="flex items-center justify-between p-4 bg-background rounded-lg border border-border/50 hover:border-primary/30 transition-colors cursor-pointer"
-                        onClick={() => handleAddonToggle(addon.id)}
-                      >
-                        <div className="flex items-center gap-3">
-                          <Checkbox
-                            id={`addon-step2-${addon.id}`}
-                            checked={selectedAddons.includes(addon.id)}
-                            onCheckedChange={() => handleAddonToggle(addon.id)}
-                            className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                          />
-                          <label 
-                            htmlFor={`addon-step2-${addon.id}`}
-                            className="text-base font-medium text-foreground cursor-pointer"
-                          >
-                            {addon.name}
-                            {addon.description && (
-                              <span className="block text-sm text-muted-foreground mt-0.5">{addon.description}</span>
-                            )}
-                          </label>
-                        </div>
-                        <span className="text-base font-semibold text-primary">
-                          +BHD {parseFloat(addon.price || 0).toFixed(3)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
 
             <Button 
 
