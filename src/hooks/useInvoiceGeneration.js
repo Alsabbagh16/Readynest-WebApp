@@ -35,13 +35,23 @@ export const useInvoiceGeneration = (purchase) => {
     // 4. Line Items Construction
     const lineItems = [];
 
-    // Main Service Item
+    // Calculate the original amount (before discount)
+    const discount = Number(purchase.discount_amount || 0);
+    const paidAmount = Number(purchase.paid_amount || 0);
+    
+    // If there's a discount, the original amount is paid + discount
+    // If original_amount is stored, use that as the source of truth
+    const originalAmount = purchase.original_amount 
+        ? Number(purchase.original_amount) 
+        : (discount > 0 ? paidAmount + discount : paidAmount);
+
+    // Main Service Item - use original amount (pre-discount) for unit price
     lineItems.push({
         id: 'service-main',
         description: purchase.product_name || 'Service Charge',
         quantity: 1,
-        unitPrice: Number(purchase.paid_amount || 0),
-        total: Number(purchase.paid_amount || 0)
+        unitPrice: originalAmount,
+        total: originalAmount
     });
     
     // Addons handling - primarily informational if included in base price
@@ -50,8 +60,8 @@ export const useInvoiceGeneration = (purchase) => {
     }
 
     // 5. Calculations
+    // Subtotal is the sum of line items (pre-discount amount)
     const subtotal = lineItems.reduce((sum, item) => sum + item.total, 0);
-    const discount = Number(purchase.discount_amount || 0);
     const taxRate = 0; 
     const taxAmount = (subtotal - discount) * taxRate;
     const total = (subtotal - discount) + taxAmount;
