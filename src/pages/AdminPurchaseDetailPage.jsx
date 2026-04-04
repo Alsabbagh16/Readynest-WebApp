@@ -316,19 +316,27 @@ const PurchaseServicePaymentInfo = ({ purchase, isEditing, editableFields, onInp
                     return null;
                 })()}
 
-                {Number(purchase.discount_amount) > 0 ? (
-                    <DetailItem 
-                        label="Base Amount" 
-                        value={`BHD ${(Number(purchase.paid_amount) + Number(purchase.discount_amount)).toFixed(3)}`} 
-                    />
-                ) : (
-                     <DetailItem 
-                        label="Base Amount" 
-                        value={`BHD ${Number(purchase.paid_amount).toFixed(3)}`} 
-                    />
-                )}
+                {(() => {
+                    // Calculate original/base amount - use original_amount if stored, otherwise calculate
+                    const discountAmt = parseFloat(purchase.discount_amount) || 0;
+                    const paidAmt = parseFloat(purchase.paid_amount) || 0;
+                    // Check for original_amount - it may be stored as number or string
+                    const storedOriginal = purchase.original_amount !== null && purchase.original_amount !== undefined 
+                        ? parseFloat(purchase.original_amount) 
+                        : null;
+                    const originalAmt = storedOriginal !== null && storedOriginal > 0
+                        ? storedOriginal 
+                        : (discountAmt > 0 ? paidAmt + discountAmt : paidAmt);
+                    
+                    return (
+                        <DetailItem 
+                            label="Base Amount" 
+                            value={`BHD ${originalAmt.toFixed(3)}`} 
+                        />
+                    );
+                })()}
 
-                {Number(purchase.discount_amount) > 0 && (
+                {(Number(purchase.discount_amount) > 0 || parseFloat(purchase.discount_amount) > 0) && (
                     <div className="flex items-start text-sm py-1 text-green-700 dark:text-green-400">
                         <dt className="font-medium w-36 shrink-0 flex items-center">
                             Discount: 
@@ -339,7 +347,7 @@ const PurchaseServicePaymentInfo = ({ purchase, isEditing, editableFields, onInp
                             )}
                         </dt>
                         <dd className="font-medium">
-                            - BHD {Number(purchase.discount_amount).toFixed(3)}
+                            - BHD {parseFloat(purchase.discount_amount || 0).toFixed(3)}
                         </dd>
                     </div>
                 )}
@@ -596,13 +604,30 @@ const AdminPurchaseDetailPage = () => {
         const currentDiscount = Number(data.discount_amount) || 0;
         const restoredBase = currentPaid + currentDiscount;
 
+        // Calculate original base amount (before discount) for editing
+        const savedDiscount = Number(data.discount_amount) || 0;
+        const savedPaid = Number(data.paid_amount) || 0;
+        // Original amount is either stored or calculated as paid + discount
+        const originalBase = data.original_amount 
+            ? Number(data.original_amount) 
+            : (savedDiscount > 0 ? savedPaid + savedDiscount : savedPaid);
+        
+        // Determine discount type based on saved data
+        let discountType = 'none';
+        let discountValue = '';
+        if (savedDiscount > 0) {
+            // Default to fixed amount since we store the actual discount amount
+            discountType = 'fixed';
+            discountValue = savedDiscount.toString();
+        }
+
         setEditableFields({
             status: data.status || '',
             product_name: data.product_name || '',
             preferred_booking_date: formatForInput(data.preferred_booking_date) || '',
-            base_amount: data.final_amount_due_on_arrival?.toString() || data.paid_amount?.toString() || '',
-            discount_type: 'none',
-            discount_value: '',
+            base_amount: originalBase.toString(),
+            discount_type: discountType,
+            discount_value: discountValue,
             coupon_code: data.coupon_code || '',
             
             user_phone: data.user_phone || '',
@@ -709,6 +734,9 @@ const AdminPurchaseDetailPage = () => {
         }
       }
 
+      // Store original amount (base before discount) for invoice generation
+      const baseAmount = Number(editableFields.base_amount) || 0;
+
       const updateData = {
         status: editableFields.status,
         product_name: editableFields.product_name,
@@ -717,6 +745,7 @@ const AdminPurchaseDetailPage = () => {
         paid_amount: finalTotal,
         final_amount_due_on_arrival: finalTotal,
         discount_amount: discountAmount,
+        original_amount: baseAmount, // Store pre-discount amount for invoice
         coupon_code: editableFields.coupon_code ? editableFields.coupon_code.trim() : null,
         
         user_phone: editableFields.user_phone,

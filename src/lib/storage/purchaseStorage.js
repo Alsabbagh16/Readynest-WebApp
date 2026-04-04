@@ -35,6 +35,7 @@ export const createPurchase = async (purchaseData) => {
         paid_amount: paidAmount,
         final_amount_due_on_arrival: finalAmount,
         discount_amount: parseFloat(purchaseData.discount_amount || 0),
+        original_amount: parseFloat(purchaseData.original_amount || 0) || null,
         coupon_code: purchaseData.coupon_code || null,
         
         payment_type: purchaseData.payment_type || 'Cash',
