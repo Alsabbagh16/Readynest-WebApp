@@ -5,7 +5,7 @@ import { format } from 'date-fns';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import { RefreshCcw, Download, Edit, XCircle, ShoppingCart, ExternalLink, Phone, Tag, Mail, User, PlusCircle, FileText, CalendarDays, Calendar, ChevronLeft, ChevronRight, Search, Filter, AlertTriangle, Trash2 } from 'lucide-react';
+import { RefreshCcw, Download, Edit, XCircle, ShoppingCart, ExternalLink, Phone, Tag, Mail, User, PlusCircle, FileText, CalendarDays, Calendar, ChevronLeft, ChevronRight, Search, Filter, AlertTriangle, Trash2, CheckSquare, CreditCard } from 'lucide-react';
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -646,8 +646,10 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
                   size="sm" 
                   variant="outline" 
                   disabled={filteredPurchases.length === 0}
+                  title="Bulk Select"
                 >
-                  <Trash2 className="mr-2 h-4 w-4" /> Bulk Select
+                  <CheckSquare className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Bulk Select</span>
                 </Button>
               ) : (
                 <div className="flex gap-2">
@@ -657,7 +659,7 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
                     variant="default"
                     disabled={selectedPurchases.size === 0}
                   >
-                    Mark as Paid ({selectedPurchases.size})
+                    <span>Paid ({selectedPurchases.size})</span>
                   </Button>
                   <Button 
                     onClick={() => {
@@ -672,13 +674,15 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
                 </div>
               )}
               
-              <Button onClick={handleExport} size="sm" variant="outline" disabled={filteredPurchases.length === 0}>
-                  <Download className="mr-2 h-4 w-4" /> Export CSV
+              <Button onClick={handleExport} size="sm" variant="outline" disabled={filteredPurchases.length === 0} title="Export CSV">
+                  <Download className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Export</span>
               </Button>
               
               <PermissionGate permission="purchases.create">
-                  <Button size="sm" onClick={() => setIsCreateModalOpen(true)}>
-                      <PlusCircle className="mr-2 h-4 w-4" /> Create Purchase
+                  <Button size="sm" onClick={() => setIsCreateModalOpen(true)} title="Create Purchase">
+                      <PlusCircle className="h-4 w-4 sm:mr-2" />
+                      <span className="hidden sm:inline">Create Purchase</span>
                   </Button>
               </PermissionGate>
           </div>

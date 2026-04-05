@@ -14,12 +14,24 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, ChevronDown, Check, Users, Clock } from 'lucide-react';
+import { Loader2, ChevronDown, Check, Users, Clock, MapPin, ChevronsUpDown, X } from 'lucide-react';
 import CustomerSelector from './CustomerSelector';
 import { useCustomerAutoFill } from '@/hooks/useCustomerAutoFill';
 import { createPurchase } from '@/lib/storage/purchaseStorage';
 import { fetchServiceRates, calculateHourlyAmount } from '@/lib/serviceRatesUtils';
 import { cn } from '@/lib/utils';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
   const [loading, setLoading] = useState(false);
@@ -31,6 +43,12 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
   const dropdownRef = useRef(null);
   const triggerRef = useRef(null);
   const { toast } = useToast();
+
+  // Customer addresses state
+  const [customerAddresses, setCustomerAddresses] = useState([]);
+  const [loadingAddresses, setLoadingAddresses] = useState(false);
+  const [addressDropdownOpen, setAddressDropdownOpen] = useState(false);
+  const [selectedAddressId, setSelectedAddressId] = useState(null);
 
   // Hourly service optional fields
   const [hourlyService, setHourlyService] = useState({
@@ -58,6 +76,33 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
   });
 
   const { loadingAutoFill } = useCustomerAutoFill(formData.customer_id, setFormData);
+
+  // Fetch customer addresses when customer is selected
+  useEffect(() => {
+    const fetchCustomerAddresses = async () => {
+      if (!formData.customer_id) {
+        setCustomerAddresses([]);
+        setSelectedAddressId(null);
+        return;
+      }
+      setLoadingAddresses(true);
+      try {
+        const { data, error } = await supabase
+          .from('addresses')
+          .select('*')
+          .eq('user_id', formData.customer_id)
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        setCustomerAddresses(data || []);
+      } catch (error) {
+        console.error("Error fetching customer addresses:", error);
+        setCustomerAddresses([]);
+      } finally {
+        setLoadingAddresses(false);
+      }
+    };
+    fetchCustomerAddresses();
+  }, [formData.customer_id]);
 
   useEffect(() => {
     if (isOpen) {
@@ -133,6 +178,26 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
 
   const handleCustomerSelect = (customerId) => {
     setFormData(prev => ({ ...prev, customer_id: customerId }));
+  };
+
+  const handleAddressSelect = (addressId) => {
+    if (!addressId) {
+      setSelectedAddressId(null);
+      return;
+    }
+    const address = customerAddresses.find(a => a.id === addressId);
+    if (address) {
+      setSelectedAddressId(addressId);
+      setFormData(prev => ({
+        ...prev,
+        address_street: address.street || '',
+        address_city: address.city || '',
+        address_zip: address.zip || '',
+        address_phone: address.phone || '',
+        address_alt_phone: address.alt_phone || ''
+      }));
+    }
+    setAddressDropdownOpen(false);
   };
 
   const handleHourlyServiceChange = (field, value) => {
@@ -302,6 +367,8 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
         hours: '',
         isSubscription: false
       });
+      setSelectedAddressId(null);
+      setCustomerAddresses([]);
     } catch (error) {
       console.error("9. Error handling in handleSubmit:", error);
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -466,6 +533,103 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
 
           <div className="space-y-2 border-t pt-2 mt-2">
             <Label className="text-xs font-semibold uppercase text-muted-foreground">Address Details</Label>
+            
+            {/* Saved Addresses Dropdown - only show if customer is selected and has addresses */}
+            {formData.customer_id && customerAddresses.length > 0 && (
+              <div className="mb-2">
+                <Label className="text-sm mb-1 block">Saved Addresses</Label>
+                <Popover open={addressDropdownOpen} onOpenChange={setAddressDropdownOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={addressDropdownOpen}
+                      className="w-full justify-between"
+                    >
+                      {selectedAddressId ? (
+                        <span className="truncate flex items-center">
+                          <MapPin className="mr-2 h-4 w-4 text-primary" />
+                          {(() => {
+                            const addr = customerAddresses.find(a => a.id === selectedAddressId);
+                            return addr ? `${addr.street}, ${addr.city}` : 'Select address...';
+                          })()}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">Select a saved address...</span>
+                      )}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    className="w-[var(--radix-popover-trigger-width)] p-0 max-h-[300px] overflow-hidden"
+                    align="start"
+                    onWheel={(e) => e.stopPropagation()}
+                    onTouchStart={(e) => e.stopPropagation()}
+                    onTouchMove={(e) => e.stopPropagation()}
+                    onTouchEnd={(e) => e.stopPropagation()}
+                  >
+                    <Command shouldFilter={false}
+                      onWheel={(e) => e.stopPropagation()}
+                      onTouchStart={(e) => e.stopPropagation()}
+                      onTouchMove={(e) => e.stopPropagation()}
+                      onTouchEnd={(e) => e.stopPropagation()}>
+                      <CommandInput placeholder="Search addresses..." />
+                      <CommandEmpty>
+                        {loadingAddresses ? (
+                          <div className="flex items-center justify-center p-2 text-sm text-muted-foreground">
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading...
+                          </div>
+                        ) : "No addresses found."}
+                      </CommandEmpty>
+                      <CommandGroup className="max-h-[250px] overflow-y-auto"
+                        onWheel={(e) => e.stopPropagation()}
+                        onTouchStart={(e) => e.stopPropagation()}
+                        onTouchMove={(e) => e.stopPropagation()}
+                        onTouchEnd={(e) => e.stopPropagation()}>
+                        {customerAddresses.map((address) => (
+                          <CommandItem
+                            key={address.id}
+                            value={address.id}
+                            onSelect={() => handleAddressSelect(address.id)}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                selectedAddressId === address.id ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            <div className="flex flex-col">
+                              <span className="font-medium">{address.street}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {address.city}{address.zip ? `, ${address.zip}` : ''} 
+                                {address.phone ? ` • ${address.phone}` : ''}
+                              </span>
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                      {selectedAddressId && (
+                        <div className="border-t p-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="w-full justify-center text-xs h-8"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedAddressId(null);
+                              setAddressDropdownOpen(false);
+                            }}
+                          >
+                            <X className="mr-2 h-3 w-3" /> Clear Selection
+                          </Button>
+                        </div>
+                      )}
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
+            
             <div className="grid grid-cols-2 gap-2">
               <Input name="address_street" placeholder="Street" value={formData.address_street} onChange={handleChange} className="col-span-2 text-sm" />
               <Input name="address_city" placeholder="City" value={formData.address_city} onChange={handleChange} className="text-sm" />
