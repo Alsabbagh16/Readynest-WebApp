@@ -50,7 +50,7 @@ const getStatusBadgeVariant = (status) => {
     }
 };
 
-const availableStatuses = ["Pending Assignment", "Scheduled", "Assigned", "In Progress", "On Hold", "Completed", "Cancelled", "Failed"];
+const availableStatuses = ["Pending Assignment", "Scheduled", "Assigned", "In Progress", "On Hold", "Completed", "Cancelled", "Failed", "Test"];
 
 const Section = ({ title, icon, children, className = "" }) => (
     <div className={`py-4 border-b border-gray-200 dark:border-gray-700 last:border-b-0 ${className}`}>

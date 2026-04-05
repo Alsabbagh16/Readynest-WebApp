@@ -12,7 +12,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { ArrowLeft, Save, User, Briefcase, Users, Hash, MapPin, CalendarClock, Phone, AlertCircle, ShoppingBag, PackagePlus } from 'lucide-react';
 import { generateJobRefId } from '@/lib/storage/jobStorage';
-import { validateBookingTime } from '@/lib/timeWindowValidator';
 import { toLocalDatetimeInputString } from '@/lib/dateTimeHelpers';
 import { sendJobCreatedNotification } from '@/lib/whatsappService';
 
@@ -36,7 +35,7 @@ const getCurrentLocalString = () => {
     return `${year}-${month}-${day}T${hours}:${minutes}`;
 };
 
-const JobCoreDetailsFormSection = ({ formData, handleInputChange, availableStatuses, dateError }) => (
+const JobCoreDetailsFormSection = ({ formData, handleInputChange, availableStatuses }) => (
   <Card>
     <CardHeader>
       <CardTitle className="flex items-center dark:text-white"><Briefcase className="mr-2 h-5 w-5 text-primary" />Job Details</CardTitle>
@@ -62,7 +61,7 @@ const JobCoreDetailsFormSection = ({ formData, handleInputChange, availableStatu
                   const newDateTime = e.target.value ? `${e.target.value}T${timePart}` : '';
                   handleInputChange({ target: { name: 'preferred_date', value: newDateTime } });
                 }}
-                className={`dark:bg-slate-700 dark:border-slate-600 dark:text-white ${dateError ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
+                className="dark:bg-slate-700 dark:border-slate-600 dark:text-white"
             />
             <Input 
                 type="time" 
@@ -72,18 +71,13 @@ const JobCoreDetailsFormSection = ({ formData, handleInputChange, availableStatu
                   const newDateTime = e.target.value ? `${datePart}T${e.target.value}` : '';
                   handleInputChange({ target: { name: 'preferred_date', value: newDateTime } });
                 }}
-                className={`dark:bg-slate-700 dark:border-slate-600 dark:text-white ${dateError ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
+                className="dark:bg-slate-700 dark:border-slate-600 dark:text-white"
             />
           </div>
           <p className="text-[10px] text-muted-foreground">
               Select any date and time (past dates allowed).
           </p>
         </div>
-        {dateError && (
-            <p className="text-sm text-red-500 flex items-center mt-1">
-                <AlertCircle className="h-3 w-3 mr-1" /> {dateError}
-            </p>
-        )}
         <p className="text-[10px] text-muted-foreground mt-1">
             Time is stored exactly as entered (Face Value).
         </p>
@@ -344,9 +338,8 @@ const AdminCreateJobPage = () => {
   const [loadingPurchases, setLoadingPurchases] = useState(false);
   const [loadingAddons, setLoadingAddons] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [dateError, setDateError] = useState(null);
 
-  const availableStatuses = ["Pending Assignment", "Scheduled", "Assigned", "In Progress", "On Hold", "Completed", "Cancelled", "Failed"];
+  const availableStatuses = ["Pending Assignment", "Scheduled", "Assigned", "In Progress", "On Hold", "Completed", "Cancelled", "Failed", "Test"];
 
   const fetchPurchasesAndEmployees = useCallback(async () => {
     try {
@@ -413,11 +406,6 @@ const AdminCreateJobPage = () => {
             notes: `Job created from purchase ${purchaseData.purchase_ref_id}. Product: ${purchaseData.product_name || 'N/A'}.`.trim(),
         };
         console.log("New form data after population:", newFormData);
-        // Trigger validation if date exists
-        if (newFormData.preferred_date) {
-            const val = validateBookingTime(newFormData.preferred_date);
-            setDateError(val.isValid ? null : val.error);
-        }
         return newFormData;
       });
     }
@@ -442,11 +430,6 @@ const AdminCreateJobPage = () => {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-    
-    if (name === 'preferred_date') {
-        const val = validateBookingTime(value);
-        setDateError(val.isValid ? null : val.error);
-    }
   };
   
   const handleAddressChange = (e) => {
@@ -508,11 +491,6 @@ const AdminCreateJobPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (dateError) {
-         toast({ title: "Invalid Date", description: dateError, variant: "destructive" });
-         return;
-    }
 
     setIsSubmitting(true);
 
@@ -621,8 +599,7 @@ const AdminCreateJobPage = () => {
         <JobCoreDetailsFormSection 
             formData={formData} 
             handleInputChange={handleInputChange} 
-            availableStatuses={availableStatuses} 
-            dateError={dateError}
+            availableStatuses={availableStatuses}
         />
         <AddonsFormSection
             formData={formData}
@@ -652,7 +629,7 @@ const AdminCreateJobPage = () => {
             <Button type="button" variant="outline" onClick={() => navigate('/admin-dashboard/jobs')} disabled={isSubmitting} className="dark:text-white dark:border-slate-600 hover:dark:bg-slate-700">
                 Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting || !!dateError} className="dark:bg-primary dark:text-primary-foreground hover:dark:bg-primary/90">
+            <Button type="submit" disabled={isSubmitting} className="dark:bg-primary dark:text-primary-foreground hover:dark:bg-primary/90">
             {isSubmitting ? (
                 <>
                     <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

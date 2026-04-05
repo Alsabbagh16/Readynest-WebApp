@@ -331,6 +331,7 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
                     <SelectItem value="On Hold">On Hold</SelectItem>
                     <SelectItem value="Completed">Completed</SelectItem>
                     <SelectItem value="Cancelled">Cancelled</SelectItem>
+                    <SelectItem value="Test">Test</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

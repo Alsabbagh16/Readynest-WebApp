@@ -36,7 +36,7 @@ export const addBooking = async (bookingData) => {
   if (dateToCheck) {
       const val = validateBookingTime(dateToCheck);
       if (!val.isValid) {
-          throw new Error("Booking time must be between 08:30 and 17:00.");
+          throw new Error("Booking time must be between 8:30AM and 6:00PM.");
       }
   }
 
@@ -114,7 +114,7 @@ export const updateBooking = async (id, updatedData) => {
   // Validate time before updating if present
   if (updatedData.booking_date) {
       const val = validateBookingTime(updatedData.booking_date);
-      if (!val.isValid) throw new Error("Booking time must be between 08:30 and 17:00.");
+      if (!val.isValid) throw new Error("Booking time must be between 8:30AM and 6:00PM.");
   }
 
   if (updatedData.assignedEmployeeIds && !Array.isArray(updatedData.assignedEmployeeIds)) {

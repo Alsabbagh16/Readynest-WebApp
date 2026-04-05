@@ -1,6 +1,5 @@
 import { supabase } from '@/lib/supabase';
 import { v4 as uuidv4 } from 'uuid';
-import { validateBookingTime } from '@/lib/timeWindowValidator';
 import { isValidUUID, generateFallbackPurchaseId } from '@/lib/uuidValidator';
 
 // --- Configuration ---
@@ -13,12 +12,6 @@ export const generateJobRefId = () => {
 };
 
 export const createJob = async (jobData) => {
-    // Validate time
-    if (jobData.preferred_date) {
-        const val = validateBookingTime(jobData.preferred_date);
-        if (!val.isValid) throw new Error("Job time must be between 08:30 and 17:00.");
-    }
-
     // Double validation: Frontend does this, but Backend/Storage must also enforce it.
     // Check if the incoming purchaseId is undefined, null, empty string, or invalid UUID format.
     // If invalid, generate a new ID using generateFallbackPurchaseId().
@@ -50,12 +43,6 @@ export const getJobByRefId = async (jobRefId) => {
 };
 
 export const updateJob = async (jobRefId, updateData) => {
-    // Validate time if being updated
-    if (updateData.preferred_date) {
-        const val = validateBookingTime(updateData.preferred_date);
-        if (!val.isValid) throw new Error("Job time must be between 08:30 and 17:00.");
-    }
-
     const { data, error } = await supabase
         .from('jobs')
         .update({ ...updateData, updated_at: new Date().toISOString() })

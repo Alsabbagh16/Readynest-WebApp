@@ -714,6 +714,7 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
                 <SelectItem value="Completed">Completed</SelectItem>
                 <SelectItem value="Cancelled">Cancelled</SelectItem>
                 <SelectItem value="Refunded">Refunded</SelectItem>
+                <SelectItem value="Test">Test</SelectItem>
                 <SelectItem value="Failed">Failed</SelectItem>
                 <SelectItem value="Flagged">Flagged</SelectItem>
               </SelectContent>

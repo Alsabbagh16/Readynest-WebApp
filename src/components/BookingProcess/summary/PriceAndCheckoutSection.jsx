@@ -80,7 +80,7 @@ const PriceAndCheckoutSection = ({
       </Button>
       {(isProceedDisabled && !authLoading && !isSubmitting) && (
         <p className="text-xs text-center mt-2 text-muted-foreground dark:text-slate-400">
-            {!isTimeValid ? "Please select a valid time between 08:30 and 17:00." : "Please login, register, or continue as guest and fill required fields to proceed."}
+            {!isTimeValid ? "Please select a valid time between 8:30AM and 6:00PM." : "Please login, register, or continue as guest and fill required fields to proceed."}
         </p>
       )}
     </div>

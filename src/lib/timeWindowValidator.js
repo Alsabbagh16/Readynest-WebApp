@@ -2,10 +2,11 @@
  * Constants for the valid operating window.
  */
 export const VALID_START_TIME = "08:30";
-export const VALID_END_TIME = "17:00";
+export const VALID_END_TIME = "18:00";
+export const VALID_END_TIME_DISPLAY = "6:00PM";
 
 /**
- * Validates if a given date time string falls within the allowed operating window (08:30 - 17:00).
+ * Validates if a given date time string falls within the allowed operating window (08:30 - 18:00).
  * Logic:
  * - Expects raw datetime string "YYYY-MM-DDTHH:mm" (or similar)
  * - Parses manually to avoid any timezone shifts
@@ -53,9 +54,9 @@ export const validateBookingTime = (dateTime) => {
   const totalMinutes = hours * 60 + minutes;
 
   const startTotalMinutes = 8 * 60 + 30; // 08:30 = 510 minutes
-  const endTotalMinutes = 17 * 60;       // 17:00 = 1020 minutes
+  const endTotalMinutes = 18 * 60;       // 18:00 = 1080 minutes
 
-  const ERROR_MSG = `Please choose a time between ${VALID_START_TIME} and ${VALID_END_TIME}.`;
+  const ERROR_MSG = `Please choose a time between 8:30AM and 6:00PM.`;
 
   if (totalMinutes < startTotalMinutes || totalMinutes >= endTotalMinutes) {
     result.isValid = false;

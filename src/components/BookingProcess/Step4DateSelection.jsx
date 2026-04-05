@@ -40,7 +40,7 @@ const Step4DateSelection = () => {
     if (!validation.isValid) {
         toast({
             title: "Invalid Time",
-            description: validation.error || "Please select a time between 08:30 and 17:00",
+            description: validation.error || "Please select a time between 8:30AM and 6:00PM",
             variant: "destructive"
         });
     }
@@ -54,7 +54,7 @@ const Step4DateSelection = () => {
       <CardHeader className="text-center mb-6">
         <CardTitle className="text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">When would you like us to come?</CardTitle>
         <CardDescription className="mt-2 text-lg text-muted-foreground">
-          Select your preferred date and time. Our operating hours are 08:30 - 17:00.
+          Select your preferred date and time. Our operating hours are 8:30AM - 6:00PM.
         </CardDescription>
       </CardHeader>
       

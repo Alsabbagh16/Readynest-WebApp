@@ -155,7 +155,7 @@ const BookingSummaryPage = ({ addonTemplates: allAddonTemplates }) => {
     if (!dateTime || !isTimeValid) {
         toast({ 
             title: "Invalid Time", 
-            description: timeValidation.error || "Please choose a time between 08:30 and 17:00.", 
+            description: timeValidation.error || "Please choose a time between 8:30AM and 6:00PM.", 
             variant: "destructive" 
         });
         return;
@@ -347,7 +347,7 @@ const BookingSummaryPage = ({ addonTemplates: allAddonTemplates }) => {
             {!isTimeValid && dateTime && (
                 <div className="mt-2 p-2 bg-red-100 border border-red-200 rounded text-center">
                     <p className="text-red-600 text-sm font-semibold">
-                        {timeValidation.error || "Time Slot Invalid. Please choose a time between 08:30 and 17:00."}
+                        {timeValidation.error || "Time Slot Invalid. Please choose a time between 8:30AM and 6:00PM."}
                     </p>
                 </div>
             )}

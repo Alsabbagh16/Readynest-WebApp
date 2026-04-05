@@ -90,7 +90,7 @@ const BookingForm = ({ isQuotePage = false }) => {
           const dateTimeStr = `${formData.date}T${formData.time}`;
           const timeValidation = validateBookingTime(dateTimeStr);
           if (!timeValidation.isValid) {
-              newErrors.time = "Please choose a time between 08:30 and 17:00.";
+              newErrors.time = "Please choose a time between 8:30AM and 6:00PM.";
           }
       }
 
