@@ -21,10 +21,34 @@ const Hero = () => {
             transition={{ duration: 0.6 }}
           >
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight text-gray-900 mb-5 md:mb-6">
-              Sparkling Clean Homes, <span className="text-primary">Effortlessly</span> Delivered
+              Its Time to Relax, <span className="text-primary">A Clean home is Just <span className="relative inline-block px-2">
+                <span className="relative z-10">2.4BD</span>
+                {/* Sparkle 1 - Top Left */}
+                <motion.svg
+                  className="absolute -top-1 -left-1 w-4 h-4 text-yellow-400"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: [0, 1, 0.8, 1], opacity: [0, 1, 0.7, 1] }}
+                  transition={{ duration: 1.2, delay: 0.5, repeat: Infinity, repeatDelay: 2 }}
+                >
+                  <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z" />
+                </motion.svg>
+                {/* Sparkle 2 - Bottom Right */}
+                <motion.svg
+                  className="absolute -bottom-1 -right-2 w-3.5 h-3.5 text-yellow-400"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: [0, 1, 0.8, 1], opacity: [0, 1, 0.7, 1] }}
+                  transition={{ duration: 1.2, delay: 1.1, repeat: Infinity, repeatDelay: 2 }}
+                >
+                  <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z" />
+                </motion.svg>
+              </span> an hour.</span>
             </h1>
             <p className="text-base md:text-lg lg:text-xl text-gray-600 mb-8 max-w-2xl">
-              ReadyNest offers professional, reliable cleaning for apartments and homes. Choose a single service or subscribe for regular upkeep. Your clean home awaits!
+              Why buy supplies? We bring the professional equipment and chemicals to you. Get a complete, worry-free clean for as low as 2.4 BD/hr.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-start">
               <Button asChild size="lg" className="text-base">
@@ -85,7 +109,7 @@ const Hero = () => {
             transition={{ duration: 0.4, delay: 0.3 }}
           >
             <h3 className="text-3xl md:text-4xl font-bold text-primary mb-1 md:mb-2">5+</h3>
-            <p className="text-xs md:text-sm text-gray-600">Years Experience</p>
+            <p className="text-xs md:text-sm text-gray-600">Years Experienced Cleaners</p>
           </motion.div>
           <motion.div
             className="p-4 md:p-6 rounded-xl bg-white shadow-sm text-left md:text-center"
@@ -93,7 +117,7 @@ const Hero = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: 0.4 }}
           >
-            <h3 className="text-3xl md:text-4xl font-bold text-primary mb-1 md:mb-2">10k+</h3>
+            <h3 className="text-3xl md:text-4xl font-bold text-primary mb-1 md:mb-2">500+</h3>
             <p className="text-xs md:text-sm text-gray-600">Cleanings Done</p>
           </motion.div>
           <motion.div

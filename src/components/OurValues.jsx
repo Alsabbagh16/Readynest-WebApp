@@ -1,18 +1,18 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
-import { Sparkles, Home, ShieldCheck, CalendarDays } from "lucide-react";
+import {Luggage, Home, ShieldCheck, CalendarDays } from "lucide-react";
 
 const valuesData = [
   {
-    icon: <Sparkles className="h-8 w-8 md:h-10 md:w-10 text-primary mb-3 md:mb-4" />,
-    title: "Spotless Results, Every Time",
-    description: "We don’t just clean — we restore comfort and freshness with attention to detail and consistency.",
+    icon: <Luggage className="h-8 w-8 md:h-10 md:w-10 text-primary mb-3 md:mb-4" />,
+    title: "Equipment & Cleaning Supplies Included",
+    description: "We provide all the equipment and cleaning supplies on every job, Free of charge",
   },
   {
     icon: <Home className="h-8 w-8 md:h-10 md:w-10 text-primary mb-3 md:mb-4" />,
-    title: "Tailored Cleaning for Every Home",
-    description: "From cozy apartments to large family homes, we personalize every service to fit your space and needs.",
+    title: "Your Home, Your Terms",
+    description: "Our team is trained to work around your schedule and preferences.",
   },
   {
     icon: <ShieldCheck className="h-8 w-8 md:h-10 md:w-10 text-primary mb-3 md:mb-4" />,
@@ -22,7 +22,7 @@ const valuesData = [
   {
     icon: <CalendarDays className="h-8 w-8 md:h-10 md:w-10 text-primary mb-3 md:mb-4" />,
     title: "Flexible Scheduling & Transparent Pricing",
-    description: "Book on your terms with no hidden fees — whether it’s a one-time deep clean or routine maintenance.",
+    description: "Book on your terms with no hidden fees — whether it’s One-time or Weekly clean.",
   },
 ];
 

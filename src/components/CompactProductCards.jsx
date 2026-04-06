@@ -61,7 +61,7 @@ const CompactProductCards = () => {
 
   const formatType = (type) => {
     if (type === "one_time_service") return "One-Time";
-    if (type === "recurring_service") return "Recurring";
+    if (type === "recurring_service") return "Subscription";
     return type;
   };
 
@@ -125,7 +125,7 @@ const CompactProductCards = () => {
                   <div className="flex-1">
                     <div className="flex items-start justify-between mb-2">
                       <h3 className="text-sm font-bold text-foreground line-clamp-1 flex-1 mr-2">{product.name}</h3>
-                      <Badge className="bg-primary/90 text-primary-foreground text-[10px] backdrop-blur-sm shadow-sm px-2 py-0.5 flex-shrink-0">
+                      <Badge className="bg-blue-500 text-white text-[10px] shadow-sm px-2 py-0.5 flex-shrink-0">
                         {formatType(product.type)}
                       </Badge>
                     </div>

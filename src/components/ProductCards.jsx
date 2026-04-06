@@ -34,7 +34,9 @@ const ProductCards = () => {
           .order("created_at", { ascending: false });
 
         if (error) throw error;
-        setProducts(data || []);
+        // Sort by price ascending to show lowest price first
+        const sortedData = (data || []).sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
+        setProducts(sortedData);
       } catch (err) {
         console.error("Error fetching products:", err);
       } finally {
@@ -60,7 +62,7 @@ const ProductCards = () => {
 
   const formatType = (type) => {
     if (type === "one_time_service") return "One-Time";
-    if (type === "recurring_service") return "Recurring";
+    if (type === "recurring_service") return "Subscription";
     return type;
   };
 
@@ -135,13 +137,8 @@ const ProductCards = () => {
                   >
                     <ImageOff className="h-10 w-10 text-muted-foreground/40" />
                   </div>
-                  <div className="absolute top-3 left-3 flex gap-2">
-                    {product.categories?.name && (
-                      <Badge variant="secondary" className="bg-white/90 text-foreground text-xs backdrop-blur-sm shadow-sm">
-                        {product.categories.name}
-                      </Badge>
-                    )}
-                    <Badge className="bg-primary/90 text-primary-foreground text-xs backdrop-blur-sm shadow-sm">
+                  <div className="absolute top-3 right-3 flex gap-2">
+                    <Badge className="bg-blue-500 text-white text-xs shadow-sm">
                       {formatType(product.type)}
                     </Badge>
                   </div>
