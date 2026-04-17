@@ -23,7 +23,17 @@ const REQUIRED_PERMISSIONS = [
   { key: 'tab.registered_accounts.view', description: 'View Registered Accounts tab', module: 'accounts' },
   { key: 'tab.services_products.view', description: 'View Services & Products tab', module: 'products' },
   { key: 'tab.coupons.view', description: 'View Coupons tab', module: 'coupons' },
-  { key: 'tab.customize_website.view', description: 'View Website Customization tab', module: 'settings' }
+  { key: 'tab.customize_website.view', description: 'View Website Customization tab', module: 'settings' },
+  { key: 'tab.inventory.view', description: 'View Inventory tab', module: 'inventory' },
+  { key: 'inventory.create_item', description: 'Create inventory items', module: 'inventory' },
+  { key: 'inventory.edit_item', description: 'Edit inventory items', module: 'inventory' },
+  { key: 'inventory.delete_item', description: 'Delete inventory items', module: 'inventory' },
+  { key: 'inventory.create_category', description: 'Create inventory categories', module: 'inventory' },
+  { key: 'inventory.edit_category', description: 'Edit inventory categories', module: 'inventory' },
+  { key: 'inventory.delete_category', description: 'Delete inventory categories', module: 'inventory' },
+  { key: 'inventory.create_supplier', description: 'Create inventory suppliers', module: 'inventory' },
+  { key: 'inventory.edit_supplier', description: 'Edit inventory suppliers', module: 'inventory' },
+  { key: 'inventory.delete_supplier', description: 'Delete inventory suppliers', module: 'inventory' }
 ];
 
 export const seedPermissions = async () => {

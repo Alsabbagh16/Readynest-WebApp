@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, ShoppingCart, Briefcase, LogOut, ListChecks, Settings2, UserCircle, Menu, X, ChevronRight, LayoutTemplate, Tag, CalendarDays, ShieldCheck, DollarSign, Mail } from 'lucide-react';
+import { Users, ShoppingCart, Briefcase, LogOut, ListChecks, Settings2, UserCircle, Menu, X, ChevronRight, LayoutTemplate, Tag, CalendarDays, ShieldCheck, DollarSign, Mail, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { updateJob } from "@/lib/storage/jobStorage";
 import { format } from "date-fns";
@@ -19,6 +19,7 @@ import CouponsTab from '@/components/AdminDashboard/CouponsTab';
 import JobsCalendarTab from '@/components/AdminDashboard/JobsCalendarTab'; 
 import ServiceRatesTab from '@/components/AdminDashboard/ServiceRatesTab';
 import ReportIssueTab from '@/components/AdminDashboard/ReportIssueTab';
+import InventoryTab from '@/components/AdminDashboard/InventoryTab';
 import ManageRolesPage from '@/pages/ManageRolesPage';
 import AdminPurchaseDetailPage from '@/pages/AdminPurchaseDetailPage';
 import AdminJobDetailPage from '@/pages/AdminJobDetailPage'; 
@@ -73,6 +74,7 @@ const AdminDashboardContent = () => {
     { id: 'manage-services', label: 'Services & Products', icon: Settings2, path: '/admin-dashboard/manage-services', component: <ManageServicesTab />, permission: 'tab.services_products.view' },
     { id: 'service-rates', label: 'Service Rates', icon: DollarSign, path: '/admin-dashboard/service-rates', component: <ServiceRatesTab />, permission: 'tab.services_products.view' },
     { id: 'coupons', label: 'Coupons', icon: Tag, path: '/admin-dashboard/coupons', component: <CouponsTab />, permission: 'tab.coupons.view' },
+    { id: 'inventory', label: 'Inventory', icon: Package, path: '/admin-dashboard/inventory', component: <InventoryTab />, permission: 'tab.inventory.view' },
     { id: 'report-issue', label: 'Report Issue', icon: Mail, path: '/admin-dashboard/report-issue', component: <ReportIssueTab />, permission: null },
     { id: 'customize-website', label: 'Customize Website', icon: LayoutTemplate, path: '/admin-dashboard/customize-website', component: <CustomizeWebsiteTab />, permission: 'tab.customize_website.view' },
     { id: 'manage-roles', label: 'Manage Roles', icon: ShieldCheck, path: '/admin-dashboard/manage-roles', component: <ManageRolesPage />, permission: 'tab.manage_roles.view' },
