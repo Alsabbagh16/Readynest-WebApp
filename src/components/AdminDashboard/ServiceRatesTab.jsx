@@ -14,6 +14,7 @@ const ServiceRatesTab = () => {
     maxCleaners: rates?.maxCleaners || 4,
     pricePerCleaner: rates?.pricePerCleaner || 15,
     subscriptionRate: rates?.subscriptionRate || 12,
+    twiceWeeklyMultiplier: rates?.twiceWeeklyMultiplier || 1.8,
     subscriptionDiscount: rates?.subscriptionDiscount || 20,
     isActive: rates?.isActive || true
   });
@@ -27,6 +28,7 @@ const ServiceRatesTab = () => {
         maxCleaners: rates.maxCleaners || 4,
         pricePerCleaner: rates.pricePerCleaner || 15,
         subscriptionRate: rates.subscriptionRate || 12,
+        twiceWeeklyMultiplier: rates.twiceWeeklyMultiplier || 1.8,
         subscriptionDiscount: rates.subscriptionDiscount || 20,
         isActive: rates.isActive || true
       });
@@ -47,6 +49,7 @@ const ServiceRatesTab = () => {
       maxCleaners: parseInt(serviceRates.maxCleaners, 10),
       pricePerCleaner: parseFloat(serviceRates.pricePerCleaner),
       subscriptionRate: parseFloat(serviceRates.subscriptionRate),
+      twiceWeeklyMultiplier: parseFloat(serviceRates.twiceWeeklyMultiplier),
       subscriptionDiscount: parseFloat(serviceRates.subscriptionDiscount),
       isActive: serviceRates.isActive
     };
@@ -102,7 +105,7 @@ const ServiceRatesTab = () => {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="subscriptionRate">Subscription Multiplier (e.g., 0.9 for 10% off)</Label>
+              <Label htmlFor="subscriptionRate">Weekly Subscription Multiplier</Label>
               <Input
                 id="subscriptionRate"
                 name="subscriptionRate"
@@ -112,6 +115,19 @@ const ServiceRatesTab = () => {
                 value={serviceRates.subscriptionRate}
                 onChange={handleChange}
                 placeholder="e.g. 0.85"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="twiceWeeklyMultiplier">Twice Weekly Multiplier</Label>
+              <Input
+                id="twiceWeeklyMultiplier"
+                name="twiceWeeklyMultiplier"
+                type="number"
+                step="0.01"
+                required
+                value={serviceRates.twiceWeeklyMultiplier}
+                onChange={handleChange}
+                placeholder="e.g. 1.8"
               />
             </div>
             <div className="space-y-2">

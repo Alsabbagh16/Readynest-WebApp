@@ -81,6 +81,8 @@ const HourlyBookingPage = () => {
 
   const [serviceType, setServiceType] = useState('One-Time');
 
+  const [subscriptionFrequency, setSubscriptionFrequency] = useState('once'); // 'once' or 'twice'
+
   const [dateTime, setDateTime] = useState('');
 
   const [cleaners, setCleaners] = useState(1);
@@ -248,11 +250,14 @@ const HourlyBookingPage = () => {
 
     const cleanerStr = cleaners === 1 ? 'Cleaner' : 'Cleaners';
 
-    const formattedServiceType = serviceType === 'One-Time' ? 'One Time' : 'Subscription';
+    let formattedServiceType = 'One Time';
+    if (serviceType === 'Subscription') {
+      formattedServiceType = subscriptionFrequency === 'twice' ? 'Subscription (Twice Weekly)' : 'Subscription (Once Weekly)';
+    }
 
     return `Hourly ${formattedServiceType} - ${hours} ${hourStr}, ${cleaners} ${cleanerStr}`;
 
-  }, [serviceType, hours, cleaners]);
+  }, [serviceType, subscriptionFrequency, hours, cleaners]);
 
 
 
@@ -382,27 +387,62 @@ const HourlyBookingPage = () => {
 
 
 
-  const calculatePrice = () => {
+  const calculatedPrice = useMemo(() => {
+
+    console.log('=== PRICE CALCULATION ===');
+    console.log('subscriptionFrequency:', subscriptionFrequency);
+    console.log('serviceType:', serviceType);
+    console.log('rates:', rates);
+    console.log('rates.twiceWeeklyMultiplier:', rates?.twiceWeeklyMultiplier);
+    console.log('rates.subscriptionRate:', rates?.subscriptionRate);
 
     if (!rates || !rates.pricePerCleaner) return 0;
 
     let base = cleaners * hours * rates.pricePerCleaner;
+    console.log('Base price (cleaners * hours * rate):', base);
 
-    if (serviceType === 'Subscription' && rates.subscriptionRate && rates.subscriptionDiscount !== undefined) {
+    if (serviceType === 'Subscription' && rates.subscriptionDiscount !== undefined) {
+
+      // Select multiplier based on frequency
+      const multiplier = subscriptionFrequency === 'twice' 
+        ? (rates.twiceWeeklyMultiplier || 1.8)
+        : (rates.subscriptionRate || 1);
+
+      console.log('Selected multiplier:', multiplier);
+      console.log('Is twice weekly?:', subscriptionFrequency === 'twice');
 
       // Calculate based on multiplier then apply discount
-
-      const multipliedAmount = base * rates.subscriptionRate;
+      const multipliedAmount = base * multiplier;
+      console.log('After multiplier:', multipliedAmount);
 
       const discount = multipliedAmount * (rates.subscriptionDiscount / 100);
+      console.log('Discount:', discount);
 
       base = multipliedAmount - discount;
+      console.log('Final price:', base);
 
     }
 
     return base;
 
-  };
+  }, [rates, cleaners, hours, serviceType, subscriptionFrequency]);
+
+  // Calculate savings amount for subscription
+  const calculateSavings = useMemo(() => {
+    if (!rates?.pricePerCleaner || serviceType !== 'Subscription') return 0;
+    
+    const basePrice = cleaners * hours * rates.pricePerCleaner;
+    
+    // Select multiplier based on frequency
+    const multiplier = subscriptionFrequency === 'twice' 
+      ? (rates.twiceWeeklyMultiplier || 1.8)
+      : (rates.subscriptionRate || 1);
+    
+    const multipliedAmount = basePrice * multiplier;
+    const discount = multipliedAmount * (rates.subscriptionDiscount / 100);
+    
+    return discount;
+  }, [rates, cleaners, hours, serviceType, subscriptionFrequency]);
 
 
 
@@ -600,7 +640,7 @@ const HourlyBookingPage = () => {
 
 
 
-    const finalPrice = calculatePrice();
+    const finalPrice = calculatedPrice;
 
     
 
@@ -869,33 +909,75 @@ const HourlyBookingPage = () => {
 
                     {['One-Time', 'Subscription'].map(type => (
 
-                      <button
+                      <div key={type} className="relative flex-1">
+                        <button
 
-                        key={type}
+                          onClick={() => setServiceType(type)}
 
-                        onClick={() => setServiceType(type)}
+                          className={cn(
 
-                        className={cn(
+                            "w-full py-3 text-sm font-medium rounded-md transition-all duration-200",
 
-                          "flex-1 py-3 text-sm font-medium rounded-md transition-all duration-200",
+                            serviceType === type 
 
-                          serviceType === type 
+                              ? "bg-background shadow-sm text-primary border border-border dark:bg-slate-700 dark:text-sky-400" 
 
-                            ? "bg-background shadow-sm text-primary border border-border dark:bg-slate-700 dark:text-sky-400" 
+                              : "text-muted-foreground hover:text-foreground hover:bg-background/50"
 
-                            : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+                          )}
 
+                        >
+
+                          {type}
+
+                        </button>
+                        
+                        {/* Save 20% ribbon for Subscription */}
+                        {type === 'Subscription' && (
+                          <div className="absolute -top-2 -right-2 z-50">
+                            <div className="bg-gradient-to-r from-blue-500 to-blue-400 text-white text-xs font-bold px-3 py-1.5 rounded-sm shadow-xl transform rotate-12 origin-center hover:scale-105 transition-all duration-200 relative overflow-hidden">
+                              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12 animate-shine"></div>
+                              <span className="relative">SAVE 20%</span>
+                            </div>
+                          </div>
                         )}
-
-                      >
-
-                        {type}
-
-                      </button>
+                      </div>
 
                     ))}
 
                   </div>
+
+                  {/* Subscription Frequency Toggle */}
+                  {serviceType === 'Subscription' && (
+                    <div className="mt-4">
+                      <p className="text-sm font-medium text-muted-foreground mb-2">How often per week?</p>
+                      <div className="flex rounded-lg overflow-hidden border border-border p-1 bg-muted/50 dark:bg-slate-900/50">
+                        {[
+                          { value: 'once', label: 'Once Weekly' },
+                          { value: 'twice', label: 'Twice Weekly' }
+                        ].map(freq => (
+                          <button
+                            key={freq.value}
+                            onClick={() => {
+                              console.log('=== FREQUENCY TOGGLE ===');
+                              console.log('Clicked:', freq.value);
+                              console.log('Current subscriptionFrequency:', subscriptionFrequency);
+                              setSubscriptionFrequency(freq.value);
+                              console.log('Set subscriptionFrequency to:', freq.value);
+                            }}
+                            className={cn(
+                              "flex-1 py-2.5 text-sm font-medium rounded-md transition-all duration-200",
+                              subscriptionFrequency === freq.value 
+                                ? "bg-background shadow-sm text-primary border border-border dark:bg-slate-700 dark:text-sky-400" 
+                                : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+                            )}
+                          >
+                            {freq.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                 </CardContent>
 
@@ -1111,6 +1193,8 @@ const HourlyBookingPage = () => {
 
                   serviceType={serviceType}
 
+                  subscriptionFrequency={subscriptionFrequency}
+
                   derivedDates={derivedDates}
 
                   cleaners={cleaners}
@@ -1141,7 +1225,13 @@ const HourlyBookingPage = () => {
 
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Estimated Total</p>
 
-                <p className="text-2xl font-extrabold text-primary dark:text-sky-400">BHD {calculatePrice().toFixed(3)}</p>
+                <p className="text-2xl font-extrabold text-primary dark:text-sky-400">BHD {calculatedPrice.toFixed(3)}</p>
+
+                {serviceType === 'Subscription' && rates?.subscriptionRate && calculateSavings > 0 && (
+                  <p className="text-xs text-green-600 dark:text-green-400 font-medium mt-1">
+                    You Saved: BHD {calculateSavings.toFixed(3)}
+                  </p>
+                )}
 
               </div>
 
@@ -1266,6 +1356,8 @@ const HourlyBookingPage = () => {
               details={{ 
 
                 serviceType, 
+
+                subscriptionFrequency,
 
                 derivedDates, 
 

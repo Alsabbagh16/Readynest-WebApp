@@ -39,6 +39,7 @@ const getFallbackRates = () => {
     maxCleaners: 4,
     pricePerCleaner: 3,
     subscriptionRate: 4, // Base multiplier for subscription
+    twiceWeeklyMultiplier: 1.8, // Multiplier for twice weekly subscriptions
     subscriptionDiscount: 20,
     isActive: true
   };

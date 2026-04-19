@@ -12,6 +12,7 @@ import PromoCodeInput from '@/components/BookingProcess/PromoCodeInput';
 const HourlyBookingReviewCard = ({ details, rates, userId, userEmail, onCouponApplied, appliedCoupon, availableAddons, selectedAddons, onAddonsChange }) => {
   const { 
     serviceType, 
+    subscriptionFrequency,
     derivedDates, 
     cleaners, 
     hours, 
@@ -27,13 +28,35 @@ const HourlyBookingReviewCard = ({ details, rates, userId, userEmail, onCouponAp
   const calculatePrice = () => {
     if (isRatesMissing) return 0;
     let base = cleaners * hours * rates.pricePerCleaner;
-    if (serviceType === 'Subscription' && rates.subscriptionRate && rates.subscriptionDiscount !== undefined) {
+    if (serviceType === 'Subscription' && rates.subscriptionDiscount !== undefined) {
+      // Select multiplier based on frequency
+      const multiplier = subscriptionFrequency === 'twice' 
+        ? (rates.twiceWeeklyMultiplier || 1.8)
+        : (rates.subscriptionRate || 1);
+      
       // Calculate based on multiplier then apply discount
-      const multipliedAmount = base * rates.subscriptionRate;
+      const multipliedAmount = base * multiplier;
       const discount = multipliedAmount * (rates.subscriptionDiscount / 100);
       base = multipliedAmount - discount;
     }
     return base;
+  };
+
+  // Calculate savings amount for subscription
+  const calculateSavings = () => {
+    if (isRatesMissing || serviceType !== 'Subscription') return 0;
+    
+    const basePrice = cleaners * hours * rates.pricePerCleaner;
+    
+    // Select multiplier based on frequency
+    const multiplier = subscriptionFrequency === 'twice' 
+      ? (rates.twiceWeeklyMultiplier || 1.8)
+      : (rates.subscriptionRate || 1);
+    
+    const multipliedAmount = basePrice * multiplier;
+    const discount = multipliedAmount * (rates.subscriptionDiscount / 100);
+    
+    return discount;
   };
 
   const basePrice = calculatePrice();
@@ -225,10 +248,10 @@ const HourlyBookingReviewCard = ({ details, rates, userId, userEmail, onCouponAp
             </span>
           </div>
           
-          {serviceType === 'Subscription' && rates?.subscriptionRate && (
+          {serviceType === 'Subscription' && rates?.subscriptionRate && calculateSavings() > 0 && (
             <div className="flex justify-end mt-2">
               <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50 dark:bg-green-900/20 dark:border-green-800 dark:text-green-400">
-                Subscription Discount Applied (x{rates.subscriptionRate})
+                You Saved: BHD {calculateSavings().toFixed(3)}
               </Badge>
             </div>
           )}

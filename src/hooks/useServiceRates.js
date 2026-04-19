@@ -7,6 +7,7 @@ export const useServiceRates = () => {
     maxCleaners: 4,
     pricePerCleaner: null,
     subscriptionRate: null,
+    twiceWeeklyMultiplier: 1.8,
     subscriptionDiscount: 20
   });
   const [loading, setLoading] = useState(true);

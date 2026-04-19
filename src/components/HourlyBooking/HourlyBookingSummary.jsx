@@ -9,6 +9,7 @@ import { format as formatTz, utcToZonedTime } from 'date-fns-tz';
 
 const HourlyBookingSummary = ({ 
   serviceType, 
+  subscriptionFrequency,
   derivedDates, 
   cleaners, 
   hours, 
@@ -20,21 +21,68 @@ const HourlyBookingSummary = ({
   const { rates, loading } = useServiceRates();
 
   const calculatePrice = () => {
+    console.log('=== SUMMARY PRICE CALCULATION ===');
+    console.log('subscriptionFrequency:', subscriptionFrequency);
+    console.log('serviceType:', serviceType);
+    console.log('rates:', rates);
+    console.log('rates.twiceWeeklyMultiplier:', rates?.twiceWeeklyMultiplier);
+    console.log('rates.subscriptionRate:', rates?.subscriptionRate);
+
     if (!rates.pricePerCleaner) return 0;
     let base = cleaners * hours * rates.pricePerCleaner;
-    if (serviceType === 'Subscription' && rates.subscriptionRate && rates.subscriptionDiscount !== undefined) {
+    console.log('Base price (cleaners * hours * rate):', base);
+
+    if (serviceType === 'Subscription' && rates.subscriptionDiscount !== undefined) {
+      // Select multiplier based on frequency
+      const multiplier = subscriptionFrequency === 'twice' 
+        ? (rates.twiceWeeklyMultiplier || 1.8)
+        : (rates.subscriptionRate || 1);
+
+      console.log('Selected multiplier:', multiplier);
+      console.log('Is twice weekly?:', subscriptionFrequency === 'twice');
+
       // Calculate based on multiplier then apply discount
-      const multipliedAmount = base * rates.subscriptionRate;
+      const multipliedAmount = base * multiplier;
+      console.log('After multiplier:', multipliedAmount);
+
       const discount = multipliedAmount * (rates.subscriptionDiscount / 100);
+      console.log('Discount:', discount);
+
       base = multipliedAmount - discount;
+      console.log('Final price:', base);
     }
+
     return base;
   };
 
   const totalPrice = calculatePrice();
 
-  let displayDate = '—';
-  let displayTime = '—';
+  // Calculate total cleans based on subscription frequency
+  const totalCleans = serviceType === 'Subscription' 
+    ? (subscriptionFrequency === 'twice' ? 8 : 4)
+    : 1;
+
+  // Calculate savings amount for subscription
+  const calculateSavings = () => {
+    if (!rates.pricePerCleaner || serviceType !== 'Subscription') return 0;
+    
+    const basePrice = cleaners * hours * rates.pricePerCleaner;
+    
+    // Select multiplier based on frequency
+    const multiplier = subscriptionFrequency === 'twice' 
+      ? (rates.twiceWeeklyMultiplier || 1.8)
+      : (rates.subscriptionRate || 1);
+    
+    const multipliedAmount = basePrice * multiplier;
+    const discount = multipliedAmount * (rates.subscriptionDiscount / 100);
+    
+    return discount;
+  };
+
+  const savingsAmount = calculateSavings();
+
+  let displayDate = '---';
+  let displayTime = '---';
 
   if (derivedDates?.isoString) {
     try {
@@ -88,6 +136,10 @@ const HourlyBookingSummary = ({
             <span className="text-muted-foreground flex items-center gap-2"><Hourglass className="h-4 w-4" /> Duration</span>
             <span className="font-medium text-foreground">{hours} Hour(s)</span>
           </div>
+          <div className="flex justify-between items-center pb-2 border-b border-border/50">
+            <span className="text-muted-foreground flex items-center gap-2"><Users className="h-4 w-4" /> Total Cleaning Days</span>
+            <span className="font-medium text-foreground">{totalCleans} Day{totalCleans !== 1 ? 's' : ''}</span>
+          </div>
           {phone && (
             <div className="flex justify-between items-center pb-2 border-b border-border/50">
               <span className="text-muted-foreground flex items-center gap-2"><Phone className="h-4 w-4" /> Phone</span>
@@ -111,10 +163,10 @@ const HourlyBookingSummary = ({
               {totalPrice > 0 ? `BHD ${totalPrice.toFixed(3)}` : '--'}
             </span>
           </div>
-          {serviceType === 'Subscription' && rates.subscriptionRate && (
+          {serviceType === 'Subscription' && rates.subscriptionRate && savingsAmount > 0 && (
             <div className="flex justify-end mt-2">
               <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50 dark:bg-green-900/20 dark:border-green-800 dark:text-green-400">
-                Subscription Discount Applied
+                You Saved: BHD {savingsAmount.toFixed(3)}
               </Badge>
             </div>
           )}
