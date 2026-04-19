@@ -6,6 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { AlertCircle } from 'lucide-react';
+import MapLocationPicker from './MapLocationPicker';
 
 const ManualAddressForm = ({ onCancel, onChange, onManualPhoneChange, defaultValues = {} }) => {
   const { user } = useAuth();
@@ -19,7 +20,9 @@ const ManualAddressForm = ({ onCancel, onChange, onManualPhoneChange, defaultVal
     street: defaultValues.street || '',
     apartment: defaultValues.apartment || '',
     notes: defaultValues.notes || '',
-    saveForLater: defaultValues.saveForLater || false
+    saveForLater: defaultValues.saveForLater || false,
+    lat: defaultValues.lat || null,
+    lng: defaultValues.lng || null
   });
 
   const [errors, setErrors] = useState({});
@@ -33,13 +36,14 @@ const ManualAddressForm = ({ onCancel, onChange, onManualPhoneChange, defaultVal
   }, [formData]);
 
   const isValid = () => {
-    return formData.city.trim() !== '' && formData.street.trim() !== '' && formData.phone.trim() !== '' && formData.fullName.trim() !== '';
+    return formData.city.trim() !== '' && formData.street.trim() !== '' && formData.phone.trim() !== '' && formData.fullName.trim() !== '' && formData.apartment.trim() !== '';
   };
 
   const validateForm = () => {
     const newErrors = {};
     if (!formData.city.trim()) newErrors.city = "City/Area is required";
     if (!formData.street.trim()) newErrors.street = "Street address is required";
+    if (!formData.apartment.trim()) newErrors.apartment = "Apartment/Villa No. is required";
     if (!formData.phone.trim()) newErrors.phone = "Phone number is required";
     if (!formData.fullName.trim()) newErrors.fullName = "Contact name is required";
     setErrors(newErrors);
@@ -47,6 +51,16 @@ const ManualAddressForm = ({ onCancel, onChange, onManualPhoneChange, defaultVal
 
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleLocationSelect = (locationData) => {
+    setFormData(prev => ({
+      ...prev,
+      street: locationData.street || prev.street,
+      city: locationData.city || locationData.area || prev.city,
+      lat: locationData.lat,
+      lng: locationData.lng
+    }));
   };
 
   return (
@@ -57,6 +71,12 @@ const ManualAddressForm = ({ onCancel, onChange, onManualPhoneChange, defaultVal
           <Button variant="ghost" size="sm" onClick={onCancel}>Cancel</Button>
         )}
       </div>
+
+      {/* Map Location Picker */}
+      <MapLocationPicker 
+        onLocationSelect={handleLocationSelect}
+        initialLocation={formData.lat && formData.lng ? { lat: formData.lat, lng: formData.lng } : null}
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2 md:col-span-2">
@@ -84,13 +104,15 @@ const ManualAddressForm = ({ onCancel, onChange, onManualPhoneChange, defaultVal
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="apartment">Apartment/Villa No. (Optional)</Label>
+          <Label htmlFor="apartment">Apartment/Villa No. <span className="text-red-500">*</span></Label>
           <Input 
             id="apartment" 
             value={formData.apartment} 
             onChange={(e) => handleChange('apartment', e.target.value)} 
             placeholder="e.g., Apt 12, Villa 5"
+            className={errors.apartment ? "border-red-500" : ""}
           />
+          {errors.apartment && <p className="text-xs text-red-500 flex items-center"><AlertCircle className="h-3 w-3 mr-1"/>{errors.apartment}</p>}
         </div>
 
         <div className="space-y-2">
