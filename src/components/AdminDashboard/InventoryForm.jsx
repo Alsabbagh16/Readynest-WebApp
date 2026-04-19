@@ -25,7 +25,8 @@ const InventoryForm = ({
     cost: '',
     supplier_id: '',
     quantity: '',
-    size: ''
+    size: '',
+    low_stock_level: '5'
   });
 
   const [errors, setErrors] = useState({});
@@ -50,7 +51,8 @@ const InventoryForm = ({
           cost: initialData.cost?.toString() || '',
           supplier_id: initialData.supplier_id?.toString() || '',
           quantity: initialData.quantity?.toString() || '',
-          size: initialData.size || ''
+          size: initialData.size || '',
+          low_stock_level: initialData.low_stock_level?.toString() || '5'
         });
       }
     } else {
@@ -61,7 +63,8 @@ const InventoryForm = ({
         cost: '',
         supplier_id: '',
         quantity: '',
-        size: ''
+        size: '',
+        low_stock_level: '5'
       });
     }
   }, [initialData, isCategory]);
@@ -92,6 +95,10 @@ const InventoryForm = ({
       if (!formData.quantity || parseInt(formData.quantity) < 0) {
         newErrors.quantity = 'Quantity must be 0 or greater';
       }
+
+      if (!formData.low_stock_level || parseInt(formData.low_stock_level) < 0) {
+        newErrors.low_stock_level = 'Low stock level must be 0 or greater';
+      }
     }
 
     setErrors(newErrors);
@@ -119,7 +126,8 @@ const InventoryForm = ({
         cost: parseFloat(formData.cost),
         supplier_id: formData.supplier_id ? parseInt(formData.supplier_id) : null,
         quantity: parseInt(formData.quantity),
-        size: formData.size || null
+        size: formData.size || null,
+        low_stock_level: parseInt(formData.low_stock_level)
       };
     }
 
@@ -176,7 +184,7 @@ const InventoryForm = ({
             {errors.category_id && <p className="text-xs text-red-500 mt-1">{errors.category_id}</p>}
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="cost">Cost (BD) *</Label>
               <Input
@@ -191,21 +199,6 @@ const InventoryForm = ({
                 disabled={isSubmitting}
               />
               {errors.cost && <p className="text-xs text-red-500 mt-1">{errors.cost}</p>}
-            </div>
-
-            <div>
-              <Label htmlFor="quantity">Quantity *</Label>
-              <Input
-                id="quantity"
-                type="number"
-                min="0"
-                value={formData.quantity}
-                onChange={(e) => handleChange('quantity', e.target.value)}
-                placeholder="0"
-                className={errors.quantity ? 'border-red-500' : ''}
-                disabled={isSubmitting}
-              />
-              {errors.quantity && <p className="text-xs text-red-500 mt-1">{errors.quantity}</p>}
             </div>
 
             <div>
@@ -226,6 +219,38 @@ const InventoryForm = ({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="quantity">Quantity *</Label>
+              <Input
+                id="quantity"
+                type="number"
+                min="0"
+                value={formData.quantity}
+                onChange={(e) => handleChange('quantity', e.target.value)}
+                placeholder="0"
+                className={errors.quantity ? 'border-red-500' : ''}
+                disabled={isSubmitting}
+              />
+              {errors.quantity && <p className="text-xs text-red-500 mt-1">{errors.quantity}</p>}
+            </div>
+
+            <div>
+              <Label htmlFor="low_stock_level">Low Stock Alert *</Label>
+              <Input
+                id="low_stock_level"
+                type="number"
+                min="0"
+                value={formData.low_stock_level}
+                onChange={(e) => handleChange('low_stock_level', e.target.value)}
+                placeholder="5"
+                className={errors.low_stock_level ? 'border-red-500' : ''}
+                disabled={isSubmitting}
+              />
+              {errors.low_stock_level && <p className="text-xs text-red-500 mt-1">{errors.low_stock_level}</p>}
             </div>
           </div>
 

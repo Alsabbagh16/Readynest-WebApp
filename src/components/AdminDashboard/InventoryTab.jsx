@@ -28,7 +28,7 @@ import {
 import PermissionGate from '@/components/PermissionGate';
 import { usePermissionContext } from '@/contexts/PermissionContext';
 
-const LOW_STOCK_THRESHOLD = 5;
+const DEFAULT_LOW_STOCK_LEVEL = 5;
 
 const CategoryBadge = ({ category, onEdit }) => {
   const { hasPerm, isSuperadmin, hasUiRoles } = usePermissionContext();
@@ -354,12 +354,20 @@ const InventoryTab = () => {
   };
 
   // Filtering
-  const filteredItems = items.filter(item => {
-    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          item.supplier?.name?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = categoryFilter === 'all' || item.category_id?.toString() === categoryFilter;
-    return matchesSearch && matchesCategory;
-  });
+  const filteredItems = items
+    .filter(item => {
+      const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            item.supplier?.name?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesCategory = categoryFilter === 'all' || item.category_id?.toString() === categoryFilter;
+      return matchesSearch && matchesCategory;
+    })
+    .sort((a, b) => {
+      const aLowStock = a.quantity <= (a.low_stock_level ?? DEFAULT_LOW_STOCK_LEVEL);
+      const bLowStock = b.quantity <= (b.low_stock_level ?? DEFAULT_LOW_STOCK_LEVEL);
+      if (aLowStock && !bLowStock) return -1;
+      if (!aLowStock && bLowStock) return 1;
+      return a.name.localeCompare(b.name);
+    });
 
   const filteredSuppliers = suppliers.filter(supplier => {
     return supplier.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -367,7 +375,7 @@ const InventoryTab = () => {
            supplier.email?.toLowerCase().includes(searchTerm.toLowerCase());
   });
 
-  const lowStockCount = items.filter(item => item.quantity < LOW_STOCK_THRESHOLD).length;
+  const lowStockCount = items.filter(item => item.quantity <= (item.low_stock_level ?? DEFAULT_LOW_STOCK_LEVEL)).length;
 
   if (loading) {
     return (
@@ -482,7 +490,7 @@ const InventoryTab = () => {
                 </TableHeader>
                 <TableBody>
                   {filteredItems.map((item) => {
-                    const isLowStock = item.quantity < LOW_STOCK_THRESHOLD;
+                    const isLowStock = item.quantity <= (item.low_stock_level ?? DEFAULT_LOW_STOCK_LEVEL);
                     return (
                       <TableRow 
                         key={item.id} 
