@@ -3,6 +3,49 @@ import { format } from 'date-fns';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
+const isIOSDevice = () => {
+    if (typeof navigator === 'undefined') return false;
+
+    return /iPad|iPhone|iPod/i.test(navigator.userAgent) ||
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+};
+
+const createCaptureElement = (element) => {
+    const wrapper = document.createElement('div');
+    const clone = element.cloneNode(true);
+
+    wrapper.style.position = 'absolute';
+    wrapper.style.left = '0';
+    wrapper.style.top = `${window.scrollY + window.innerHeight + 32}px`;
+    wrapper.style.width = '800px';
+    wrapper.style.backgroundColor = '#ffffff';
+    wrapper.style.pointerEvents = 'none';
+    wrapper.style.zIndex = '-1';
+    wrapper.style.overflow = 'visible';
+
+    clone.style.width = '800px';
+    clone.style.maxWidth = 'none';
+    clone.style.overflow = 'visible';
+    clone.style.backgroundColor = '#ffffff';
+
+    const invoiceElement = clone.querySelector('#invoice-export-area') || clone.querySelector('#invoice-printable-area');
+    if (invoiceElement) {
+        invoiceElement.style.width = '800px';
+        invoiceElement.style.maxWidth = 'none';
+        invoiceElement.style.overflow = 'visible';
+        invoiceElement.style.backgroundColor = '#ffffff';
+        invoiceElement.style.color = '#000000';
+    }
+
+    wrapper.appendChild(clone);
+    document.body.appendChild(wrapper);
+
+    return {
+        element: clone,
+        cleanup: () => wrapper.remove()
+    };
+};
+
 export const useInvoiceGeneration = (purchase) => {
   return useMemo(() => {
     if (!purchase) return null;
@@ -106,8 +149,10 @@ export const useInvoiceGeneration = (purchase) => {
 export const generateInvoicePDF = async (element, invoiceNumber) => {
     if (!element) throw new Error("Invoice element not found");
 
+    const capture = createCaptureElement(element);
+
     try {
-        const canvas = await html2canvas(element, {
+        const canvas = await html2canvas(capture.element, {
             scale: 2,
             useCORS: true,
             logging: false,
@@ -132,28 +177,31 @@ export const generateInvoicePDF = async (element, invoiceNumber) => {
         const pdf = new jsPDF('p', 'mm', 'a4');
         const pdfWidth = pdf.internal.pageSize.getWidth();
         const pdfHeight = pdf.internal.pageSize.getHeight();
+        const pdfMargin = isIOSDevice() ? 4 : 0;
+        const usablePdfWidth = pdfWidth - (pdfMargin * 2);
+        const usablePdfHeight = pdfHeight - (pdfMargin * 2);
         
         const imgWidth = canvas.width;
         const imgHeight = canvas.height;
-        const ratio = pdfWidth / imgWidth;
+        const ratio = usablePdfWidth / imgWidth;
         const scaledHeight = imgHeight * ratio;
         
         const imgData = canvas.toDataURL('image/jpeg', 1.0);
 
-        if (scaledHeight <= pdfHeight) {
-            pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, scaledHeight);
+        if (scaledHeight <= usablePdfHeight) {
+            pdf.addImage(imgData, 'JPEG', pdfMargin, pdfMargin, usablePdfWidth, scaledHeight);
         } else {
             let heightLeft = scaledHeight;
             let position = 0;
             
-            pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, scaledHeight);
-            heightLeft -= pdfHeight;
+            pdf.addImage(imgData, 'JPEG', pdfMargin, pdfMargin + position, usablePdfWidth, scaledHeight);
+            heightLeft -= usablePdfHeight;
             
             while (heightLeft > 0) {
-                position -= pdfHeight;
+                position -= usablePdfHeight;
                 pdf.addPage();
-                pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, scaledHeight);
-                heightLeft -= pdfHeight;
+                pdf.addImage(imgData, 'JPEG', pdfMargin, pdfMargin + position, usablePdfWidth, scaledHeight);
+                heightLeft -= usablePdfHeight;
             }
         }
 
@@ -163,5 +211,7 @@ export const generateInvoicePDF = async (element, invoiceNumber) => {
     } catch (error) {
         console.error("PDF generation failed:", error);
         throw new Error(`PDF generation failed: ${error.message}. Please try on desktop device.`);
+    } finally {
+        capture.cleanup();
     }
 };
