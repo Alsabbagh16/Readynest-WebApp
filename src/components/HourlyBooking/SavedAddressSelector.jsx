@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { MapPin, Plus } from 'lucide-react';
 
-const SavedAddressSelector = ({ selectedAddressId, onSelect, onAddNew, onAddressPhoneChange }) => {
+const SavedAddressSelector = ({ selectedAddressId, onSelect, onAddNew, onAddressPhoneChange, t = (key) => key }) => {
   const { addresses, user } = useAuth();
 
   useEffect(() => {
@@ -22,8 +22,8 @@ const SavedAddressSelector = ({ selectedAddressId, onSelect, onAddNew, onAddress
   if (!user) {
     return (
       <div className="text-center p-6 bg-muted/30 rounded-lg border border-border">
-        <p className="text-muted-foreground mb-4">Please log in to use saved addresses.</p>
-        <Button onClick={onAddNew} variant="outline">Enter Address Manually</Button>
+        <p className="text-muted-foreground mb-4">{t('form.loginForSavedAddresses')}</p>
+        <Button onClick={onAddNew} variant="outline">{t('form.enterAddressManually')}</Button>
       </div>
     );
   }
@@ -32,9 +32,9 @@ const SavedAddressSelector = ({ selectedAddressId, onSelect, onAddNew, onAddress
     return (
       <div className="text-center p-6 bg-muted/30 rounded-lg border border-border">
         <MapPin className="mx-auto h-8 w-8 text-muted-foreground mb-3" />
-        <p className="text-muted-foreground mb-4">You don't have any saved addresses yet.</p>
+        <p className="text-muted-foreground mb-4">{t('form.noSavedAddresses')}</p>
         <Button onClick={onAddNew}>
-          <Plus className="mr-2 h-4 w-4" /> Add New Address
+          <Plus className="mr-2 h-4 w-4" /> {t('form.addNewAddress')}
         </Button>
       </div>
     );
@@ -54,13 +54,13 @@ const SavedAddressSelector = ({ selectedAddressId, onSelect, onAddNew, onAddress
                 <MapPin className={`h-5 w-5 ${selectedAddressId === addr.id ? 'text-primary' : 'text-muted-foreground'}`} />
                 <div className="flex-1 space-y-1">
                   <p className="font-semibold text-foreground">
-                    {addr.label || 'Saved Address'} {addr.is_default && <span className="text-xs font-normal text-primary bg-primary/10 px-2 py-0.5 rounded ml-2">Default</span>}
+                    {addr.label || t('form.savedAddress')} {addr.is_default && <span className="text-xs font-normal text-primary bg-primary/10 px-2 py-0.5 rounded ml-2">{t('form.defaultAddress')}</span>}
                   </p>
                   <p className="text-sm text-muted-foreground">
                     {addr.street}, {addr.city} {addr.zip || addr.zip_code}
                   </p>
                   {addr.phone && (
-                    <p className="text-xs text-muted-foreground mt-1">Phone: {addr.phone}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{t('form.phone')}: {addr.phone}</p>
                   )}
                 </div>
               </div>
@@ -70,7 +70,7 @@ const SavedAddressSelector = ({ selectedAddressId, onSelect, onAddNew, onAddress
       </RadioGroup>
       
       <Button variant="outline" onClick={onAddNew} className="w-full mt-2 border-dashed">
-        <Plus className="mr-2 h-4 w-4" /> Enter a Different Address
+        <Plus className="mr-2 h-4 w-4" /> {t('form.enterDifferentAddress')}
       </Button>
     </div>
   );

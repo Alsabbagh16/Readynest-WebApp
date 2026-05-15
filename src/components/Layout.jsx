@@ -5,7 +5,7 @@ import Footer from "@/components/Footer";
 
 const Layout = () => {
   const location = useLocation();
-  const isHourlyBooking = location.pathname === '/hourlybooking';
+  const isHourlyBooking = ['/hourlybooking', '/hourly-booking'].includes(location.pathname);
 
   return (
     <div className="min-h-screen flex flex-col relative">

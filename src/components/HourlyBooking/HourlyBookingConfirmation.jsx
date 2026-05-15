@@ -11,9 +11,9 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { CheckCircle2, Calendar, Clock, Package, DollarSign, Hash } from 'lucide-react';
+import { CheckCircle2, Calendar, Clock, Package, Hash } from 'lucide-react';
 
-const HourlyBookingConfirmation = ({ isOpen, onClose, details }) => {
+const HourlyBookingConfirmation = ({ isOpen, onClose, details, t = (key) => key }) => {
   const navigate = useNavigate();
 
   const handleReturnHome = () => {
@@ -28,9 +28,9 @@ const HourlyBookingConfirmation = ({ isOpen, onClose, details }) => {
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30 mb-4">
             <CheckCircle2 className="h-10 w-10 text-green-600 dark:text-green-400" />
           </div>
-          <DialogTitle className="text-2xl font-bold tracking-tight text-foreground text-center">Booking Confirmed!</DialogTitle>
+          <DialogTitle className="text-2xl font-bold tracking-tight text-foreground text-center">{t('booking.confirmed')}!</DialogTitle>
           <DialogDescription className="text-center text-muted-foreground mt-2">
-            Your hourly cleaning request has been successfully recorded. We will contact you shortly to finalize details.
+            {t('booking.confirmationSubtitle')}
           </DialogDescription>
         </DialogHeader>
         
@@ -45,7 +45,7 @@ const HourlyBookingConfirmation = ({ isOpen, onClose, details }) => {
 
           <div className="flex items-center text-sm pb-2 border-b border-border/50">
             <Package className="h-4 w-4 text-primary mr-2 shrink-0" />
-            <span className="text-muted-foreground mr-2 shrink-0">Service:</span>
+            <span className="text-muted-foreground mr-2 shrink-0">{t('booking.service')}:</span>
             <span className="font-medium text-foreground ml-auto text-right truncate" title={details?.product_name}>
               {details?.product_name}
             </span>
@@ -53,13 +53,13 @@ const HourlyBookingConfirmation = ({ isOpen, onClose, details }) => {
           
           <div className="flex items-center text-sm">
             <Calendar className="h-4 w-4 text-primary mr-2" />
-            <span className="text-muted-foreground mr-2">Date:</span>
+            <span className="text-muted-foreground mr-2">{t('form.date')}:</span>
             <span className="font-medium text-foreground ml-auto">{details?.derivedDates?.booking_date || 'N/A'}</span>
           </div>
           
           <div className="flex items-center text-sm">
             <Clock className="h-4 w-4 text-primary mr-2" />
-            <span className="text-muted-foreground mr-2">Time:</span>
+            <span className="text-muted-foreground mr-2">{t('booking.time')}:</span>
             <span className="font-medium text-foreground ml-auto">
               {details?.derivedDates ? `${details.derivedDates.booking_start_time} - ${details.derivedDates.booking_end_time}` : 'N/A'}
             </span>
@@ -67,7 +67,7 @@ const HourlyBookingConfirmation = ({ isOpen, onClose, details }) => {
 
           {details?.addons && details.addons.length > 0 && (
             <div className="text-sm">
-              <span className="text-muted-foreground">Add-ons:</span>
+              <span className="text-muted-foreground">{t('booking.addons')}:</span>
               <div className="mt-1 space-y-1">
                 {details.addons.map((addon, idx) => (
                   <div key={idx} className="flex justify-between text-xs">
@@ -81,14 +81,13 @@ const HourlyBookingConfirmation = ({ isOpen, onClose, details }) => {
 
           {details?.coupon && details?.discount > 0 && (
             <div className="flex items-center text-sm text-green-600 dark:text-green-400">
-              <span className="text-muted-foreground mr-2">Coupon ({details.coupon}):</span>
+              <span className="text-muted-foreground mr-2">{t('booking.coupon')} ({details.coupon}):</span>
               <span className="font-medium ml-auto">-BHD {details.discount.toFixed(3)}</span>
             </div>
           )}
 
           <div className="border-t border-border pt-3 mt-1 flex items-center text-base font-bold">
-            <DollarSign className="h-5 w-5 text-primary mr-1" />
-            <span className="text-foreground">Total:</span>
+            <span className="text-foreground">{t('booking.totalEstimated')}:</span>
             <span className="text-primary dark:text-sky-400 ml-auto">BHD {details?.price?.toFixed(3)}</span>
           </div>
         </Card>

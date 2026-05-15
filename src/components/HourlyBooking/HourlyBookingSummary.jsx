@@ -16,7 +16,8 @@ const HourlyBookingSummary = ({
   workCondition,
   phone,
   onContinue,
-  isValid 
+  isValid,
+  t = (key) => key
 }) => {
   const { rates, loading } = useServiceRates();
 
@@ -81,6 +82,8 @@ const HourlyBookingSummary = ({
 
   const savingsAmount = calculateSavings();
 
+  const serviceTypeLabel = serviceType === 'Subscription' ? t('booking.subscription') : t('booking.oneTime');
+
   let displayDate = '---';
   let displayTime = '---';
 
@@ -111,30 +114,34 @@ const HourlyBookingSummary = ({
     <Card className="shadow-lg border-primary/20 bg-card/90 backdrop-blur-sm dark:bg-slate-800/90 dark:border-primary/50">
       <CardHeader className="border-b border-border pb-4 bg-muted/30">
         <CardTitle className="text-xl font-extrabold text-foreground flex items-center gap-2">
-          Booking Summary
+          {t('booking.summary')}
         </CardTitle>
       </CardHeader>
       <CardContent className="p-6">
         <div className="space-y-4 text-sm mb-6">
           <div className="flex justify-between items-center pb-2 border-b border-border/50">
-            <span className="text-muted-foreground flex items-center gap-2"><Info className="h-4 w-4" /> Type</span>
-            <span className="font-medium text-foreground">{serviceType}</span>
+            <span className="text-muted-foreground flex items-center gap-2"><Info className="h-4 w-4" /> {t('booking.service')}</span>
+            <span className="font-medium text-foreground">{serviceTypeLabel}</span>
           </div>
           <div className="flex justify-between items-center pb-2 border-b border-border/50">
-            <span className="text-muted-foreground flex items-center gap-2"><Calendar className="h-4 w-4" /> Date</span>
+            <span className="text-muted-foreground flex items-center gap-2"><Calendar className="h-4 w-4" /> {t('form.date')}</span>
             <span className="font-medium text-foreground text-right">{displayDate}</span>
           </div>
           <div className="flex justify-between items-center pb-2 border-b border-border/50">
-            <span className="text-muted-foreground flex items-center gap-2"><Clock className="h-4 w-4" /> Time</span>
+            <span className="text-muted-foreground flex items-center gap-2"><Clock className="h-4 w-4" /> {t('booking.time')}</span>
             <span className="font-medium text-foreground text-right">{displayTime}</span>
           </div>
           <div className="flex justify-between items-center pb-2 border-b border-border/50">
-            <span className="text-muted-foreground flex items-center gap-2"><Users className="h-4 w-4" /> Cleaners</span>
-            <span className="font-medium text-foreground">{cleaners} Person(s)</span>
+            <span className="text-muted-foreground flex items-center gap-2"><Users className="h-4 w-4" /> {t('booking.cleaners')}</span>
+            <span className="font-medium text-foreground">
+              {cleaners} {cleaners === 1 ? t('booking.cleaner') : t('booking.cleanersPlural')}
+            </span>
           </div>
           <div className="flex justify-between items-center pb-2 border-b border-border/50">
-            <span className="text-muted-foreground flex items-center gap-2"><Hourglass className="h-4 w-4" /> Duration</span>
-            <span className="font-medium text-foreground">{hours} Hour(s)</span>
+            <span className="text-muted-foreground flex items-center gap-2"><Hourglass className="h-4 w-4" /> {t('booking.duration')}</span>
+            <span className="font-medium text-foreground">
+              {hours} {hours === 1 ? t('booking.hour') : t('booking.hoursPlural')}
+            </span>
           </div>
           <div className="flex justify-between items-center pb-2 border-b border-border/50">
             <span className="text-muted-foreground flex items-center gap-2"><Users className="h-4 w-4" /> Total Cleaning Days</span>
@@ -158,7 +165,7 @@ const HourlyBookingSummary = ({
         
         <div className="bg-muted/30 p-4 rounded-lg border border-border mb-6">
           <div className="flex justify-between items-center">
-            <span className="text-foreground font-semibold">Total Estimated</span>
+            <span className="text-foreground font-semibold">{t('booking.totalEstimated')}</span>
             <span className="text-2xl font-bold text-primary dark:text-sky-400">
               {totalPrice > 0 ? `BHD ${totalPrice.toFixed(3)}` : '--'}
             </span>
@@ -166,7 +173,7 @@ const HourlyBookingSummary = ({
           {serviceType === 'Subscription' && rates.subscriptionRate && savingsAmount > 0 && (
             <div className="flex justify-end mt-2">
               <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50 dark:bg-green-900/20 dark:border-green-800 dark:text-green-400">
-                You Saved: BHD {savingsAmount.toFixed(3)}
+                {t('booking.youSaved')}: BHD {savingsAmount.toFixed(3)}
               </Badge>
             </div>
           )}
@@ -177,7 +184,7 @@ const HourlyBookingSummary = ({
           onClick={onContinue}
           disabled={!isValid}
         >
-          Continue to Checkout
+          {t('booking.continueToCheckout')}
         </Button>
       </CardContent>
     </Card>

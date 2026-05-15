@@ -9,7 +9,7 @@ import { AlertCircle, Calendar, Clock, Users, Hourglass, Info, Phone, PackagePlu
 import { format as formatTz, utcToZonedTime } from 'date-fns-tz';
 import PromoCodeInput from '@/components/BookingProcess/PromoCodeInput';
 
-const HourlyBookingReviewCard = ({ details, rates, userId, userEmail, onCouponApplied, appliedCoupon, availableAddons, selectedAddons, onAddonsChange }) => {
+const HourlyBookingReviewCard = ({ details, rates, userId, userEmail, onCouponApplied, appliedCoupon, availableAddons, selectedAddons, onAddonsChange, t = (key) => key }) => {
   const { 
     serviceType, 
     subscriptionFrequency,
@@ -102,7 +102,7 @@ const HourlyBookingReviewCard = ({ details, rates, userId, userEmail, onCouponAp
     <Card className="shadow-lg border-primary/20 bg-card/90 backdrop-blur-sm dark:bg-slate-800/90 dark:border-primary/50">
       <CardHeader className="border-b border-border pb-4 bg-muted/30">
         <CardTitle className="text-xl font-extrabold text-foreground flex items-center gap-2">
-          Booking Summary
+          {t('booking.summary')}
         </CardTitle>
       </CardHeader>
       <CardContent className="p-6">
@@ -118,7 +118,7 @@ const HourlyBookingReviewCard = ({ details, rates, userId, userEmail, onCouponAp
         {/* Read-Only Product Name */}
         <div className="mb-6 bg-muted/20 p-4 rounded-lg border border-border">
           <Label htmlFor="productName" className="text-sm font-semibold flex items-center gap-2 mb-2">
-            <Info className="h-4 w-4 text-primary" /> Product Name
+            <Info className="h-4 w-4 text-primary" /> {t('booking.productName')}
           </Label>
           <Input 
             id="productName"
@@ -128,34 +128,38 @@ const HourlyBookingReviewCard = ({ details, rates, userId, userEmail, onCouponAp
             className="w-full bg-muted text-muted-foreground cursor-not-allowed border-transparent"
           />
           <p className="text-xs text-muted-foreground mt-2">
-            This name is generated automatically based on your service selections.
+            {t('booking.generatedDescription')}
           </p>
         </div>
 
         <div className="space-y-4 text-sm mb-6">
           <div className="flex justify-between items-center pb-2 border-b border-border/50">
-            <span className="text-muted-foreground flex items-center gap-2"><Calendar className="h-4 w-4" /> Date</span>
+            <span className="text-muted-foreground flex items-center gap-2"><Calendar className="h-4 w-4" /> {t('form.date')}</span>
             <span className="font-medium text-foreground text-right">{displayDate}</span>
           </div>
           <div className="flex justify-between items-center pb-2 border-b border-border/50">
-            <span className="text-muted-foreground flex items-center gap-2"><Clock className="h-4 w-4" /> Time</span>
+            <span className="text-muted-foreground flex items-center gap-2"><Clock className="h-4 w-4" /> {t('booking.time')}</span>
             <span className="font-medium text-foreground text-right">{displayTime}</span>
           </div>
           <div className="flex justify-between items-center pb-2 border-b border-border/50">
-            <span className="text-muted-foreground flex items-center gap-2"><Users className="h-4 w-4" /> Cleaners</span>
-            <span className="font-medium text-foreground">{cleaners} Person(s)</span>
+            <span className="text-muted-foreground flex items-center gap-2"><Users className="h-4 w-4" /> {t('booking.cleaners')}</span>
+            <span className="font-medium text-foreground">
+              {cleaners} {cleaners === 1 ? t('booking.cleaner') : t('booking.cleanersPlural')}
+            </span>
           </div>
           <div className="flex justify-between items-center pb-2 border-b border-border/50">
-            <span className="text-muted-foreground flex items-center gap-2"><Hourglass className="h-4 w-4" /> Duration</span>
-            <span className="font-medium text-foreground">{hours} Hour(s)</span>
+            <span className="text-muted-foreground flex items-center gap-2"><Hourglass className="h-4 w-4" /> {t('booking.duration')}</span>
+            <span className="font-medium text-foreground">
+              {hours} {hours === 1 ? t('booking.hour') : t('booking.hoursPlural')}
+            </span>
           </div>
           <div className="flex justify-between items-center pb-2 border-b border-border/50">
-            <span className="text-muted-foreground flex items-center gap-2"><Phone className="h-4 w-4" /> Phone Number</span>
+            <span className="text-muted-foreground flex items-center gap-2"><Phone className="h-4 w-4" /> {t('booking.phoneNumber')}</span>
             <span className="font-medium text-foreground">{phone || 'Not provided'}</span>
           </div>
           {workCondition && (
             <div className="flex justify-between items-center pb-2 border-b border-border/50">
-              <span className="text-muted-foreground flex items-center gap-2">Special Instructions</span>
+              <span className="text-muted-foreground flex items-center gap-2">{t('form.specialInstructions')}</span>
               <span className="font-medium text-foreground truncate max-w-[140px] text-right" title={workCondition}>
                 {workCondition}
               </span>
@@ -165,12 +169,13 @@ const HourlyBookingReviewCard = ({ details, rates, userId, userEmail, onCouponAp
 
         {/* Promo Code Section */}
         <div className="mt-4">
-          <Label className="text-sm font-medium text-muted-foreground mb-2 block">Have a promo code?</Label>
+          <Label className="text-sm font-medium text-muted-foreground mb-2 block">{t('booking.promoCodeHeading')}</Label>
           <PromoCodeInput
             bookingTotal={totalPrice}
             userId={userId}
             userEmail={userEmail}
             onCouponApplied={onCouponApplied}
+            t={t}
           />
         </div>
 
@@ -179,7 +184,7 @@ const HourlyBookingReviewCard = ({ details, rates, userId, userEmail, onCouponAp
           <div className="mt-4 p-4 bg-muted/20 rounded-lg border border-border">
             <Label className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
               <PackagePlus className="h-4 w-4 text-primary" />
-              Would you like to add-on?
+              {t('booking.addOns')}
             </Label>
             <div className="space-y-3">
               {availableAddons.map((addon) => (
@@ -215,31 +220,31 @@ const HourlyBookingReviewCard = ({ details, rates, userId, userEmail, onCouponAp
         
         <div className="bg-muted/30 p-4 rounded-lg border border-border mt-4">
           <div className="flex justify-between items-center mb-2">
-            <span className="text-muted-foreground text-sm">Base Rate</span>
+            <span className="text-muted-foreground text-sm">{t('booking.baseRate')}</span>
             <span className="text-sm">BHD {(rates?.pricePerCleaner || 0).toFixed(3)} / cleaner / hr</span>
           </div>
 
           <div className="flex justify-between items-center mb-2">
-            <span className="text-muted-foreground text-sm">Service Subtotal</span>
+            <span className="text-muted-foreground text-sm">{t('booking.serviceSubtotal')}</span>
             <span className="text-sm">BHD {basePrice.toFixed(3)}</span>
           </div>
 
           {addonsTotal > 0 && (
             <div className="flex justify-between items-center mb-2">
-              <span className="text-muted-foreground text-sm">Add-ons ({selectedAddons.length})</span>
+              <span className="text-muted-foreground text-sm">{t('booking.addons')} ({selectedAddons.length})</span>
               <span className="text-sm">+BHD {addonsTotal.toFixed(3)}</span>
             </div>
           )}
           
           {appliedCoupon && (
             <div className="flex justify-between items-center mb-2">
-              <span className="text-green-600 dark:text-green-400 text-sm">Discount ({appliedCoupon.coupon?.code})</span>
+              <span className="text-green-600 dark:text-green-400 text-sm">{t('booking.discount')} ({appliedCoupon.coupon?.code})</span>
               <span className="text-green-600 dark:text-green-400 text-sm">-BHD {appliedCoupon.discountAmount.toFixed(3)}</span>
             </div>
           )}
           
           <div className="flex justify-between items-center border-t border-border/50 pt-3 mt-1">
-            <span className="text-foreground font-semibold">Total Estimated</span>
+            <span className="text-foreground font-semibold">{t('booking.totalEstimated')}</span>
             <span className="text-2xl font-bold text-primary dark:text-sky-400">
               {appliedCoupon 
                 ? `BHD ${(totalPrice - appliedCoupon.discountAmount).toFixed(3)}`
@@ -251,7 +256,7 @@ const HourlyBookingReviewCard = ({ details, rates, userId, userEmail, onCouponAp
           {serviceType === 'Subscription' && rates?.subscriptionRate && calculateSavings() > 0 && (
             <div className="flex justify-end mt-2">
               <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50 dark:bg-green-900/20 dark:border-green-800 dark:text-green-400">
-                You Saved: BHD {calculateSavings().toFixed(3)}
+                {t('booking.youSaved')}: BHD {calculateSavings().toFixed(3)}
               </Badge>
             </div>
           )}

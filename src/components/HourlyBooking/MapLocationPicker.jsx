@@ -10,7 +10,7 @@ const BAHRAIN_BOUNDS = {
   west: 50.35
 };
 
-const MapLocationPicker = ({ onLocationSelect, initialLocation = null }) => {
+const MapLocationPicker = ({ onLocationSelect, initialLocation = null, t = (key) => key }) => {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markerRef = useRef(null);
@@ -151,7 +151,7 @@ const MapLocationPicker = ({ onLocationSelect, initialLocation = null }) => {
 
   const handleLocateMe = () => {
     if (!navigator.geolocation) {
-      alert('Geolocation is not supported by your browser');
+      alert(t('form.geolocationUnsupported'));
       return;
     }
 
@@ -165,7 +165,7 @@ const MapLocationPicker = ({ onLocationSelect, initialLocation = null }) => {
           latitude < BAHRAIN_BOUNDS.south || latitude > BAHRAIN_BOUNDS.north ||
           longitude < BAHRAIN_BOUNDS.west || longitude > BAHRAIN_BOUNDS.east
         ) {
-          alert('Your location appears to be outside Bahrain. Please select a location on the map.');
+          alert(t('form.outsideBahrain'));
           setIsLocating(false);
           return;
         }
@@ -178,7 +178,7 @@ const MapLocationPicker = ({ onLocationSelect, initialLocation = null }) => {
       },
       (error) => {
         console.error('Geolocation error:', error);
-        alert('Unable to get your location. Please select manually on the map.');
+        alert(t('form.unableToLocate'));
         setIsLocating(false);
       },
       { enableHighAccuracy: true, timeout: 10000 }
@@ -190,7 +190,7 @@ const MapLocationPicker = ({ onLocationSelect, initialLocation = null }) => {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <MapPin className="h-4 w-4 text-primary" />
-          <span className="text-sm font-medium">Select Location on Map</span>
+          <span className="text-sm font-medium">{t('form.selectLocationOnMap')}</span>
         </div>
         <Button
           type="button"
@@ -205,8 +205,8 @@ const MapLocationPicker = ({ onLocationSelect, initialLocation = null }) => {
           ) : (
             <Locate className="h-4 w-4" />
           )}
-          <span className="hidden sm:inline">Use My Location</span>
-          <span className="sm:hidden">Locate</span>
+          <span className="hidden sm:inline">{t('form.useMyLocation')}</span>
+          <span className="sm:hidden">{t('form.locate')}</span>
         </Button>
       </div>
 
@@ -225,7 +225,7 @@ const MapLocationPicker = ({ onLocationSelect, initialLocation = null }) => {
       {selectedLocation && (
         <div className="bg-primary/5 border border-primary/20 rounded-lg p-3">
           <p className="text-sm text-muted-foreground">
-            <span className="font-medium text-foreground">Selected: </span>
+            <span className="font-medium text-foreground">{t('form.selected')}: </span>
             {selectedLocation.street && `${selectedLocation.street}, `}
             {selectedLocation.area && `${selectedLocation.area}, `}
             {selectedLocation.city}
@@ -234,7 +234,7 @@ const MapLocationPicker = ({ onLocationSelect, initialLocation = null }) => {
       )}
 
       <p className="text-xs text-muted-foreground">
-        Tap/click on the map or drag the marker to select your exact location
+        {t('form.mapHelp')}
       </p>
     </div>
   );

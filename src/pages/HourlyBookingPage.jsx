@@ -27,13 +27,13 @@ import { useToast } from '@/components/ui/use-toast';
 
 import { cn } from '@/lib/utils';
 
-import HourlyBookingHeroSection from '@/components/HourlyBooking/HourlyBookingHeroSection';
-
 import HourlyBookingSummary from '@/components/HourlyBooking/HourlyBookingSummary';
 
 import HourlyBookingConfirmation from '@/components/HourlyBooking/HourlyBookingConfirmation';
 
 import HourlyBookingReviewCard from '@/components/HourlyBooking/HourlyBookingReviewCard';
+
+import LanguageSwitcher from '@/components/HourlyBooking/LanguageSwitcher';
 
 import SavedAddressSelector from '@/components/HourlyBooking/SavedAddressSelector';
 
@@ -42,6 +42,8 @@ import ManualAddressForm from '@/components/HourlyBooking/ManualAddressForm';
 import TimePickerInput from '@/components/ui/TimePickerInput';
 
 import { useServiceRates } from '@/hooks/useServiceRates';
+
+import { useLanguage } from '@/hooks/useLanguage';
 
 import { validateBookingTime } from '@/lib/timeWindowValidator';
 
@@ -57,6 +59,8 @@ import { fetchAddonTemplates } from '@/lib/storage/productStorage';
 const HourlyBookingPage = () => {
 
   const { rates, loading: loadingRates } = useServiceRates();
+
+  const { language, isRtl, setLanguage, t } = useLanguage();
 
   const { user, addresses, addAddress } = useAuth();
 
@@ -246,18 +250,13 @@ const HourlyBookingPage = () => {
 
   const derivedProductName = useMemo(() => {
 
-    const hourStr = hours === 1 ? 'Hour' : 'Hours';
+    const frequency = serviceType === 'Subscription'
+      ? (subscriptionFrequency === 'twice' ? t('booking.twiceWeekly') : t('booking.weekly'))
+      : t('booking.oneTime');
 
-    const cleanerStr = cleaners === 1 ? 'Cleaner' : 'Cleaners';
+    return t('booking.productDescription', { cleaners, hours, frequency });
 
-    let formattedServiceType = 'One Time';
-    if (serviceType === 'Subscription') {
-      formattedServiceType = subscriptionFrequency === 'twice' ? 'Subscription (Twice Weekly)' : 'Subscription (Once Weekly)';
-    }
-
-    return `Hourly ${formattedServiceType} - ${hours} ${hourStr}, ${cleaners} ${cleanerStr}`;
-
-  }, [serviceType, subscriptionFrequency, hours, cleaners]);
+  }, [serviceType, subscriptionFrequency, hours, cleaners, t]);
 
 
 
@@ -844,7 +843,7 @@ const HourlyBookingPage = () => {
 
   return (
 
-    <div className="min-h-screen bg-background pb-24 md:pb-12">
+    <div className="min-h-screen bg-background pb-24 md:pb-12" dir={isRtl ? 'rtl' : 'ltr'}>
 
       {/* {currentStep === 1 && <HourlyBookingHeroSection />} */}
 
@@ -855,8 +854,14 @@ const HourlyBookingPage = () => {
         
         {/* Main Title */}
         <div className="mb-8 text-center">
-          <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">Let's Schedule Your Cleaning</h1>
-          <p className="text-muted-foreground text-lg">Book your professional cleaning service in just a few steps</p>
+          <div className="mb-5 flex justify-center">
+            <LanguageSwitcher language={language} onChange={setLanguage} t={t} />
+          </div>
+          <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">{t('hero.headline')}</h1>
+          <p className="text-muted-foreground text-lg">{t('hero.subtitle')}</p>
+          <p className="mt-3 text-sm font-medium text-primary dark:text-sky-400">
+            {t('form.equipmentIncluded')}
+          </p>
         </div>
 
 
@@ -899,7 +904,7 @@ const HourlyBookingPage = () => {
 
                 <CardHeader className="pb-4">
 
-                  <CardTitle className="text-2xl font-bold text-foreground tracking-tight">How Often Would You Like Us To Clean</CardTitle>
+                  <CardTitle className="text-2xl font-bold text-foreground tracking-tight">{t('form.howOften')}</CardTitle>
 
                 </CardHeader>
 
@@ -907,18 +912,21 @@ const HourlyBookingPage = () => {
 
                   <div className="flex rounded-lg overflow-hidden border border-border p-1 bg-muted/50 dark:bg-slate-900/50">
 
-                    {['One-Time', 'Subscription'].map(type => (
+                    {[
+                      { value: 'One-Time', label: t('booking.oneTime') },
+                      { value: 'Subscription', label: t('booking.subscription') },
+                    ].map(type => (
 
-                      <div key={type} className="relative flex-1">
+                      <div key={type.value} className="relative flex-1">
                         <button
 
-                          onClick={() => setServiceType(type)}
+                          onClick={() => setServiceType(type.value)}
 
                           className={cn(
 
                             "w-full py-3 text-sm font-medium rounded-md transition-all duration-200",
 
-                            serviceType === type 
+                            serviceType === type.value 
 
                               ? "bg-background shadow-sm text-primary border border-border dark:bg-slate-700 dark:text-sky-400" 
 
@@ -928,16 +936,16 @@ const HourlyBookingPage = () => {
 
                         >
 
-                          {type}
+                          {type.label}
 
                         </button>
                         
                         {/* Save 20% ribbon for Subscription */}
-                        {type === 'Subscription' && (
+                        {type.value === 'Subscription' && (
                           <div className="absolute -top-2 -right-2 z-50">
                             <div className="bg-gradient-to-r from-blue-500 to-blue-400 text-white text-xs font-bold px-3 py-1.5 rounded-sm shadow-xl transform rotate-12 origin-center hover:scale-105 transition-all duration-200 relative overflow-hidden">
                               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12 animate-shine"></div>
-                              <span className="relative">SAVE 20%</span>
+                              <span className="relative">{t('form.saveTwenty')}</span>
                             </div>
                           </div>
                         )}
@@ -950,11 +958,11 @@ const HourlyBookingPage = () => {
                   {/* Subscription Frequency Toggle */}
                   {serviceType === 'Subscription' && (
                     <div className="mt-4">
-                      <p className="text-sm font-medium text-muted-foreground mb-2">How often per week?</p>
+                      <p className="text-sm font-medium text-muted-foreground mb-2">{t('form.howOftenPerWeek')}</p>
                       <div className="flex rounded-lg overflow-hidden border border-border p-1 bg-muted/50 dark:bg-slate-900/50">
                         {[
-                          { value: 'once', label: 'Once Weekly' },
-                          { value: 'twice', label: 'Twice Weekly' }
+                          { value: 'once', label: t('booking.onceWeekly') },
+                          { value: 'twice', label: t('booking.twiceWeekly') }
                         ].map(freq => (
                           <button
                             key={freq.value}
@@ -991,7 +999,7 @@ const HourlyBookingPage = () => {
 
                 <CardHeader className="pb-4">
 
-                  <CardTitle className="text-2xl font-bold text-foreground tracking-tight">When do you need us?</CardTitle>
+                  <CardTitle className="text-2xl font-bold text-foreground tracking-tight">{t('form.whenNeeded')}</CardTitle>
 
                 </CardHeader>
 
@@ -1003,7 +1011,7 @@ const HourlyBookingPage = () => {
 
                       id="bookingDateTime"
 
-                      label="Preferred Date & Time"
+                      label={t('form.preferredDateTime')}
 
                       value={dateTime}
 
@@ -1067,7 +1075,7 @@ const HourlyBookingPage = () => {
 
                 <CardHeader className="pb-4">
 
-                  <CardTitle className="text-2xl font-bold text-foreground tracking-tight">How Many Cleaners & Hours</CardTitle>
+                  <CardTitle className="text-2xl font-bold text-foreground tracking-tight">{t('form.numberOfCleaners')} & {t('form.hours')}</CardTitle>
 
                 </CardHeader>
 
@@ -1079,7 +1087,7 @@ const HourlyBookingPage = () => {
 
                       <Label className="text-lg font-semibold flex items-center text-foreground">
 
-                        <Users className="mr-2 h-5 w-5 text-primary dark:text-sky-400"/> Number of Cleaners
+                        <Users className="mr-2 h-5 w-5 text-primary dark:text-sky-400"/> {t('form.numberOfCleaners')}
 
                       </Label>
 
@@ -1115,7 +1123,7 @@ const HourlyBookingPage = () => {
 
                       <Label className="text-lg font-semibold flex items-center text-foreground">
 
-                        <Hourglass className="mr-2 h-5 w-5 text-primary dark:text-sky-400"/> Hours Required
+                        <Hourglass className="mr-2 h-5 w-5 text-primary dark:text-sky-400"/> {t('form.hours')}
 
                       </Label>
 
@@ -1155,7 +1163,7 @@ const HourlyBookingPage = () => {
 
                 <CardHeader className="pb-4">
 
-                  <CardTitle className="text-2xl font-bold text-foreground tracking-tight">Special Instructions (Optional)</CardTitle>
+                  <CardTitle className="text-2xl font-bold text-foreground tracking-tight">{t('form.specialInstructions')}</CardTitle>
 
                 </CardHeader>
 
@@ -1209,6 +1217,8 @@ const HourlyBookingPage = () => {
 
                   isValid={isStep1Valid}
 
+                  t={t}
+
                 />
 
               </div>
@@ -1223,13 +1233,13 @@ const HourlyBookingPage = () => {
 
               <div>
 
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Estimated Total</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t('booking.totalEstimated')}</p>
 
                 <p className="text-2xl font-extrabold text-primary dark:text-sky-400">BHD {calculatedPrice.toFixed(3)}</p>
 
                 {serviceType === 'Subscription' && rates?.subscriptionRate && calculateSavings > 0 && (
                   <p className="text-xs text-green-600 dark:text-green-400 font-medium mt-1">
-                    You Saved: BHD {calculateSavings.toFixed(3)}
+                    {t('booking.youSaved')}: BHD {calculateSavings.toFixed(3)}
                   </p>
                 )}
 
@@ -1247,7 +1257,7 @@ const HourlyBookingPage = () => {
 
               >
 
-                Review
+                {t('booking.review')}
 
               </Button>
 
@@ -1265,7 +1275,7 @@ const HourlyBookingPage = () => {
 
             <Button variant="ghost" onClick={handleBackToInputs} className="mb-2 -ml-4 hover:bg-muted/50">
 
-              <ArrowLeft className="mr-2 h-4 w-4" /> Back to details
+              <ArrowLeft className="mr-2 h-4 w-4" /> {t('booking.backToDetails')}
 
             </Button>
 
@@ -1275,7 +1285,7 @@ const HourlyBookingPage = () => {
 
               <CardHeader className="pb-4 bg-muted/30 border-b border-border/50">
 
-                <CardTitle className="text-2xl font-bold text-foreground tracking-tight">Service Address</CardTitle>
+                <CardTitle className="text-2xl font-bold text-foreground tracking-tight">{t('form.locationAddress')}</CardTitle>
 
               </CardHeader>
 
@@ -1292,6 +1302,8 @@ const HourlyBookingPage = () => {
                     onAddNew={() => setUseSavedAddress(false)}
 
                     onAddressPhoneChange={setSavedPhone}
+
+                    t={t}
 
                   />
 
@@ -1313,6 +1325,8 @@ const HourlyBookingPage = () => {
 
                     defaultValues={manualAddressData}
 
+                    t={t}
+
                   />
 
                 )}
@@ -1333,7 +1347,7 @@ const HourlyBookingPage = () => {
 
             >
 
-              Continue to Summary
+              {t('booking.continueToSummary')}
 
             </Button>
 
@@ -1347,7 +1361,7 @@ const HourlyBookingPage = () => {
 
             <Button variant="ghost" onClick={handleBackToAddress} className="mb-2 -ml-4 hover:bg-muted/50">
 
-              <ArrowLeft className="mr-2 h-4 w-4" /> Back to address
+              <ArrowLeft className="mr-2 h-4 w-4" /> {t('booking.backToAddress')}
 
             </Button>
 
@@ -1386,6 +1400,7 @@ const HourlyBookingPage = () => {
               availableAddons={availableAddons}
               selectedAddons={selectedAddons}
               onAddonsChange={setSelectedAddons}
+              t={t}
             />
 
             
@@ -1420,7 +1435,7 @@ const HourlyBookingPage = () => {
 
             >
 
-              {isSubmitting ? <><Loader2 className="mr-3 h-6 w-6 animate-spin" /> Processing your booking...</> : 'Confirm Booking'}
+              {isSubmitting ? <><Loader2 className="mr-3 h-6 w-6 animate-spin" /> {t('booking.processing')}</> : t('booking.confirmBooking')}
 
             </Button>
 
@@ -1441,6 +1456,8 @@ const HourlyBookingPage = () => {
           onClose={() => setConfirmationDetails(null)}
 
           details={confirmationDetails}
+
+          t={t}
 
         />
 

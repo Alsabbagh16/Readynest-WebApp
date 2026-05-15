@@ -176,6 +176,7 @@ function App() {
 
         <Route path="/" element={<Layout />}>
           <Route index element={<HomePage />} />
+          <Route path="hourly-booking" element={<HourlyBookingPage />} />
           <Route path="hourlybooking" element={<HourlyBookingPage />} />
           <Route path="book-product/:productId" element={<ProductBookingPage />} />
           <Route path="quote" element={<QuotePage />} />
