@@ -103,6 +103,29 @@ const getStatusBadgeVariant = (status) => {
   }
 };
 
+const getPurchaseAddressCity = (address) => {
+  if (!address) return '-';
+  if (typeof address === 'object') {
+    return address.city || address.street || address.zip || '-';
+  }
+  return address;
+};
+
+const getPurchaseFullAddress = (address) => {
+  if (!address) return '';
+  if (typeof address === 'object') {
+    const { street, city, zip, phone, alt_phone } = address;
+    const parts = [];
+    if (street) parts.push(street);
+    if (city) parts.push(city);
+    if (zip) parts.push(zip);
+    if (phone) parts.push(`Ph: ${phone}`);
+    if (alt_phone) parts.push(`Alt: ${alt_phone}`);
+    return parts.join(', ');
+  }
+  return address;
+};
+
 const RecentPurchasesTab = ({ refreshTrigger }) => {
   const [purchases, setPurchases] = useState([]);
   const [filteredPurchases, setFilteredPurchases] = useState([]);
@@ -113,6 +136,7 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
   const [customDateRange, setCustomDateRange] = useState({ start: '', end: '' }); // custom date range
   const [bulkSelectMode, setBulkSelectMode] = useState(false);
   const [selectedPurchases, setSelectedPurchases] = useState(new Set());
+  const [purchaseRefsWithJobs, setPurchaseRefsWithJobs] = useState(new Set());
   const [pagination, setPagination] = useState({
     currentPage: 1,
     totalPages: 0,
@@ -148,6 +172,11 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
     const hoursSinceCreation = (now - created) / (1000 * 60 * 60);
     return hoursSinceCreation <= 48;
   };
+
+  const purchaseNeedsJob = useCallback((purchaseRefId) => {
+    if (!purchaseRefId) return false;
+    return !purchaseRefsWithJobs.has(purchaseRefId);
+  }, [purchaseRefsWithJobs]);
 
   const fetchPurchases = useCallback(async (page = 1, resetPagination = false) => {
     setLoading(true);
@@ -191,9 +220,33 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
         console.error("Supabase select error in RecentPurchasesTab:", error);
         throw error;
       }
+
+      const purchaseRefIds = (data || [])
+        .map((purchase) => purchase.purchase_ref_id)
+        .filter(Boolean);
+
+      let linkedJobPurchaseRefs = new Set();
+      if (purchaseRefIds.length > 0) {
+        const { data: jobsData, error: jobsError } = await supabase
+          .from('jobs')
+          .select('purchase_ref_id')
+          .in('purchase_ref_id', purchaseRefIds);
+
+        if (jobsError) {
+          console.error("Supabase select error for linked jobs in RecentPurchasesTab:", jobsError);
+          throw jobsError;
+        }
+
+        linkedJobPurchaseRefs = new Set(
+          (jobsData || [])
+            .map((job) => job.purchase_ref_id)
+            .filter(Boolean)
+        );
+      }
       
       // Set all purchases for client-side filtering
       setPurchases(data || []);
+      setPurchaseRefsWithJobs(linkedJobPurchaseRefs);
       
       // Get total count for pagination
       const totalCount = data?.length || 0;
@@ -354,14 +407,22 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
       className: "font-mono w-[140px]",
       cell: (purchase) => {
         const isNew = isPurchaseNew(purchase.created_at) && !viewedPurchases.has(purchase.purchase_ref_id);
+        const needsJob = purchaseNeedsJob(purchase.purchase_ref_id);
         return (
-          <div className="flex flex-col">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-1">
+            <div className="flex flex-wrap items-center gap-2">
               {isNew && (
-                <Badge variant="destructive" className="text-[10px] px-1.5 py-0.5 h-5">
+                <Badge variant="destructive" className="h-auto w-fit max-w-full px-1.5 py-0.5 text-[10px] leading-none">
                   NEW
                 </Badge>
               )}
+              {needsJob && (
+                <Badge className="h-auto w-fit max-w-full px-1.5 py-0.5 text-[10px] leading-none bg-yellow-400 text-yellow-950 hover:bg-yellow-400">
+                  NEEDS JOB
+                </Badge>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
               <Link 
                   to={`/admin-dashboard/purchase/${purchase.purchase_ref_id}`} 
                   className="text-primary hover:underline flex items-center"
@@ -425,41 +486,8 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
       header: "Address",
       accessor: "address",
       className: "min-w-[200px]",
-      cell: (purchase) => {
-        if (!purchase.address) return '-';
-        
-        // If address is an object, format it
-        if (typeof purchase.address === 'object') {
-          const { street, city, zip, phone, alt_phone } = purchase.address;
-          const parts = [];
-          if (street) parts.push(street);
-          if (city) parts.push(city);
-          if (zip) parts.push(zip);
-          if (phone) parts.push(`Ph: ${phone}`);
-          if (alt_phone) parts.push(`Alt: ${alt_phone}`);
-          return parts.length > 0 ? parts.join(', ') : '-';
-        }
-        
-        // If address is a string, return it as is
-        return purchase.address;
-      },
-      csvFn: (purchase) => {
-        if (!purchase.address) return '';
-        
-        // If address is an object, format it for CSV
-        if (typeof purchase.address === 'object') {
-          const { street, city, zip, phone, alt_phone } = purchase.address;
-          const parts = [];
-          if (street) parts.push(street);
-          if (city) parts.push(city);
-          if (zip) parts.push(zip);
-          if (phone) parts.push(`Ph: ${phone}`);
-          if (alt_phone) parts.push(`Alt: ${alt_phone}`);
-          return parts.join(', ');
-        }
-        
-        return purchase.address;
-      }
+      cell: (purchase) => getPurchaseAddressCity(purchase.address),
+      csvFn: (purchase) => getPurchaseFullAddress(purchase.address)
     },
     {
       header: "Product",
