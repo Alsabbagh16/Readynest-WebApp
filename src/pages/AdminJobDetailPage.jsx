@@ -16,6 +16,7 @@ import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { uploadJobDocument, getJobDocuments, deleteJobDocument, updateJob, getJobByRefId } from '@/lib/storage/jobStorage';
 import StartJobModal from "@/components/StartJobModal";
 import { cn } from "@/lib/utils";
+import { getAllAssigneeDirectory, getVisibleAssigneeOptions, mapAssignedEmployeeDetails } from '@/lib/localEmployeeDirectory';
 
 // Format date treating it as "Face Value" by stripping timezone info before parsing.
 // This prevents new Date() from applying local timezone offsets to the displayed time.
@@ -593,19 +594,10 @@ const AdminJobDetailPage = () => {
         .from('employees')
         .select('id, full_name, position');
       if (employeesError) throw employeesError;
-      setAllEmployees(employeesData || []);
-      
-      // Fetch currently assigned employee details
-      if (jobData.assigned_employees_ids && jobData.assigned_employees_ids.length > 0) {
-          const { data: assignedEmpsData, error: assignedEmpsError } = await supabase
-            .from('employees')
-            .select('id, full_name, position')
-            .in('id', jobData.assigned_employees_ids);
-          if (assignedEmpsError) console.warn("Could not fetch assigned employee details:", assignedEmpsError.message);
-          else setAssignedEmployeeDetails(assignedEmpsData || []);
-      } else {
-          setAssignedEmployeeDetails([]);
-      }
+      const allAssignableEmployees = getAllAssigneeDirectory(employeesData || []);
+      const mergedEmployees = getVisibleAssigneeOptions(employeesData || []);
+      setAllEmployees(mergedEmployees);
+      setAssignedEmployeeDetails(mapAssignedEmployeeDetails(jobData.assigned_employees_ids || [], allAssignableEmployees));
 
       // Fetch available purchases for editing link
       if (canEditJob) {

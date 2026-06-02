@@ -2,30 +2,38 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { getEmployees, addEmployee, updateEmployee, deleteEmployee } from '@/lib/storage/employeeStorage';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import { PlusCircle, Terminal, ShieldAlert } from 'lucide-react';
+import { PlusCircle, Terminal } from 'lucide-react';
 import EmployeeTable from '@/components/AdminDashboard/EmployeeTable';
 import EmployeeDialog from '@/components/AdminDashboard/EmployeeDialog';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { useAdminAuth } from '@/contexts/AdminAuthContext';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import PermissionGate from '@/components/PermissionGate';
+import { createPartTimer, decorateEmployeesWithVisibility, getPartTimers, setEmployeeVisibility } from '@/lib/localEmployeeDirectory';
 
 const EmployeesTab = () => {
   const [employees, setEmployees] = useState([]);
+  const [partTimers, setPartTimers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isPartTimerDialogOpen, setIsPartTimerDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
   const [formError, setFormError] = useState(null);
+  const [partTimerName, setPartTimerName] = useState('');
   const { toast } = useToast();
-  const { adminProfile } = useAdminAuth();
 
   const fetchEmployeesCallback = useCallback(async () => {
     setLoading(true);
     try {
       const data = await getEmployees();
-      setEmployees(data || []);
+      setEmployees(decorateEmployeesWithVisibility(data || []));
+      setPartTimers(getPartTimers());
     } catch (error) {
       toast({ title: "Error Fetching Employees", description: error.message, variant: "destructive" });
       setEmployees([]); 
+      setPartTimers(getPartTimers());
     } finally {
       setLoading(false);
     }
@@ -78,10 +86,41 @@ const EmployeesTab = () => {
     setIsDialogOpen(true);
   };
 
-   const openNewDialog = () => {
+  const openNewDialog = () => {
     setEditingEmployee(null);
     setFormError(null);
     setIsDialogOpen(true);
+  };
+
+  const handleToggleVisibility = (employee, visible) => {
+    setEmployeeVisibility(employee.id, visible);
+    setEmployees((currentEmployees) =>
+      currentEmployees.map((currentEmployee) =>
+        currentEmployee.id === employee.id
+          ? { ...currentEmployee, visibleInJobAssignment: visible }
+          : currentEmployee
+      )
+    );
+
+    toast({
+      title: "Visibility Updated",
+      description: `${employee.full_name || employee.email} is now ${visible ? 'visible' : 'hidden'} in job assignment.`,
+    });
+  };
+
+  const handleCreatePartTimer = () => {
+    try {
+      const newPartTimer = createPartTimer(partTimerName);
+      setPartTimers((currentPartTimers) => [newPartTimer, ...currentPartTimers]);
+      setPartTimerName('');
+      setIsPartTimerDialogOpen(false);
+      toast({
+        title: "Part Timer Added",
+        description: `${newPartTimer.full_name} can now be assigned from the job page.`,
+      });
+    } catch (error) {
+      toast({ title: "Unable to Create Part Timer", description: error.message, variant: "destructive" });
+    }
   };
   
   const handleDialogChange = (open) => {
@@ -99,9 +138,12 @@ const EmployeesTab = () => {
   return (
     <div className="p-6">
        <PermissionGate permission="employees.create">
-         <div className="flex justify-end mb-4">
+         <div className="flex justify-end gap-2 mb-4">
               <Button onClick={openNewDialog} size="sm">
                   <PlusCircle className="mr-2 h-4 w-4" /> Add Employee
+              </Button>
+              <Button onClick={() => setIsPartTimerDialogOpen(true)} size="sm" variant="outline">
+                  <PlusCircle className="mr-2 h-4 w-4" /> Add Part Timer
               </Button>
          </div>
        </PermissionGate>
@@ -120,6 +162,7 @@ const EmployeesTab = () => {
         employees={employees}
         onEdit={openEditDialog}
         onDelete={handleDeleteEmployee}
+        onToggleVisibility={handleToggleVisibility}
         canManage={true} // Passed true, but actions inside table should also be gated or logic lifted.
         // Assuming EmployeeTable renders actions based on canManage prop. 
         // We can wrap the whole table or refactor EmployeeTable. 
@@ -133,6 +176,33 @@ const EmployeesTab = () => {
         // EmployeeTable IS hidden. So I cannot edit it to add granular permission gates inside rows.
         // I must control `canManage` prop based on permissions.
       />
+      <Card className="mt-6">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <CardTitle>Part Timers</CardTitle>
+          <PermissionGate permission="employees.create">
+            <Button onClick={() => setIsPartTimerDialogOpen(true)} size="sm">
+              <PlusCircle className="mr-2 h-4 w-4" /> Create Part Timer
+            </Button>
+          </PermissionGate>
+        </CardHeader>
+        <CardContent>
+          {partTimers.length > 0 ? (
+            <div className="space-y-2">
+              {partTimers.map((employee) => (
+                <div key={employee.id} className="flex items-center justify-between rounded-md border px-3 py-2">
+                  <div>
+                    <p className="font-medium">{employee.full_name}</p>
+                    <p className="text-xs text-muted-foreground">Local only part time employee</p>
+                  </div>
+                  <span className="text-xs text-muted-foreground">Visible on job assignment</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No part timers added yet.</p>
+          )}
+        </CardContent>
+      </Card>
       {isDialogOpen && (
         <EmployeeDialog
             isOpen={isDialogOpen}
@@ -143,6 +213,33 @@ const EmployeesTab = () => {
             setFormError={setFormError}
         />
       )}
+      <Dialog open={isPartTimerDialogOpen} onOpenChange={setIsPartTimerDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create Part Timer</DialogTitle>
+            <DialogDescription>
+              Part timers are stored only in this browser and can be assigned from the job page.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="part-timer-name">Name</Label>
+            <Input
+              id="part-timer-name"
+              value={partTimerName}
+              onChange={(event) => setPartTimerName(event.target.value)}
+              placeholder="Enter part timer name"
+            />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsPartTimerDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={handleCreatePartTimer}>
+              Create
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

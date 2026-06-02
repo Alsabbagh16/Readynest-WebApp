@@ -14,6 +14,7 @@ import { ArrowLeft, Save, User, Briefcase, Users, Hash, MapPin, CalendarClock, P
 import { generateJobRefId } from '@/lib/storage/jobStorage';
 import { toLocalDatetimeInputString } from '@/lib/dateTimeHelpers';
 import { sendJobCreatedNotification } from '@/lib/whatsappService';
+import { getVisibleAssigneeOptions } from '@/lib/localEmployeeDirectory';
 
 // Helper to convert DB timestamp to local input string by stripping timezone info
 // treating the stored time as "Face Value" / Wall Clock time
@@ -359,7 +360,7 @@ const AdminCreateJobPage = () => {
         .from('employees')
         .select('id, full_name, position');
       if (employeesError) throw employeesError;
-      setAllEmployees(employeesData || []);
+      setAllEmployees(getVisibleAssigneeOptions(employeesData || []));
 
       // Fetch available addons
       const { data: addonsData, error: addonsError } = await supabase
