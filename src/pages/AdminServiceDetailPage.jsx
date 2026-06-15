@@ -15,6 +15,7 @@ import EmployeeAssignmentControl from '@/components/AdminServiceDetail/EmployeeA
 import ServiceActions from '@/components/AdminServiceDetail/ServiceActions';
 import EditableServiceDetails from '@/components/AdminServiceDetail/EditableServiceDetails';
 import { Badge } from "@/components/ui/badge";
+import { getAllAssigneeDirectory, getVisibleAssigneeOptions } from '@/lib/localEmployeeDirectory';
 
 const getStatusBadgeVariant = (status) => {
     switch (status?.toLowerCase()) {
@@ -60,7 +61,14 @@ const AdminServiceDetailPage = () => {
         navigate('/admin-dashboard/services');
       }
       const employeesData = await getEmployees();
-      setAllEmployees(employeesData);
+      const assigneeDirectory = getAllAssigneeDirectory(employeesData || []);
+      const visibleEmployees = getVisibleAssigneeOptions(employeesData || []);
+      const assignedEmployeeIds = bookingData?.assigned_employee_ids || [];
+      const assignedEmployees = assigneeDirectory.filter((employee) => assignedEmployeeIds.includes(employee.id));
+      setAllEmployees([
+        ...assignedEmployees,
+        ...visibleEmployees.filter((employee) => !assignedEmployeeIds.includes(employee.id)),
+      ]);
     } catch (error) {
       toast({ title: "Error", description: `Failed to fetch data: ${error.message}`, variant: "destructive" });
     } finally {

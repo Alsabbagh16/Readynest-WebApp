@@ -85,6 +85,7 @@ const calculateTransactionTotals = (baseAmountStr, discountType, discountValueSt
 };
 
 const availableStatuses = ["Pending", "Confirmed", "Paid", "Processing", "Completed", "Cancelled", "Refunded", "Failed", "Flagged", "Test"];
+const paymentTypeOptions = ["Cash", "Cash on Arrival", "Credit Card", "Bank Transfer", "BenefitPay"];
 
 // --- Components ---
 
@@ -206,6 +207,26 @@ const PurchaseServicePaymentInfo = ({ purchase, isEditing, editableFields, onInp
                         onChange={onInputChange} 
                         className="mt-1 text-sm font-semibold"
                     />
+                </div>
+
+                <div>
+                    <Label htmlFor="payment_type" className="text-sm font-medium">Payment Type</Label>
+                    <Select
+                        value={editableFields.payment_type || 'Cash'}
+                        onValueChange={(val) => onSelectChange('payment_type', val)}
+                    >
+                        <SelectTrigger id="payment_type" className="mt-1 text-sm">
+                            <SelectValue placeholder="Select payment type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {[...new Set([
+                                editableFields.payment_type,
+                                ...paymentTypeOptions,
+                            ].filter(Boolean))].map((paymentType) => (
+                                <SelectItem key={paymentType} value={paymentType}>{paymentType}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 </div>
 
                 <div>
@@ -565,6 +586,7 @@ const AdminPurchaseDetailPage = () => {
     product_name: '',
     preferred_booking_date: '',
     base_amount: '',    
+    payment_type: 'Cash',
     discount_type: 'none', 
     discount_value: '',
     coupon_code: '',
@@ -626,6 +648,7 @@ const AdminPurchaseDetailPage = () => {
             product_name: data.product_name || '',
             preferred_booking_date: formatForInput(data.preferred_booking_date) || '',
             base_amount: originalBase.toString(),
+            payment_type: data.payment_type || 'Cash',
             discount_type: discountType,
             discount_value: discountValue,
             coupon_code: data.coupon_code || '',
@@ -744,6 +767,7 @@ const AdminPurchaseDetailPage = () => {
         scheduled_at: isoPreferredDate, // Keep synced if updating preferred
         paid_amount: finalTotal,
         final_amount_due_on_arrival: finalTotal,
+        payment_type: editableFields.payment_type || 'Cash',
         discount_amount: discountAmount,
         original_amount: baseAmount, // Store pre-discount amount for invoice
         coupon_code: editableFields.coupon_code ? editableFields.coupon_code.trim() : null,

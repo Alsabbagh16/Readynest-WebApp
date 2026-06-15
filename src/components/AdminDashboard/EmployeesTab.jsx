@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { getEmployees, addEmployee, updateEmployee, deleteEmployee } from '@/lib/storage/employeeStorage';
+import { getEmployees, addEmployee, addPartTimerEmployee, updateEmployee, updateEmployeeJobVisibility, deleteEmployee } from '@/lib/storage/employeeStorage';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { PlusCircle, Terminal } from 'lucide-react';
@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import PermissionGate from '@/components/PermissionGate';
-import { createPartTimer, decorateEmployeesWithVisibility, getPartTimers, setEmployeeVisibility } from '@/lib/localEmployeeDirectory';
+import { decorateEmployeesWithVisibility, getPartTimers } from '@/lib/localEmployeeDirectory';
 
 const EmployeesTab = () => {
   const [employees, setEmployees] = useState([]);
@@ -28,12 +28,13 @@ const EmployeesTab = () => {
     setLoading(true);
     try {
       const data = await getEmployees();
-      setEmployees(decorateEmployeesWithVisibility(data || []));
-      setPartTimers(getPartTimers());
+      const decoratedEmployees = decorateEmployeesWithVisibility(data || []);
+      setEmployees(decoratedEmployees);
+      setPartTimers(getPartTimers(decoratedEmployees));
     } catch (error) {
       toast({ title: "Error Fetching Employees", description: error.message, variant: "destructive" });
       setEmployees([]); 
-      setPartTimers(getPartTimers());
+      setPartTimers([]);
     } finally {
       setLoading(false);
     }
@@ -92,26 +93,39 @@ const EmployeesTab = () => {
     setIsDialogOpen(true);
   };
 
-  const handleToggleVisibility = (employee, visible) => {
-    setEmployeeVisibility(employee.id, visible);
-    setEmployees((currentEmployees) =>
-      currentEmployees.map((currentEmployee) =>
-        currentEmployee.id === employee.id
-          ? { ...currentEmployee, visibleInJobAssignment: visible }
-          : currentEmployee
-      )
-    );
+  const handleToggleVisibility = async (employee, visible) => {
+    try {
+      const updatedEmployee = await updateEmployeeJobVisibility(employee.id, visible);
+      setEmployees((currentEmployees) =>
+        currentEmployees.map((currentEmployee) =>
+          currentEmployee.id === employee.id
+            ? { ...currentEmployee, ...updatedEmployee, visibleInJobAssignment: visible }
+            : currentEmployee
+        )
+      );
+      setPartTimers((currentPartTimers) =>
+        currentPartTimers.map((currentEmployee) =>
+          currentEmployee.id === employee.id
+            ? { ...currentEmployee, ...updatedEmployee, visibleInJobAssignment: visible }
+            : currentEmployee
+        )
+      );
 
-    toast({
-      title: "Visibility Updated",
-      description: `${employee.full_name || employee.email} is now ${visible ? 'visible' : 'hidden'} in job assignment.`,
-    });
+      toast({
+        title: "Visibility Updated",
+        description: `${employee.full_name || employee.email} is now ${visible ? 'visible' : 'hidden'} in job assignment.`,
+      });
+    } catch (error) {
+      toast({ title: "Error Updating Visibility", description: error.message, variant: "destructive" });
+    }
   };
 
-  const handleCreatePartTimer = () => {
+  const handleCreatePartTimer = async () => {
     try {
-      const newPartTimer = createPartTimer(partTimerName);
-      setPartTimers((currentPartTimers) => [newPartTimer, ...currentPartTimers]);
+      const newPartTimer = await addPartTimerEmployee(partTimerName);
+      const decoratedPartTimer = decorateEmployeesWithVisibility([newPartTimer])[0];
+      setEmployees((currentEmployees) => [decoratedPartTimer, ...currentEmployees]);
+      setPartTimers((currentPartTimers) => [decoratedPartTimer, ...currentPartTimers]);
       setPartTimerName('');
       setIsPartTimerDialogOpen(false);
       toast({
@@ -192,9 +206,11 @@ const EmployeesTab = () => {
                 <div key={employee.id} className="flex items-center justify-between rounded-md border px-3 py-2">
                   <div>
                     <p className="font-medium">{employee.full_name}</p>
-                    <p className="text-xs text-muted-foreground">Local only part time employee</p>
+                    <p className="text-xs text-muted-foreground">Backend part time employee</p>
                   </div>
-                  <span className="text-xs text-muted-foreground">Visible on job assignment</span>
+                  <span className="text-xs text-muted-foreground">
+                    {employee.visibleInJobAssignment !== false ? 'Visible on job assignment' : 'Hidden from job assignment'}
+                  </span>
                 </div>
               ))}
             </div>
@@ -218,7 +234,7 @@ const EmployeesTab = () => {
           <DialogHeader>
             <DialogTitle>Create Part Timer</DialogTitle>
             <DialogDescription>
-              Part timers are stored only in this browser and can be assigned from the job page.
+              Part timers are saved to the employee directory and can be assigned from the job page.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">

@@ -1,6 +1,8 @@
 import { supabase } from '@/lib/supabase';
 import { v4 as uuidv4 } from 'uuid';
 
+const PART_TIMER_EMAIL_DOMAIN = 'part-timer.readynest.local';
+
 export const getEmployees = async () => {
   const { data, error } = await supabase
     .from('employees')
@@ -83,6 +85,64 @@ export const addEmployee = async (employeeData) => {
   }
 };
 
+export const addPartTimerEmployee = async (name) => {
+  const trimmedName = name?.trim();
+  if (!trimmedName) {
+    throw new Error('Part timer name is required.');
+  }
+
+  const employeeId = uuidv4();
+  const timestamp = new Date().toISOString();
+  const employeePayload = {
+    id: employeeId,
+    email: `${employeeId}@${PART_TIMER_EMAIL_DOMAIN}`,
+    full_name: trimmedName,
+    position: 'Part Timer',
+    role: 'employee',
+    is_part_timer: true,
+    visible_in_job_assignment: true,
+    document_urls: [],
+    created_at: timestamp,
+    updated_at: timestamp,
+  };
+
+  const { data, error } = await supabase
+    .from('employees')
+    .insert(employeePayload)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error adding part timer employee:', error);
+    throw error;
+  }
+
+  return data;
+};
+
+export const updateEmployeeJobVisibility = async (employeeId, visible) => {
+  if (!employeeId) {
+    throw new Error('Employee ID is required for visibility updates.');
+  }
+
+  const { data, error } = await supabase
+    .from('employees')
+    .update({
+      visible_in_job_assignment: visible,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', employeeId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating employee job visibility:', error);
+    throw error;
+  }
+
+  return data;
+};
+
 export const updateEmployee = async (updatedData) => {
   // Removed password update logic since we removed password fields
   const { id, ...employeeDetails } = updatedData;
@@ -111,7 +171,7 @@ export const updateEmployee = async (updatedData) => {
     'email', 'full_name', 'mobile', 'address', 'position', 'origin', 'sex', 
     'passport_number', 'passport_issue_date', 'passport_expiry_date', 
     'date_of_birth', 'hire_date', 'visa_number', 'visa_issuance_date', 'visa_expiry_date', 
-    'photo_url', 'role', 'document_urls', 'updated_at'
+    'photo_url', 'role', 'document_urls', 'is_part_timer', 'visible_in_job_assignment', 'updated_at'
   ];
 
   const filteredPayload = Object.keys(payloadToUpdate)

@@ -358,7 +358,7 @@ const AdminCreateJobPage = () => {
 
       const { data: employeesData, error: employeesError } = await supabase
         .from('employees')
-        .select('id, full_name, position');
+        .select('id, full_name, position, is_part_timer, visible_in_job_assignment');
       if (employeesError) throw employeesError;
       setAllEmployees(getVisibleAssigneeOptions(employeesData || []));
 

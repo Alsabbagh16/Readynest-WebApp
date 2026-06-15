@@ -38,7 +38,7 @@ const EmployeeAssignmentControl = ({ allEmployees, assignedEmployeeIds, onUpdate
 
   const getEmployeeName = (employeeId) => {
     const employee = allEmployees.find(emp => emp.id === employeeId);
-    return employee ? (employee.fullName || employee.email) : 'Unknown Employee';
+    return employee ? (employee.full_name || employee.fullName || employee.email) : 'Unknown Employee';
   };
 
   return (
@@ -84,7 +84,7 @@ const EmployeeAssignmentControl = ({ allEmployees, assignedEmployeeIds, onUpdate
                                         onCheckedChange={() => handleCheckboxChange(emp.id)}
                                     />
                                     <Label htmlFor={`emp-${emp.id}`} className="text-sm font-normal cursor-pointer">
-                                        {emp.fullName || emp.email} ({emp.position})
+                                        {emp.full_name || emp.fullName || emp.email} ({emp.position})
                                     </Label>
                                 </div>
                             ))}
