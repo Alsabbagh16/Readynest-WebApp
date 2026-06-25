@@ -94,6 +94,23 @@ const JobCoreDetailsFormSection = ({ formData, handleInputChange, availableStatu
           </SelectContent>
         </Select>
       </div>
+      <div className="md:col-span-2">
+        <Label htmlFor="hours_needed" className="dark:text-slate-300">Job Duration (Hours)</Label>
+        <Input
+          id="hours_needed"
+          name="hours_needed"
+          type="number"
+          min="0.5"
+          step="0.5"
+          value={formData.hours_needed}
+          onChange={handleInputChange}
+          placeholder="Example: 3"
+          className="dark:bg-slate-700 dark:border-slate-600 dark:text-white"
+        />
+        <p className="text-[10px] text-muted-foreground mt-1">
+          Used by the day scheduler to extend the job block from the selected start time.
+        </p>
+      </div>
     </CardContent>
   </Card>
 );
@@ -306,6 +323,7 @@ const AdminCreateJobPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const purchaseDataFromState = location.state?.purchaseData;
+  const preferredDateFromQuery = new URLSearchParams(location.search).get('preferred_date');
 
   const [formData, setFormData] = useState({
     job_ref_id: generateJobRefId(),
@@ -325,6 +343,7 @@ const AdminCreateJobPage = () => {
     assigned_employees_ids: [],
     addons: [],
     notes: '',
+    hours_needed: '',
     purchase_ref_id: null,
   });
 
@@ -349,7 +368,7 @@ const AdminCreateJobPage = () => {
       
       const { data: purchasesData, error: purchasesError } = await supabase
         .from('purchases')
-        .select('purchase_ref_id, name, email, user_phone, address, product_name, preferred_booking_date, selected_addons, user_id, paid_amount, profiles(first_name, last_name, phone)')
+        .select('purchase_ref_id, name, email, user_phone, address, product_name, preferred_booking_date, selected_addons, user_id, paid_amount, hours, profiles(first_name, last_name, phone)')
         .order('created_at', { ascending: false })
         .limit(100); 
       
@@ -402,6 +421,7 @@ const AdminCreateJobPage = () => {
                 alt_phone: purchaseData.address?.alt_phone || '',
             },
             addons: purchaseData.selected_addons || [],
+            hours_needed: purchaseData.hours || purchaseData.hours_needed || purchaseData.service_hours || prev.hours_needed || '',
             // Use the shared timezone helper to format the preferred_booking_date correctly
             preferred_date: purchaseData.preferred_booking_date ? toLocalDatetimeInputString(purchaseData.preferred_booking_date) : '',
             notes: `Job created from purchase ${purchaseData.purchase_ref_id}. Product: ${purchaseData.product_name || 'N/A'}.`.trim(),
@@ -418,6 +438,14 @@ const AdminCreateJobPage = () => {
       populateFormWithPurchaseData(purchaseDataFromState);
     }
   }, [purchaseDataFromState, loadingPurchases, populateFormWithPurchaseData]);
+
+  useEffect(() => {
+    if (!preferredDateFromQuery || purchaseDataFromState) return;
+    setFormData(prev => ({
+      ...prev,
+      preferred_date: toLocalInputString(preferredDateFromQuery),
+    }));
+  }, [preferredDateFromQuery, purchaseDataFromState]);
 
   // Separate effect to handle when purchases finish loading
   useEffect(() => {
@@ -525,6 +553,7 @@ const AdminCreateJobPage = () => {
         ...formData,
         purchase_ref_id: finalPurchaseId,
         preferred_date: formattedDateForStorage,
+        hours_needed: formData.hours_needed ? Number(formData.hours_needed) : null,
         document_urls: [], 
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),

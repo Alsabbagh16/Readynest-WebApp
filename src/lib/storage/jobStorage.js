@@ -58,6 +58,202 @@ export const updateJob = async (jobRefId, updateData) => {
     return true;
 };
 
+/**
+ * @typedef {Object} PartTimePostingPayload
+ * @property {number} slots_available
+ * @property {number} hours_needed
+ * @property {number} hourly_pay
+ * @property {boolean} transport_included
+ */
+
+export const shareJobToPartTimers = async (jobRefId, postingData) => {
+    if (!jobRefId) {
+        throw new Error('Job Reference ID is required.');
+    }
+
+    const slotsAvailable = Number.parseInt(postingData.slots_available, 10);
+    const hoursNeeded = Number.parseFloat(postingData.hours_needed);
+    const hourlyPay = Number.parseFloat(postingData.hourly_pay);
+
+    if (!Number.isInteger(slotsAvailable) || slotsAvailable < 1) {
+        throw new Error('Slots available must be a whole number greater than 0.');
+    }
+
+    if (!Number.isFinite(hoursNeeded) || hoursNeeded <= 0) {
+        throw new Error('Hours needed must be greater than 0.');
+    }
+
+    if (!Number.isFinite(hourlyPay) || hourlyPay <= 0) {
+        throw new Error('Hourly pay must be greater than 0.');
+    }
+
+    const { data, error } = await supabase
+        .from('jobs')
+        .update({
+            is_shared_to_part_time: true,
+            slots_available: slotsAvailable,
+            hours_needed: hoursNeeded,
+            hourly_pay: hourlyPay,
+            transport_included: postingData.transport_included === true,
+            shared_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+        })
+        .eq('job_ref_id', jobRefId)
+        .select('job_ref_id');
+
+    if (error) throw error;
+
+    if (!data || data.length === 0) {
+        throw new Error('Job was not shared. You may not have permission to edit this job.');
+    }
+
+    return true;
+};
+
+export const getActivePartTimePostings = async () => {
+    const { data, error } = await supabase
+        .from('jobs')
+        .select(`
+            job_ref_id,
+            status,
+            preferred_date,
+            user_address,
+            purchase:purchases(product_name),
+            is_shared_to_part_time,
+            slots_available,
+            hours_needed,
+            hourly_pay,
+            transport_included,
+            shared_at
+        `)
+        .eq('is_shared_to_part_time', true)
+        .gt('slots_available', 0)
+        .order('shared_at', { ascending: false });
+
+    if (error) throw error;
+
+    return (data || []).map((job) => ({
+        ...job,
+        title: job.purchase?.product_name || 'ReadyNest Service Job',
+    }));
+};
+
+export const verifyPartTimerByMobile = async (mobile) => {
+    const normalizedMobile = String(mobile || '').replace(/[^\d+]/g, '').trim();
+
+    if (normalizedMobile.length < 8) {
+        throw new Error('Please enter a valid registered mobile number.');
+    }
+
+    const { data, error } = await supabase.rpc('verify_part_timer_by_mobile', {
+        p_mobile: normalizedMobile,
+    });
+
+    if (error) throw error;
+
+    const employee = data?.[0];
+
+    if (!employee) {
+        throw new Error('Mobile number not registered as a part-timer. Please contact support.');
+    }
+
+    return employee;
+};
+
+export const createPartTimeApplication = async (jobRefId, employeeId) => {
+    if (!jobRefId) {
+        throw new Error('Job Reference ID is required.');
+    }
+
+    if (!employeeId) {
+        throw new Error('Verified part-timer session is required.');
+    }
+
+    const { data, error } = await supabase.rpc('apply_part_time_job', {
+        p_job_ref_id: jobRefId,
+        p_employee_id: employeeId,
+    });
+
+    if (error) throw error;
+
+    return data || { alreadyApplied: false };
+};
+
+export const getPartTimeApplicationsByJobRef = async (jobRefId) => {
+    if (!jobRefId) return [];
+
+    const { data, error } = await supabase
+        .from('part_time_applications')
+        .select('id, job_ref_id, phone, employee_id, applied_at, status, admin_hidden_at, employee:employees(id, full_name, mobile, position)')
+        .eq('job_ref_id', jobRefId)
+        .is('admin_hidden_at', null)
+        .order('applied_at', { ascending: false });
+
+    if (error) throw error;
+
+    return data || [];
+};
+
+export const getPartTimeApplicationsByEmployee = async (employeeId) => {
+    if (!employeeId) return [];
+
+    const { data, error } = await supabase.rpc('get_part_time_applications_for_employee', {
+        p_employee_id: employeeId,
+    });
+
+    if (error) throw error;
+
+    return (data || []).map((application) => ({
+        ...application,
+        title: application.product_name || 'ReadyNest Service Job',
+    }));
+};
+
+export const updatePartTimeApplicationStatus = async (applicationId, status) => {
+    if (!applicationId) {
+        throw new Error('Application ID is required.');
+    }
+
+    if (!['interested', 'accepted', 'declined'].includes(status)) {
+        throw new Error('Invalid part-time application status.');
+    }
+
+    const { data, error } = await supabase.rpc('set_part_time_application_status', {
+        p_application_id: applicationId,
+        p_status: status,
+    });
+
+    if (error) throw error;
+
+    const updatedApplication = data?.[0];
+
+    if (!updatedApplication) {
+        throw new Error('Application status was not updated.');
+    }
+
+    return updatedApplication;
+};
+
+export const hideDeclinedPartTimeApplication = async (applicationId) => {
+    if (!applicationId) {
+        throw new Error('Application ID is required.');
+    }
+
+    const { data, error } = await supabase.rpc('hide_declined_part_time_application', {
+        p_application_id: applicationId,
+    });
+
+    if (error) throw error;
+
+    const hiddenApplication = data?.[0];
+
+    if (!hiddenApplication) {
+        throw new Error('Only declined applications can be removed from this section.');
+    }
+
+    return hiddenApplication;
+};
+
 export const getAllJobs = async () => {
     const { data, error } = await supabase
         .from('jobs')
@@ -79,6 +275,38 @@ export const getAllJobs = async () => {
             ? job.assigned_employees.map(emp => emp.full_name).join(', ')
             : 'N/A',
     }));
+};
+
+export const getJobsByEmployeeId = async (employeeId) => {
+    if (!employeeId) return [];
+
+    const employeeIdAsString = String(employeeId);
+    const { data, error } = await supabase
+        .from('jobs')
+        .select(`
+            *,
+            purchase:purchases (product_name, product_id)
+        `)
+        .order('preferred_date', { ascending: false });
+
+    if (error) {
+        console.error('Error fetching jobs by employee ID:', error);
+        return [];
+    }
+
+    return (data || [])
+        .filter((job) => {
+            const assignedEmployeeIds = Array.isArray(job.assigned_employees_ids)
+                ? job.assigned_employees_ids
+                : [];
+            return assignedEmployeeIds.some((assignedId) => String(assignedId) === employeeIdAsString);
+        })
+        .map((job) => ({
+            ...job,
+            source_type: 'job',
+            product_name: job.purchase?.product_name || job.product_name || 'Service Job',
+            product_id: job.purchase?.product_id,
+        }));
 };
 
 /**

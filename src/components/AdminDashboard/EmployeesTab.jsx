@@ -1,27 +1,27 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { getEmployees, addEmployee, addPartTimerEmployee, updateEmployee, updateEmployeeJobVisibility, deleteEmployee } from '@/lib/storage/employeeStorage';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import { PlusCircle, Terminal } from 'lucide-react';
+import { PlusCircle, Search, Terminal } from 'lucide-react';
 import EmployeeTable from '@/components/AdminDashboard/EmployeeTable';
 import EmployeeDialog from '@/components/AdminDashboard/EmployeeDialog';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import PermissionGate from '@/components/PermissionGate';
-import { decorateEmployeesWithVisibility, getPartTimers } from '@/lib/localEmployeeDirectory';
+import { decorateEmployeesWithVisibility, getPartTimers, isPartTimer } from '@/lib/localEmployeeDirectory';
 
 const EmployeesTab = () => {
   const [employees, setEmployees] = useState([]);
-  const [partTimers, setPartTimers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isPartTimerDialogOpen, setIsPartTimerDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
   const [formError, setFormError] = useState(null);
   const [partTimerName, setPartTimerName] = useState('');
+  const [activeEmployeeView, setActiveEmployeeView] = useState('regular');
+  const [searchTerm, setSearchTerm] = useState('');
   const { toast } = useToast();
 
   const fetchEmployeesCallback = useCallback(async () => {
@@ -30,11 +30,9 @@ const EmployeesTab = () => {
       const data = await getEmployees();
       const decoratedEmployees = decorateEmployeesWithVisibility(data || []);
       setEmployees(decoratedEmployees);
-      setPartTimers(getPartTimers(decoratedEmployees));
     } catch (error) {
       toast({ title: "Error Fetching Employees", description: error.message, variant: "destructive" });
       setEmployees([]); 
-      setPartTimers([]);
     } finally {
       setLoading(false);
     }
@@ -103,13 +101,6 @@ const EmployeesTab = () => {
             : currentEmployee
         )
       );
-      setPartTimers((currentPartTimers) =>
-        currentPartTimers.map((currentEmployee) =>
-          currentEmployee.id === employee.id
-            ? { ...currentEmployee, ...updatedEmployee, visibleInJobAssignment: visible }
-            : currentEmployee
-        )
-      );
 
       toast({
         title: "Visibility Updated",
@@ -125,7 +116,7 @@ const EmployeesTab = () => {
       const newPartTimer = await addPartTimerEmployee(partTimerName);
       const decoratedPartTimer = decorateEmployeesWithVisibility([newPartTimer])[0];
       setEmployees((currentEmployees) => [decoratedPartTimer, ...currentEmployees]);
-      setPartTimers((currentPartTimers) => [decoratedPartTimer, ...currentPartTimers]);
+      setActiveEmployeeView('part-time');
       setPartTimerName('');
       setIsPartTimerDialogOpen(false);
       toast({
@@ -136,6 +127,31 @@ const EmployeesTab = () => {
       toast({ title: "Unable to Create Part Timer", description: error.message, variant: "destructive" });
     }
   };
+
+  const regularEmployees = useMemo(
+    () => employees.filter((employee) => !isPartTimer(employee)),
+    [employees]
+  );
+
+  const partTimeEmployees = useMemo(
+    () => getPartTimers(employees),
+    [employees]
+  );
+
+  const activeEmployees = activeEmployeeView === 'part-time' ? partTimeEmployees : regularEmployees;
+
+  const filteredEmployees = useMemo(() => {
+    const normalizedSearchTerm = searchTerm.trim().toLowerCase();
+    if (!normalizedSearchTerm) return activeEmployees;
+
+    return activeEmployees.filter((employee) => [
+      employee.full_name,
+      employee.email,
+      employee.mobile,
+      employee.position,
+      employee.role,
+    ].some((value) => String(value || '').toLowerCase().includes(normalizedSearchTerm)));
+  }, [activeEmployees, searchTerm]);
   
   const handleDialogChange = (open) => {
     setIsDialogOpen(open);
@@ -172,53 +188,73 @@ const EmployeesTab = () => {
                 </ul>
             </AlertDescription>
         </Alert>
-      <EmployeeTable 
-        employees={employees}
-        onEdit={openEditDialog}
-        onDelete={handleDeleteEmployee}
-        onToggleVisibility={handleToggleVisibility}
-        canManage={true} // Passed true, but actions inside table should also be gated or logic lifted.
-        // Assuming EmployeeTable renders actions based on canManage prop. 
-        // We can wrap the whole table or refactor EmployeeTable. 
-        // Given constraints, better to pass canManage down, OR check roles here.
-        // Let's modify EmployeeTable if possible, but it's not provided in codebase view.
-        // Assuming EmployeeTable was refactored in previous tasks to accept canManage.
-        // However, PermissionGate is better. 
-        // If I can't edit EmployeeTable (it's not in the edit list but I can edit if I provide full content, but I don't see it in <codebase>), I'll rely on the parent wrapper logic.
-        // Actually, EmployeeTable is in the 'provided' list but hidden content. I can't edit it.
-        // Wait, "Files whose contents are hidden MUST NOT be edited".
-        // EmployeeTable IS hidden. So I cannot edit it to add granular permission gates inside rows.
-        // I must control `canManage` prop based on permissions.
-      />
-      <Card className="mt-6">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <CardTitle>Part Timers</CardTitle>
-          <PermissionGate permission="employees.create">
-            <Button onClick={() => setIsPartTimerDialogOpen(true)} size="sm">
-              <PlusCircle className="mr-2 h-4 w-4" /> Create Part Timer
+      <div className="space-y-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="inline-flex w-full rounded-md border bg-muted/30 p-1 md:w-auto">
+            <Button
+              type="button"
+              variant={activeEmployeeView === 'regular' ? 'default' : 'ghost'}
+              size="sm"
+              className="flex-1 md:flex-none"
+              onClick={() => setActiveEmployeeView('regular')}
+            >
+              Regular Employees ({regularEmployees.length})
             </Button>
-          </PermissionGate>
-        </CardHeader>
-        <CardContent>
-          {partTimers.length > 0 ? (
-            <div className="space-y-2">
-              {partTimers.map((employee) => (
-                <div key={employee.id} className="flex items-center justify-between rounded-md border px-3 py-2">
-                  <div>
-                    <p className="font-medium">{employee.full_name}</p>
-                    <p className="text-xs text-muted-foreground">Backend part time employee</p>
-                  </div>
-                  <span className="text-xs text-muted-foreground">
-                    {employee.visibleInJobAssignment !== false ? 'Visible on job assignment' : 'Hidden from job assignment'}
-                  </span>
-                </div>
-              ))}
+            <Button
+              type="button"
+              variant={activeEmployeeView === 'part-time' ? 'default' : 'ghost'}
+              size="sm"
+              className="flex-1 md:flex-none"
+              onClick={() => setActiveEmployeeView('part-time')}
+            >
+              Part-Time Employees ({partTimeEmployees.length})
+            </Button>
+          </div>
+          <div className="relative w-full md:max-w-sm">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder={`Search ${activeEmployeeView === 'part-time' ? 'part-time' : 'regular'} employees...`}
+              className="pl-9"
+            />
+          </div>
+        </div>
+
+        <div className="rounded-md border bg-card">
+          <div className="flex flex-col gap-1 border-b px-4 py-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h3 className="font-semibold">
+                {activeEmployeeView === 'part-time' ? 'Part-Time Employees' : 'Regular Employees'}
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                Showing {filteredEmployees.length} of {activeEmployees.length} employees
+              </p>
             </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">No part timers added yet.</p>
-          )}
-        </CardContent>
-      </Card>
+            {activeEmployeeView === 'part-time' && (
+              <PermissionGate permission="employees.create">
+                <Button onClick={() => setIsPartTimerDialogOpen(true)} size="sm" variant="outline">
+                  <PlusCircle className="mr-2 h-4 w-4" /> Create Part Timer
+                </Button>
+              </PermissionGate>
+            )}
+          </div>
+          <EmployeeTable
+            employees={filteredEmployees}
+            onEdit={openEditDialog}
+            onDelete={handleDeleteEmployee}
+            onToggleVisibility={handleToggleVisibility}
+            canManage={true}
+            emptyMessage={
+              searchTerm.trim()
+                ? "No employees match your search."
+                : activeEmployeeView === 'part-time'
+                  ? "No part-time employees found."
+                  : "No regular employees found."
+            }
+          />
+        </div>
+      </div>
       {isDialogOpen && (
         <EmployeeDialog
             isOpen={isDialogOpen}

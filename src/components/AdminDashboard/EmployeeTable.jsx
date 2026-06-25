@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Edit, Trash2 } from 'lucide-react';
 
-const EmployeeTable = ({ employees, onEdit, onDelete, onToggleVisibility, canManage }) => {
+const EmployeeTable = ({ employees, onEdit, onDelete, onToggleVisibility, canManage, emptyMessage }) => {
   if (!employees || employees.length === 0) {
-    return <p className="p-6 text-center">No employees found. This might be due to RLS policies or no employees have been added yet.</p>;
+    return <p className="p-6 text-center text-sm text-muted-foreground">{emptyMessage || 'No employees found. This might be due to RLS policies or no employees have been added yet.'}</p>;
   }
 
   return (

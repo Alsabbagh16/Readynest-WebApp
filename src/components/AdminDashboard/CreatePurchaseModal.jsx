@@ -282,6 +282,7 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
         })() : (product?.name || 'Unknown Product'),
         paid_amount: formData.amount,
         final_amount_due_on_arrival: formData.amount,
+        hours: hourlyService.hours === '' ? null : Number(hourlyService.hours),
         payment_type: formData.paymentType,
         status: formData.status,
         preferred_booking_date: isoDate,

@@ -206,16 +206,27 @@ export const refundBooking = async (bookingId) => {
 };
 
 export const getBookingsByEmployeeId = async (employeeId) => {
+  if (!employeeId) return [];
+
+  const employeeIdAsString = String(employeeId);
   const { data, error } = await supabase
     .from('bookings')
     .select('*')
-    .contains('assigned_employee_ids', [employeeId]); 
+    .order('booking_date', { ascending: false }); 
 
   if (error) {
     console.error('Error fetching bookings by employee ID:', error);
     return [];
   }
-  return data.map(b => ({ ...b, id: b.id }));
+
+  return (data || [])
+    .filter((booking) => {
+      const assignedEmployeeIds = Array.isArray(booking.assigned_employee_ids)
+        ? booking.assigned_employee_ids
+        : [];
+      return assignedEmployeeIds.some((assignedId) => String(assignedId) === employeeIdAsString);
+    })
+    .map(b => ({ ...b, id: b.id }));
 };
 
 export const getBookingsByUserId = async (userId) => {

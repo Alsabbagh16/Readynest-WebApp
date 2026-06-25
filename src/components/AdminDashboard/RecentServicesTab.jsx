@@ -12,6 +12,15 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -30,12 +39,14 @@ import {
   Filter,
   ChevronLeft,
   ChevronRight,
-  Trash2
+  Trash2,
+  Users
 } from "lucide-react";
 import { format } from 'date-fns';
 import { Link } from 'react-router-dom';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { usePermissionContext } from '@/contexts/PermissionContext';
+import { shareJobToPartTimers } from '@/lib/storage/jobStorage';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -114,6 +125,14 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
     totalItems: 0,
     itemsPerPage: 10
   });
+  const [shareDialogJob, setShareDialogJob] = useState(null);
+  const [shareForm, setShareForm] = useState({
+    slots_available: '',
+    hours_needed: '',
+    hourly_pay: '',
+    transport_included: 'false',
+  });
+  const [isSharingJob, setIsSharingJob] = useState(false);
   const { adminProfile } = useAdminAuth();
   const { hasPerm, isSuperadmin, hasUiRoles, currentEmployee } = usePermissionContext();
   const { toast } = useToast();
@@ -235,6 +254,47 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
     } catch (error) {
       console.error(`Error deleting job:`, error);
       toast({ title: "Error", description: `Could not delete job ${jobRefId}.`, variant: "destructive" });
+    }
+  };
+
+  const openShareDialog = (job) => {
+    setShareDialogJob(job);
+    setShareForm({
+      slots_available: job.slots_available ? String(job.slots_available) : '',
+      hours_needed: job.hours_needed ? String(job.hours_needed) : '',
+      hourly_pay: job.hourly_pay ? String(job.hourly_pay) : '',
+      transport_included: job.transport_included ? 'true' : 'false',
+    });
+  };
+
+  const handleShareFormChange = (event) => {
+    const { name, value } = event.target;
+    setShareForm((currentForm) => ({ ...currentForm, [name]: value }));
+  };
+
+  const handleShareToPartTimers = async () => {
+    if (!shareDialogJob) return;
+
+    setIsSharingJob(true);
+    try {
+      await shareJobToPartTimers(shareDialogJob.job_ref_id, {
+        ...shareForm,
+        transport_included: shareForm.transport_included === 'true',
+      });
+      toast({
+        title: 'Job Shared',
+        description: `${shareDialogJob.job_ref_id} is now visible on the part-time job board.`,
+      });
+      setShareDialogJob(null);
+      fetchJobs(1, true);
+    } catch (error) {
+      toast({
+        title: 'Unable to Share Job',
+        description: error.message || 'Please check the posting details and try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSharingJob(false);
     }
   };
 
@@ -461,6 +521,11 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
                         <Badge variant="secondary" className={getStatusColor(job.status)}>
                             {job.status}
                         </Badge>
+                        {job.is_shared_to_part_time && (
+                          <Badge variant="outline" className="ml-2 border-sky-200 bg-sky-50 text-sky-700">
+                            Part-Time
+                          </Badge>
+                        )}
                     </TableCell>
                     <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-2">
@@ -495,6 +560,14 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
                                         <Link to={`/admin-dashboard/job/${job.job_ref_id}`}>
                                             <Eye className="mr-2 h-4 w-4" /> View Details
                                         </Link>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onSelect={(event) => {
+                                        event.preventDefault();
+                                        openShareDialog(job);
+                                      }}
+                                    >
+                                      <Users className="mr-2 h-4 w-4" /> Share to Part-Timers
                                     </DropdownMenuItem>
                                     {(adminProfile?.role === 'superadmin' || isSuperadmin) && (
                                         <AlertDialog>
@@ -616,6 +689,81 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
           </div>
         </div>
       )}
+
+      <Dialog open={!!shareDialogJob} onOpenChange={(open) => !open && setShareDialogJob(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Share to Part-Timers</DialogTitle>
+            <DialogDescription>
+              Publish {shareDialogJob?.job_ref_id} to the public part-time job board.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-1 gap-4 py-2 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="part-time-slots">Slots Available</Label>
+              <Input
+                id="part-time-slots"
+                name="slots_available"
+                type="number"
+                min="1"
+                step="1"
+                value={shareForm.slots_available}
+                onChange={handleShareFormChange}
+                placeholder="2"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="part-time-hours">Hours Needed</Label>
+              <Input
+                id="part-time-hours"
+                name="hours_needed"
+                type="number"
+                min="0.5"
+                step="0.5"
+                value={shareForm.hours_needed}
+                onChange={handleShareFormChange}
+                placeholder="4"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="part-time-pay">Hourly Pay (BD)</Label>
+              <Input
+                id="part-time-pay"
+                name="hourly_pay"
+                type="number"
+                min="0"
+                step="0.001"
+                value={shareForm.hourly_pay}
+                onChange={handleShareFormChange}
+                placeholder="2.400"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="part-time-transport">Transport Included?</Label>
+              <Select
+                value={shareForm.transport_included}
+                onValueChange={(value) => setShareForm((currentForm) => ({ ...currentForm, transport_included: value }))}
+              >
+                <SelectTrigger id="part-time-transport">
+                  <SelectValue placeholder="Select option" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="true">Yes</SelectItem>
+                  <SelectItem value="false">No</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setShareDialogJob(null)} disabled={isSharingJob}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={handleShareToPartTimers} disabled={isSharingJob}>
+              {isSharingJob ? 'Sharing...' : 'Share Job'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

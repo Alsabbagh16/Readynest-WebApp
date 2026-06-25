@@ -3,6 +3,14 @@ import { v4 as uuidv4 } from 'uuid';
 
 const PART_TIMER_EMAIL_DOMAIN = 'part-timer.readynest.local';
 
+const normalizeEmployeeUpdateValue = (value) => {
+  if (typeof value === 'string' && value.trim() === '') {
+    return null;
+  }
+
+  return value;
+};
+
 export const getEmployees = async () => {
   const { data, error } = await supabase
     .from('employees')
@@ -153,16 +161,16 @@ export const updateEmployee = async (updatedData) => {
 
   const payloadToUpdate = {
     ...employeeDetails,
-    full_name: updatedData.fullName || updatedData.full_name,
-    passport_number: updatedData.passportNumber || updatedData.passport_number,
+    full_name: updatedData.fullName ?? updatedData.full_name,
+    passport_number: updatedData.passportNumber ?? updatedData.passport_number,
     passport_issue_date: updatedData.passportIssueDate || updatedData.passport_issue_date || null,
     passport_expiry_date: updatedData.passportExpiryDate || updatedData.passport_expiry_date || null,
     date_of_birth: updatedData.dateOfBirth || updatedData.date_of_birth || null,
     hire_date: updatedData.hireDate || updatedData.hire_date || null,
-    visa_number: updatedData.visaNumber || updatedData.visa_number,
+    visa_number: updatedData.visaNumber ?? updatedData.visa_number,
     visa_issuance_date: updatedData.visaIssuanceDate || updatedData.visa_issuance_date || null,
     visa_expiry_date: updatedData.visaExpiryDate || updatedData.visa_expiry_date || null,
-    photo_url: updatedData.photoUrl || updatedData.photo_url,
+    photo_url: updatedData.photoUrl ?? updatedData.photo_url,
     document_urls: updatedData.document_urls,
     updated_at: new Date().toISOString(),
   };
@@ -171,13 +179,15 @@ export const updateEmployee = async (updatedData) => {
     'email', 'full_name', 'mobile', 'address', 'position', 'origin', 'sex', 
     'passport_number', 'passport_issue_date', 'passport_expiry_date', 
     'date_of_birth', 'hire_date', 'visa_number', 'visa_issuance_date', 'visa_expiry_date', 
-    'photo_url', 'role', 'document_urls', 'is_part_timer', 'visible_in_job_assignment', 'updated_at'
+    'photo_url', 'role', 'document_urls', 'is_part_timer', 'visible_in_job_assignment',
+    'age', 'employee_code', 'metadata_code', 'numeric_metadata_code', 'phone_suffix',
+    'internal_notes', 'updated_at'
   ];
 
   const filteredPayload = Object.keys(payloadToUpdate)
     .filter(key => validColumns.includes(key) && payloadToUpdate[key] !== undefined) 
     .reduce((obj, key) => {
-      obj[key] = payloadToUpdate[key];
+      obj[key] = normalizeEmployeeUpdateValue(payloadToUpdate[key]);
       return obj;
     }, {});
 
@@ -296,6 +306,10 @@ export const updateEmployeePhotoUrl = async (employeeId, photoUrl) => {
 // Document Management Functions for Employees
 const EMPLOYEE_DOCUMENTS_BUCKET = 'employee-documents';
 
+const getOriginalEmployeeDocumentName = (storedName) => (
+  String(storedName || '').replace(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-/i, '')
+);
+
 export const uploadEmployeeDocumentFile = async (employeeId, file) => {
   if (!employeeId || !file) {
     throw new Error('Employee ID and file are required for upload.');
@@ -326,6 +340,8 @@ export const getEmployeeDocumentsList = async (employeeId) => {
   if (!data) return [];
   return data.map(file => ({
     ...file,
+    name: getOriginalEmployeeDocumentName(file.name),
+    storedName: file.name,
     publicURL: supabase.storage.from(EMPLOYEE_DOCUMENTS_BUCKET).getPublicUrl(`${employeeId}/${file.name}`).data.publicUrl,
     filePath: `${employeeId}/${file.name}`
   }));

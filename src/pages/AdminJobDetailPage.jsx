@@ -10,10 +10,19 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { format } from 'date-fns';
-import { ArrowLeft, Save, UserCircle, Package, CalendarDays, DollarSign, MapPin, Tag, List, Edit2, Users, Briefcase, Phone, UploadCloud, FileText, Trash2, Download, Timer, Play, Pause, ShoppingBag } from 'lucide-react';
+import { ArrowLeft, Save, UserCircle, Package, CalendarDays, DollarSign, MapPin, Tag, List, Edit2, Users, Briefcase, Phone, UploadCloud, FileText, Trash2, Download, Timer, Play, Pause, ShoppingBag, X } from 'lucide-react';
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
-import { uploadJobDocument, getJobDocuments, deleteJobDocument, updateJob, getJobByRefId } from '@/lib/storage/jobStorage';
+import {
+  uploadJobDocument,
+  getJobDocuments,
+  deleteJobDocument,
+  updateJob,
+  getJobByRefId,
+  getPartTimeApplicationsByJobRef,
+  hideDeclinedPartTimeApplication,
+  updatePartTimeApplicationStatus,
+} from '@/lib/storage/jobStorage';
 import StartJobModal from "@/components/StartJobModal";
 import { cn } from "@/lib/utils";
 import { getAllAssigneeDirectory, getVisibleAssigneeOptions, mapAssignedEmployeeDetails } from '@/lib/localEmployeeDirectory';
@@ -195,6 +204,123 @@ const JobAssignedEmployeesSection = ({ assignedEmployeeDetails, isEditing, edita
         )}
     </Section>
 );
+
+const JobPartTimeInterestSection = ({ applications }) => (
+    <Section title="Interested Part-Timers" icon={<Users className="h-5 w-5 text-primary"/>}>
+        {applications.length > 0 ? (
+            <div className="space-y-2">
+                {applications.map((application) => (
+                    <div key={application.id} className="flex flex-col gap-1 rounded-md border bg-slate-50 p-3 text-sm dark:border-slate-700 dark:bg-slate-800/50 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <p className="font-medium text-gray-800 dark:text-gray-200">
+                                {application.employee?.full_name || application.phone}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                                {application.employee?.mobile || application.phone} - Applied {formatDateSafe(application.applied_at, true)}
+                            </p>
+                        </div>
+                        <Badge variant="outline" className="w-fit capitalize">
+                            {application.status || 'interested'}
+                        </Badge>
+                    </div>
+                ))}
+            </div>
+        ) : (
+            <p className="text-sm text-muted-foreground">No part-timers have applied for this job yet.</p>
+        )}
+    </Section>
+);
+
+const getPartTimeStatusBadgeClassName = (status) => {
+    switch ((status || '').toLowerCase()) {
+        case 'accepted':
+            return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+        case 'declined':
+            return 'border-red-200 bg-red-50 text-red-700';
+        default:
+            return 'border-amber-200 bg-amber-50 text-amber-700';
+    }
+};
+
+const JobPartTimeReviewSection = ({ applications, onHideDeclined, onStatusChange, updatingApplicationId }) => (
+    <Section title="Interested Part-Timers" icon={<Users className="h-5 w-5 text-primary"/>}>
+        {applications.length > 0 ? (
+            <div className="space-y-2">
+                {applications.map((application) => (
+                    <div key={application.id} className="flex flex-col gap-3 rounded-md border bg-slate-50 p-3 text-sm dark:border-slate-700 dark:bg-slate-800/50 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="min-w-0">
+                            {application.employee_id ? (
+                                <Link
+                                    to={`/admin-dashboard/employee/${application.employee_id}`}
+                                    className="font-medium text-primary hover:underline"
+                                >
+                                    {application.employee?.full_name || application.phone}
+                                </Link>
+                            ) : (
+                                <p className="font-medium text-gray-800 dark:text-gray-200">
+                                    {application.employee?.full_name || application.phone}
+                                </p>
+                            )}
+                            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                                {application.employee_id ? (
+                                    <Link
+                                        to={`/admin-dashboard/employee/${application.employee_id}`}
+                                        className="hover:text-primary hover:underline"
+                                    >
+                                        {application.employee?.mobile || application.phone}
+                                    </Link>
+                                ) : (
+                                    <span>{application.employee?.mobile || application.phone}</span>
+                                )}
+                                <span>- Applied {formatDateSafe(application.applied_at, true)}</span>
+                            </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant="outline" className={`w-fit capitalize ${getPartTimeStatusBadgeClassName(application.status)}`}>
+                                {application.status || 'interested'}
+                            </Badge>
+                            <Button
+                                size="sm"
+                                variant={(application.status || '').toLowerCase() === 'accepted' ? 'default' : 'outline'}
+                                onClick={() => onStatusChange(application.id, 'accepted')}
+                                disabled={updatingApplicationId === application.id}
+                                className="h-8"
+                            >
+                                Accept
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant={(application.status || '').toLowerCase() === 'declined' ? 'destructive' : 'outline'}
+                                onClick={() => onStatusChange(application.id, 'declined')}
+                                disabled={updatingApplicationId === application.id}
+                                className="h-8"
+                            >
+                                Decline
+                            </Button>
+                            {(application.status || '').toLowerCase() === 'declined' && (
+                                <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    onClick={() => onHideDeclined(application.id)}
+                                    disabled={updatingApplicationId === application.id}
+                                    className="h-8 w-8 text-slate-500 hover:text-red-600"
+                                    title="Remove declined application from this section"
+                                >
+                                    <X className="h-4 w-4" />
+                                    <span className="sr-only">Remove declined application</span>
+                                </Button>
+                            )}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        ) : (
+            <p className="text-sm text-muted-foreground">No part-timers have applied for this job yet.</p>
+        )}
+    </Section>
+);
+
+JobPartTimeInterestSection.displayName = 'JobPartTimeInterestSection';
 
 const JobInternalNotesSection = ({ job, isEditing, editableFields, handleInputChange }) => {
     if (!isEditing && !job.notes) return null;
@@ -432,6 +558,21 @@ const JobEditForm = ({ editableFields, handleInputChange, handleStatusChange, al
                     </SelectContent>
                 </Select>
             </div>
+            <div>
+                <Label htmlFor="hours_needed_edit" className="dark:text-slate-300">Job Duration (Hours)</Label>
+                <Input
+                    id="hours_needed_edit"
+                    name="hours_needed"
+                    type="number"
+                    min="0.5"
+                    step="0.5"
+                    value={editableFields.hours_needed}
+                    onChange={handleInputChange}
+                    placeholder="Example: 3"
+                    className="dark:bg-slate-700 dark:border-slate-600"
+                />
+                <p className="text-xs text-muted-foreground mt-1">Used by the day scheduler to extend the job block.</p>
+            </div>
         </div>
 
         <div className="space-y-4 p-4 border rounded bg-white dark:bg-slate-800 dark:border-slate-600">
@@ -521,12 +662,14 @@ const AdminJobDetailPage = () => {
   const [purchaseDetails, setPurchaseDetails] = useState(null);
   const [allEmployees, setAllEmployees] = useState([]);
   const [assignedEmployeeDetails, setAssignedEmployeeDetails] = useState([]);
+  const [partTimeApplications, setPartTimeApplications] = useState([]);
   const [jobDocuments, setJobDocuments] = useState([]);
   const [availablePurchases, setAvailablePurchases] = useState([]);
 
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [updatingApplicationId, setUpdatingApplicationId] = useState(null);
 
   const [activeJobModal, setActiveJobModal] = useState(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -534,6 +677,7 @@ const AdminJobDetailPage = () => {
   const [editableFields, setEditableFields] = useState({
     status: '',
     preferred_date: '',
+    hours_needed: '',
     assigned_employees_ids: [],
     notes: '',
     user_phone: '', 
@@ -555,11 +699,18 @@ const AdminJobDetailPage = () => {
       const jobData = await getJobByRefId(jobRefId);
       if (!jobData) throw new Error("Job not found");
       setJob(jobData);
+      if (jobData.is_shared_to_part_time) {
+        const applications = await getPartTimeApplicationsByJobRef(jobRefId);
+        setPartTimeApplications(applications);
+      } else {
+        setPartTimeApplications([]);
+      }
 
       setEditableFields({
         status: jobData.status || '',
         // Read "Face Value": Strip Z to use in input without conversion
         preferred_date: jobData.preferred_date ? formatForDateTimeLocal(jobData.preferred_date) : '',
+        hours_needed: jobData.hours_needed ? String(jobData.hours_needed) : '',
         assigned_employees_ids: jobData.assigned_employees_ids || [],
         notes: jobData.notes || '',
         user_phone: jobData.user_phone || '',
@@ -603,7 +754,7 @@ const AdminJobDetailPage = () => {
       if (canEditJob) {
         const { data: purchasesData, error: purchasesError } = await supabase
             .from('purchases')
-            .select('purchase_ref_id, name, email, user_phone, address, product_name, paid_amount, profiles(first_name, last_name, phone)')
+            .select('purchase_ref_id, name, email, user_phone, address, product_name, paid_amount, hours, profiles(first_name, last_name, phone)')
             .order('created_at', { ascending: false })
             .limit(100);
         
@@ -636,7 +787,12 @@ const AdminJobDetailPage = () => {
   };
   
   const handlePurchaseSelect = (value) => {
-    setEditableFields(prev => ({ ...prev, purchase_ref_id: value }));
+    const selectedPurchase = availablePurchases.find((purchase) => purchase.purchase_ref_id === value);
+    setEditableFields(prev => ({
+      ...prev,
+      purchase_ref_id: value,
+      hours_needed: selectedPurchase?.hours ? String(selectedPurchase.hours) : prev.hours_needed,
+    }));
   };
 
   const handleEmployeeSelect = (employeeId) => {
@@ -677,6 +833,7 @@ const AdminJobDetailPage = () => {
       const updatePayload = {
         status: editableFields.status,
         preferred_date: formattedDateForStorage,
+        hours_needed: editableFields.hours_needed ? Number(editableFields.hours_needed) : null,
         assigned_employees_ids: editableFields.assigned_employees_ids,
         notes: editableFields.notes,
         user_phone: editableFields.user_phone,
@@ -712,6 +869,7 @@ const AdminJobDetailPage = () => {
         setEditableFields({
             status: job.status || '',
             preferred_date: job.preferred_date ? formatForDateTimeLocal(job.preferred_date) : '',
+            hours_needed: job.hours_needed ? String(job.hours_needed) : '',
             assigned_employees_ids: job.assigned_employees_ids || [],
             notes: job.notes || '',
             user_phone: job.user_phone || (purchaseDetails?.user_phone) || '',
@@ -722,6 +880,58 @@ const AdminJobDetailPage = () => {
             user_address_alt_phone: job.user_address?.alt_phone || '',
             purchase_ref_id: job.purchase_ref_id || null,
         });
+    }
+  };
+
+  const handlePartTimeApplicationStatusChange = async (applicationId, nextStatus) => {
+    if (!canEditJob) {
+        toast({ title: "Permission Denied", description: "You do not have permission to manage applications.", variant: "destructive" });
+        return;
+    }
+
+    setUpdatingApplicationId(applicationId);
+    try {
+        const updatedApplication = await updatePartTimeApplicationStatus(applicationId, nextStatus);
+        setPartTimeApplications((currentApplications) =>
+            currentApplications.map((application) =>
+                application.id === applicationId
+                    ? { ...application, status: updatedApplication.status }
+                    : application
+            )
+        );
+        toast({
+            title: "Application Updated",
+            description: `Part-timer marked as ${updatedApplication.status}.`,
+        });
+    } catch (error) {
+        console.error("Error updating part-time application status:", error);
+        toast({ title: "Error", description: `Could not update application: ${error.message}`, variant: "destructive" });
+    } finally {
+        setUpdatingApplicationId(null);
+    }
+  };
+
+  const handleHideDeclinedPartTimeApplication = async (applicationId) => {
+    if (!canEditJob) {
+        toast({ title: "Permission Denied", description: "You do not have permission to manage applications.", variant: "destructive" });
+        return;
+    }
+
+    setUpdatingApplicationId(applicationId);
+    try {
+        await hideDeclinedPartTimeApplication(applicationId);
+        setPartTimeApplications((currentApplications) =>
+            currentApplications.filter((application) => application.id !== applicationId)
+        );
+        toast({
+            title: "Application Removed",
+            description: "Declined part-timer was removed from this section.",
+        });
+    } catch (error) {
+        console.error("Error hiding declined part-time application:", error);
+        toast({ title: "Error", description: `Could not remove application: ${error.message}`, variant: "destructive" });
+    } finally {
+        setUpdatingApplicationId(null);
     }
   };
 
@@ -867,6 +1077,14 @@ const AdminJobDetailPage = () => {
               <JobAddonsSection job={job} purchaseDetails={purchaseDetails} />
               <JobAddressInfoSection job={job} />
               <JobAssignedEmployeesSection assignedEmployeeDetails={assignedEmployeeDetails} isEditing={false} editableFields={{}} allEmployees={[]} handleEmployeeSelect={()=>{}} />
+              {job.is_shared_to_part_time && (
+                <JobPartTimeReviewSection
+                  applications={partTimeApplications}
+                  onHideDeclined={handleHideDeclinedPartTimeApplication}
+                  onStatusChange={handlePartTimeApplicationStatusChange}
+                  updatingApplicationId={updatingApplicationId}
+                />
+              )}
               <JobInternalNotesSection job={job} isEditing={false} editableFields={{}} handleInputChange={()=>{}} />
               <JobDocumentsManagerSection 
                 jobRefId={job.job_ref_id} 
