@@ -110,32 +110,41 @@ export const shareJobToPartTimers = async (jobRefId, postingData) => {
     return true;
 };
 
-export const getActivePartTimePostings = async () => {
+export const removeJobFromPartTimeBoard = async (jobRefId) => {
+    if (!jobRefId) {
+        throw new Error('Job Reference ID is required.');
+    }
+
     const { data, error } = await supabase
         .from('jobs')
-        .select(`
-            job_ref_id,
-            status,
-            preferred_date,
-            user_address,
-            purchase:purchases(product_name),
-            is_shared_to_part_time,
-            slots_available,
-            hours_needed,
-            hourly_pay,
-            transport_included,
-            shared_at
-        `)
-        .eq('is_shared_to_part_time', true)
-        .gt('slots_available', 0)
-        .order('shared_at', { ascending: false });
+        .update({
+            is_shared_to_part_time: false,
+            shared_at: null,
+            updated_at: new Date().toISOString(),
+        })
+        .eq('job_ref_id', jobRefId)
+        .select('job_ref_id');
 
     if (error) throw error;
 
-    return (data || []).map((job) => ({
-        ...job,
-        title: job.purchase?.product_name || 'ReadyNest Service Job',
-    }));
+    if (!data || data.length === 0) {
+        throw new Error('Job was not removed from the job board.');
+    }
+
+    return true;
+};
+
+export const getActivePartTimePostings = async () => {
+    const { data, error } = await supabase.rpc('get_active_part_time_postings');
+
+    if (error) throw error;
+
+    return (data || [])
+        .filter((job) => String(job.status || '').trim().toLowerCase() !== 'completed')
+        .map((job) => ({
+            ...job,
+            title: job.product_name || 'ReadyNest Service Job',
+        }));
 };
 
 export const verifyPartTimerByMobile = async (mobile) => {
@@ -207,6 +216,77 @@ export const getPartTimeApplicationsByEmployee = async (employeeId) => {
         ...application,
         title: application.product_name || 'ReadyNest Service Job',
     }));
+};
+
+export const getPartTimePayoutsByEmployee = async (employeeId) => {
+    if (!employeeId) return [];
+
+    const { data, error } = await supabase.rpc('get_part_time_payouts_for_employee', {
+        p_employee_id: employeeId,
+    });
+
+    if (error) throw error;
+
+    return data || [];
+};
+
+export const settlePartTimePayout = async (applicationId) => {
+    if (!applicationId) {
+        throw new Error('Payout application ID is required.');
+    }
+
+    const { data, error } = await supabase.rpc('settle_part_time_payout', {
+        p_application_id: applicationId,
+    });
+
+    if (error) throw error;
+
+    const settledPayout = data?.[0];
+    if (!settledPayout) {
+        throw new Error('This payout could not be settled. It may already be settled or the job is not completed.');
+    }
+
+    return settledPayout;
+};
+
+export const undoPartTimePayoutSettlement = async (applicationId) => {
+    if (!applicationId) {
+        throw new Error('Payout application ID is required.');
+    }
+
+    const { data, error } = await supabase.rpc('undo_part_time_payout_settlement', {
+        p_application_id: applicationId,
+    });
+
+    if (error) throw error;
+
+    const payout = data?.[0];
+    if (!payout) {
+        throw new Error('This payout could not be returned to pending.');
+    }
+
+    return payout;
+};
+
+export const updatePartTimePayoutAmount = async (applicationId, amount) => {
+    const numericAmount = Number(amount);
+    if (!applicationId || !Number.isFinite(numericAmount) || numericAmount < 0) {
+        throw new Error('Enter a valid payout amount of zero or greater.');
+    }
+
+    const { data, error } = await supabase.rpc('update_part_time_payout_amount', {
+        p_application_id: applicationId,
+        p_amount: numericAmount,
+    });
+
+    if (error) throw error;
+
+    const payout = data?.[0];
+    if (!payout) {
+        throw new Error('This payout amount could not be updated.');
+    }
+
+    return payout;
 };
 
 export const updatePartTimeApplicationStatus = async (applicationId, status) => {

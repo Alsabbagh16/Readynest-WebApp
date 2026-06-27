@@ -8,14 +8,21 @@ import {
     deleteEmployeeDocumentFile 
 } from '@/lib/storage/employeeStorage';
 import { getBookingsByEmployeeId } from '@/lib/storage/bookingStorage';
-import { getJobsByEmployeeId } from '@/lib/storage/jobStorage';
+import {
+    getJobsByEmployeeId,
+    getPartTimeApplicationsByEmployee,
+    getPartTimePayoutsByEmployee,
+    settlePartTimePayout,
+    undoPartTimePayoutSettlement,
+    updatePartTimePayoutAmount,
+} from '@/lib/storage/jobStorage';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Edit3, ShieldAlert, Trash2, Download, MessageCircle, Plus, File } from 'lucide-react';
+import { ArrowLeft, Check, ChevronDown, Edit3, ShieldAlert, Trash2, Download, MessageCircle, Plus, File, Pencil, Undo2, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from "@/components/ui/use-toast";
 import EmployeeDialog from '@/components/AdminDashboard/EmployeeDialog';
@@ -127,6 +134,7 @@ const normalizeBookingAssignment = (booking) => ({
 
 const normalizeJobAssignment = (job) => ({
     ...job,
+    source_type: 'job',
     timeline_id: `job-${job.job_ref_id || job.id}`,
     service_type: job.product_name || job.purchase?.product_name || 'Service Job',
     contact_name: job.user_name || job.customerName || 'Client',
@@ -134,15 +142,27 @@ const normalizeJobAssignment = (job) => ({
 });
 
 const DetailField = ({ label, value }) => (
-    <div>
+    <div className="min-w-0">
         <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{label}</p>
-        <p className="mt-1 text-sm font-semibold text-slate-800">{value || 'N/A'}</p>
+        <p className="mt-1 break-words text-sm font-semibold text-slate-800">{value || 'N/A'}</p>
     </div>
 );
 
+const MobileSectionToggle = ({ title, isOpen, onToggle }) => (
+    <button
+        type="button"
+        className="flex w-full items-center justify-between gap-3 text-left lg:hidden"
+        onClick={onToggle}
+        aria-expanded={isOpen}
+    >
+        <span className="text-sm font-bold text-slate-900">{title}</span>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+    </button>
+);
+
 const ProfileSkeleton = () => (
-    <div className="min-h-screen bg-slate-50 p-3 sm:p-6">
-        <div className="grid gap-5 lg:grid-cols-12">
+    <div className="min-h-screen w-full min-w-0 max-w-full overflow-x-hidden bg-slate-50 p-3 sm:p-6">
+        <div className="grid min-w-0 gap-5 lg:grid-cols-12">
             {[...Array(5)].map((_, index) => (
                 <div
                     key={index}
@@ -159,6 +179,7 @@ const EmployeeDocumentsManager = ({ employeeId, initialDocuments = [], onDocumen
     const [selectedFiles, setSelectedFiles] = useState([]);
     const [currentDocuments, setCurrentDocuments] = useState(initialDocuments);
     const [isUploading, setIsUploading] = useState(false);
+    const [isMobileOpen, setIsMobileOpen] = useState(false);
 
     useEffect(() => {
         setCurrentDocuments(initialDocuments);
@@ -241,11 +262,12 @@ const EmployeeDocumentsManager = ({ employeeId, initialDocuments = [], onDocumen
     };
 
     return (
-        <Card className="rounded-2xl border-0 bg-white shadow-sm">
+        <Card className="order-6 min-w-0 max-w-full rounded-2xl border-0 bg-white shadow-sm lg:order-none">
             <CardHeader className="flex flex-col items-start justify-between gap-3 pb-3 sm:flex-row sm:items-center">
-                <CardTitle className="text-sm font-bold text-slate-900">Files / Documents</CardTitle>
+                <MobileSectionToggle title="Files / Documents" isOpen={isMobileOpen} onToggle={() => setIsMobileOpen((isOpen) => !isOpen)} />
+                <CardTitle className="hidden text-sm font-bold text-slate-900 lg:block">Files / Documents</CardTitle>
                 {canManage && (
-                    <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+                    <div className={`${isMobileOpen ? 'flex' : 'hidden'} w-full flex-wrap items-center gap-2 sm:w-auto lg:flex`}>
                         <Input
                             id={`employee-document-upload-${employeeId}`}
                             type="file"
@@ -280,7 +302,7 @@ const EmployeeDocumentsManager = ({ employeeId, initialDocuments = [], onDocumen
                     </div>
                 )}
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className={`${isMobileOpen ? 'block' : 'hidden'} space-y-3 lg:block`}>
                 {selectedFiles.length > 0 && (
                     <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3">
                         <p className="mb-2 text-xs font-semibold text-blue-800">Ready to upload</p>
@@ -350,28 +372,33 @@ const EmployeeDocumentsManager = ({ employeeId, initialDocuments = [], onDocumen
     );
 };
 
-const EmployeeOtherDetailsCard = ({ employee }) => (
-    <Card className="rounded-2xl border-0 bg-white shadow-sm">
-        <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-bold text-slate-900">Other Details</CardTitle>
-        </CardHeader>
-        <CardContent>
-            <div className="grid grid-cols-2 gap-x-5 gap-y-4">
-                <DetailField label="Origin Country" value={employee.origin} />
-                <DetailField label="Date of Birth" value={formatDateSafe(employee.date_of_birth)} />
-                <DetailField label="Passport Number" value={employee.passport_number} />
-                <DetailField label="Passport Issue" value={formatDateSafe(employee.passport_issue_date)} />
-                <DetailField label="Passport Expiry" value={formatDateSafe(employee.passport_expiry_date)} />
-                <DetailField label="Visa Number" value={employee.visa_number} />
-                <DetailField label="Visa Issued" value={formatDateSafe(employee.visa_issuance_date)} />
-                <DetailField label="Visa Expiry" value={formatDateSafe(employee.visa_expiry_date)} />
-                <div className="col-span-2">
-                    <DetailField label="Address" value={employee.address} />
+const EmployeeOtherDetailsCard = ({ employee }) => {
+    const [isMobileOpen, setIsMobileOpen] = useState(false);
+
+    return (
+        <Card className="order-2 min-w-0 max-w-full rounded-2xl border-0 bg-white shadow-sm lg:order-none">
+            <CardHeader className="pb-3">
+                <MobileSectionToggle title="Other Details" isOpen={isMobileOpen} onToggle={() => setIsMobileOpen((isOpen) => !isOpen)} />
+                <CardTitle className="hidden text-sm font-bold text-slate-900 lg:block">Other Details</CardTitle>
+            </CardHeader>
+            <CardContent className={`${isMobileOpen ? 'block' : 'hidden'} lg:block`}>
+                <div className="grid grid-cols-2 gap-x-5 gap-y-4">
+                    <DetailField label="Origin Country" value={employee.origin} />
+                    <DetailField label="Date of Birth" value={formatDateSafe(employee.date_of_birth)} />
+                    <DetailField label="Passport Number" value={employee.passport_number} />
+                    <DetailField label="Passport Issue" value={formatDateSafe(employee.passport_issue_date)} />
+                    <DetailField label="Passport Expiry" value={formatDateSafe(employee.passport_expiry_date)} />
+                    <DetailField label="Visa Number" value={employee.visa_number} />
+                    <DetailField label="Visa Issued" value={formatDateSafe(employee.visa_issuance_date)} />
+                    <DetailField label="Visa Expiry" value={formatDateSafe(employee.visa_expiry_date)} />
+                    <div className="col-span-2">
+                        <DetailField label="Address" value={employee.address} />
+                    </div>
                 </div>
-            </div>
-        </CardContent>
-    </Card>
-);
+            </CardContent>
+        </Card>
+    );
+};
 
 const EmployeeIdentityCard = ({ employee, pastJobsCount, upcomingJobsCount }) => {
     const employmentType = employee.is_part_timer ? 'Part-Time' : 'Regular';
@@ -382,7 +409,7 @@ const EmployeeIdentityCard = ({ employee, pastJobsCount, upcomingJobsCount }) =>
         : null;
 
     return (
-        <Card className="rounded-2xl border-0 bg-white shadow-sm lg:col-span-3">
+        <Card className="order-1 min-w-0 max-w-full rounded-2xl border-0 bg-white shadow-sm lg:order-none lg:col-span-3">
             <CardContent className="p-5">
                 <div className="flex flex-col items-center text-center">
                     <Avatar className="h-20 w-20 rounded-2xl border border-slate-100 shadow-sm">
@@ -392,7 +419,7 @@ const EmployeeIdentityCard = ({ employee, pastJobsCount, upcomingJobsCount }) =>
                         </AvatarFallback>
                     </Avatar>
                     <h1 className="mt-4 text-lg font-bold text-slate-950">{employee.full_name || 'Employee'}</h1>
-                    <p className="text-sm text-slate-400">{employee.email || 'No email'}</p>
+                    <p className="max-w-full break-all text-sm text-slate-400">{employee.email || 'No email'}</p>
                 </div>
 
                 <div className="my-5 grid grid-cols-2 divide-x divide-slate-100 rounded-2xl border border-slate-100 bg-slate-50 py-4 text-center">
@@ -429,13 +456,19 @@ const EmployeeIdentityCard = ({ employee, pastJobsCount, upcomingJobsCount }) =>
     );
 };
 
-const EmployeeNotesCard = ({ notes, noteDraft, setNoteDraft, onSaveNote, canManage, savingNote }) => (
-    <Card className="rounded-2xl border-0 bg-white shadow-sm">
-        <CardHeader className="flex flex-row items-center justify-between pb-3">
-            <CardTitle className="text-sm font-bold text-slate-900">Admin / Internal Notes</CardTitle>
-            <span className="text-xs font-medium text-blue-600">See all</span>
+const EmployeeNotesCard = ({ notes, noteDraft, setNoteDraft, onSaveNote, canManage, savingNote }) => {
+    const [isMobileOpen, setIsMobileOpen] = useState(false);
+
+    return (
+    <Card className="order-7 min-w-0 max-w-full rounded-2xl border-0 bg-white shadow-sm lg:order-none">
+        <CardHeader className="pb-3">
+            <MobileSectionToggle title="Admin / Internal Notes" isOpen={isMobileOpen} onToggle={() => setIsMobileOpen((isOpen) => !isOpen)} />
+            <div className="hidden flex-row items-center justify-between lg:flex">
+                <CardTitle className="text-sm font-bold text-slate-900">Admin / Internal Notes</CardTitle>
+                <span className="text-xs font-medium text-blue-600">See all</span>
+            </div>
         </CardHeader>
-        <CardContent className="flex min-h-[320px] flex-col">
+        <CardContent className={`${isMobileOpen ? 'flex' : 'hidden'} min-h-[320px] flex-col lg:flex`}>
             <div className="max-h-36 flex-1 space-y-3 overflow-y-auto rounded-2xl bg-slate-50 p-4">
                 {notes.length > 0 ? notes.map((note, index) => (
                     <div key={`${note.created_at || index}-${index}`} className="rounded-xl bg-white p-3 shadow-sm">
@@ -462,7 +495,8 @@ const EmployeeNotesCard = ({ notes, noteDraft, setNoteDraft, onSaveNote, canMana
             </div>
         </CardContent>
     </Card>
-);
+    );
+};
 
 const HoursWorkedCard = ({
     activeMetric,
@@ -472,19 +506,23 @@ const HoursWorkedCard = ({
     setFilterMode,
     setRangeStartDate,
     setRangeEndDate,
-}) => (
-    <Card className="rounded-2xl border-0 bg-white shadow-sm">
+}) => {
+    const [isMobileOpen, setIsMobileOpen] = useState(false);
+
+    return (
+    <Card className="order-3 min-w-0 max-w-full rounded-2xl border-0 bg-white shadow-sm lg:order-none">
         <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-bold text-slate-900">Hours Worked</CardTitle>
+            <MobileSectionToggle title="Hours Worked" isOpen={isMobileOpen} onToggle={() => setIsMobileOpen((isOpen) => !isOpen)} />
+            <CardTitle className="hidden text-sm font-bold text-slate-900 lg:block">Hours Worked</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className={`${isMobileOpen ? 'block' : 'hidden'} space-y-4 lg:block`}>
             <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-5">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                         <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-500">
                             {filterMode === 'all' ? 'All Time' : filterMode === 'range' ? 'Date Range' : 'This Month'}
                         </p>
-                        <p className="mt-2 text-4xl font-bold text-blue-700">
+                        <p className="mt-2 flex flex-wrap items-baseline text-4xl font-bold text-blue-700">
                             {formatHours(activeMetric.hours)}
                             <span className="ml-2 text-base font-semibold text-blue-500">
                                 {activeMetric.jobs} Job{activeMetric.jobs === 1 ? '' : 's'}
@@ -542,7 +580,8 @@ const HoursWorkedCard = ({
             </p>
         </CardContent>
     </Card>
-);
+    );
+};
 
 const getActivityCellClassName = (jobs) => {
     if (jobs >= 8) return 'bg-red-500';
@@ -888,19 +927,32 @@ const JobTimelineCard = ({
     setFilterMode,
     setRangeEndDate,
     setRangeStartDate,
-}) => (
-    <Card className="rounded-2xl border-0 bg-white shadow-sm lg:col-span-9">
-        <CardHeader className="overflow-x-auto pb-2">
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="h-10 min-w-max rounded-xl bg-slate-100 p-1">
-                    <TabsTrigger value="upcoming" className="rounded-lg px-3 text-xs sm:px-4">Upcoming Jobs</TabsTrigger>
-                    <TabsTrigger value="completed" className="rounded-lg px-3 text-xs sm:px-4">Completed Jobs</TabsTrigger>
-                    <TabsTrigger value="performance" className="rounded-lg px-3 text-xs sm:px-4">Performance Log</TabsTrigger>
-                    <TabsTrigger value="activity" className="rounded-lg px-3 text-xs sm:px-4">Activity Graph</TabsTrigger>
-                </TabsList>
-            </Tabs>
+}) => {
+    const [isMobileOpen, setIsMobileOpen] = useState(false);
+    const mobileTitle = activeTab === 'completed'
+        ? 'Completed Jobs'
+        : activeTab === 'performance'
+            ? 'Performance Log'
+            : activeTab === 'activity'
+                ? 'Activity Graph'
+                : 'Upcoming Jobs';
+
+    return (
+    <Card className="order-4 min-w-0 max-w-full rounded-2xl border-0 bg-white shadow-sm lg:order-none lg:col-span-9">
+        <CardHeader className="min-w-0 max-w-full pb-2">
+            <MobileSectionToggle title={mobileTitle} isOpen={isMobileOpen} onToggle={() => setIsMobileOpen((isOpen) => !isOpen)} />
+            <div className={`${isMobileOpen ? 'block' : 'hidden'} max-w-full overflow-x-auto pt-3 lg:block lg:pt-0`}>
+                <Tabs value={activeTab} onValueChange={setActiveTab}>
+                    <TabsList className="h-10 min-w-max rounded-xl bg-slate-100 p-1">
+                        <TabsTrigger value="upcoming" className="rounded-lg px-3 text-xs sm:px-4">Upcoming Jobs</TabsTrigger>
+                        <TabsTrigger value="completed" className="rounded-lg px-3 text-xs sm:px-4">Completed Jobs</TabsTrigger>
+                        <TabsTrigger value="performance" className="rounded-lg px-3 text-xs sm:px-4">Performance Log</TabsTrigger>
+                        <TabsTrigger value="activity" className="rounded-lg px-3 text-xs sm:px-4">Activity Graph</TabsTrigger>
+                    </TabsList>
+                </Tabs>
+            </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className={`${isMobileOpen ? 'block' : 'hidden'} lg:block`}>
             {activeTab === 'performance' ? (
                 <PerformanceLineChart
                     data={performanceData}
@@ -985,41 +1037,141 @@ const JobTimelineCard = ({
             )}
         </CardContent>
     </Card>
-);
+    );
+};
 
-const EarningsCard = ({ payouts, totalEarned }) => (
-    <Card className="rounded-2xl border-0 bg-white shadow-sm lg:col-span-3">
-        <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-bold text-slate-900">Earnings & Payouts</CardTitle>
-        </CardHeader>
-        <CardContent>
-            {payouts.length > 0 ? (
-                <div className="space-y-3">
-                    {payouts.slice(0, 5).map((payout) => (
-                        <div key={payout.id} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 p-3">
-                            <div className="flex min-w-0 items-center gap-3">
-                                <span className={`h-2.5 w-2.5 rounded-full ${payout.status === 'Settled' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-                                <div className="min-w-0">
-                                    <p className="truncate text-sm font-semibold text-slate-800">{payout.description}</p>
-                                    <p className="text-xs text-slate-400">{payout.status}</p>
+const EarningsCard = ({ payouts, totalEarned, onSettle, onUndoSettle, onUpdateAmount, payoutActionId }) => {
+    const [editingPayoutId, setEditingPayoutId] = useState(null);
+    const [amountDraft, setAmountDraft] = useState('');
+    const [isMobileOpen, setIsMobileOpen] = useState(false);
+
+    const startEditingAmount = (payout) => {
+        setEditingPayoutId(payout.applicationId);
+        setAmountDraft(String(Number(payout.amount || 0).toFixed(3)));
+    };
+
+    const cancelEditingAmount = () => {
+        setEditingPayoutId(null);
+        setAmountDraft('');
+    };
+
+    const saveAmount = async (payout) => {
+        const saved = await onUpdateAmount?.(payout, amountDraft);
+        if (saved) cancelEditingAmount();
+    };
+
+    return (
+        <Card className="order-5 min-w-0 max-w-full rounded-2xl border-0 bg-white shadow-sm lg:order-none lg:col-span-3">
+            <CardHeader className="pb-3">
+                <MobileSectionToggle title="Earnings & Payouts" isOpen={isMobileOpen} onToggle={() => setIsMobileOpen((isOpen) => !isOpen)} />
+                <CardTitle className="hidden text-sm font-bold text-slate-900 lg:block">Earnings & Payouts</CardTitle>
+            </CardHeader>
+            <CardContent className={`${isMobileOpen ? 'block' : 'hidden'} lg:block`}>
+                {payouts.length > 0 ? (
+                    <div className="space-y-3">
+                        {payouts.map((payout) => (
+                            <div key={payout.id} className="relative flex min-w-0 items-center justify-between gap-3 rounded-xl bg-slate-50 p-3">
+                                {payout.status === 'Settled' && payout.applicationId && onUndoSettle && (
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="absolute right-1 top-1 h-7 w-7 text-slate-400 hover:text-amber-600"
+                                        onClick={() => onUndoSettle(payout)}
+                                        disabled={payoutActionId === payout.applicationId}
+                                        title="Undo settlement"
+                                        aria-label={`Undo settlement for ${payout.jobRefId || payout.description}`}
+                                    >
+                                        <Undo2 className="h-4 w-4" />
+                                    </Button>
+                                )}
+                                <div className="flex min-w-0 items-center gap-3 pr-5">
+                                    <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${payout.status === 'Settled' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                                    <div className="min-w-0">
+                                        <p className="truncate text-sm font-semibold text-slate-800">{payout.description}</p>
+                                        <p className="text-xs text-slate-400">{payout.status}</p>
+                                        {payout.jobRefId && (
+                                            <Link
+                                                to={`/admin-dashboard/job/${payout.jobRefId}`}
+                                                className="mt-1 block text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline"
+                                            >
+                                                {payout.jobRefId}
+                                            </Link>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="flex min-w-0 shrink-0 items-center justify-center gap-2 lg:self-center lg:flex-col lg:items-center lg:gap-1">
+                                    {editingPayoutId === payout.applicationId ? (
+                                        <div className="flex min-w-0 items-center justify-end gap-1">
+                                            <Input
+                                                type="number"
+                                                min="0"
+                                                step="0.001"
+                                                value={amountDraft}
+                                                onChange={(event) => setAmountDraft(event.target.value)}
+                                                onKeyDown={(event) => {
+                                                    if (event.key === 'Enter') saveAmount(payout);
+                                                    if (event.key === 'Escape') cancelEditingAmount();
+                                                }}
+                                                className="h-8 w-24 px-2 text-right text-sm"
+                                                autoFocus
+                                                aria-label="Payout amount"
+                                            />
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-8 w-8 text-emerald-600"
+                                                onClick={() => saveAmount(payout)}
+                                                disabled={payoutActionId === payout.applicationId}
+                                                title="Save amount"
+                                            >
+                                                <Check className="h-4 w-4" />
+                                            </Button>
+                                            <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-slate-400" onClick={cancelEditingAmount} title="Cancel editing">
+                                                <X className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    ) : payout.applicationId && onUpdateAmount ? (
+                                        <button
+                                            type="button"
+                                            className="inline-flex items-center gap-1 text-sm font-bold text-slate-900 hover:text-blue-600"
+                                            onClick={() => startEditingAmount(payout)}
+                                            title="Edit earning amount"
+                                        >
+                                            {formatCurrency(payout.amount)} <Pencil className="h-3.5 w-3.5" />
+                                        </button>
+                                    ) : (
+                                        <p className="text-sm font-bold text-slate-900">{formatCurrency(payout.amount)}</p>
+                                    )}
+                                    {payout.status === 'Pending' && payout.applicationId && onSettle && editingPayoutId !== payout.applicationId && (
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            className="h-8 bg-blue-600 text-white hover:bg-blue-700"
+                                            onClick={() => onSettle(payout)}
+                                            disabled={payoutActionId === payout.applicationId}
+                                        >
+                                            {payoutActionId === payout.applicationId ? 'Saving...' : 'Settle'}
+                                        </Button>
+                                    )}
                                 </div>
                             </div>
-                            <p className="text-sm font-bold text-slate-900">{formatCurrency(payout.amount)}</p>
-                        </div>
-                    ))}
+                        ))}
+                    </div>
+                ) : (
+                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500">
+                        No payout history yet.
+                    </div>
+                )}
+                <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4">
+                    <span className="text-sm font-bold text-slate-900">Total Earned</span>
+                    <span className="text-lg font-bold text-blue-600">{formatCurrency(totalEarned)}</span>
                 </div>
-            ) : (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500">
-                    No payout history yet.
-                </div>
-            )}
-            <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4">
-                <span className="text-sm font-bold text-slate-900">Total Earned</span>
-                <span className="text-lg font-bold text-blue-600">{formatCurrency(totalEarned)}</span>
-            </div>
-        </CardContent>
-    </Card>
-);
+            </CardContent>
+        </Card>
+    );
+};
 
 
 const AdminEmployeeProfilePage = () => {
@@ -1031,6 +1183,7 @@ const AdminEmployeeProfilePage = () => {
     const [employee, setEmployee] = useState(null);
     const [assignedServices, setAssignedServices] = useState([]);
     const [employeeDocuments, setEmployeeDocuments] = useState([]);
+    const [partTimePayouts, setPartTimePayouts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [formError, setFormError] = useState(null);
@@ -1044,6 +1197,7 @@ const AdminEmployeeProfilePage = () => {
     const [hoursRangeEndDate, setHoursRangeEndDate] = useState(getCurrentDayInput);
     const [noteDraft, setNoteDraft] = useState('');
     const [savingNote, setSavingNote] = useState(false);
+    const [settlingPayoutId, setSettlingPayoutId] = useState(null);
 
     const timelinePageSize = 5;
 
@@ -1055,14 +1209,33 @@ const AdminEmployeeProfilePage = () => {
             const empData = await findEmployeeById(id);
             if (empData) {
                 setEmployee(empData);
-                const [bookings, jobs] = await Promise.all([
+                const [bookings, jobs, partTimeApplications, employeePayouts] = await Promise.all([
                     getBookingsByEmployeeId(id),
                     getJobsByEmployeeId(id),
+                    empData.is_part_timer ? getPartTimeApplicationsByEmployee(id) : Promise.resolve([]),
+                    empData.is_part_timer ? getPartTimePayoutsByEmployee(id) : Promise.resolve([]),
                 ]);
+
+                const acceptedPartTimeJobs = (partTimeApplications || [])
+                    .filter((application) => application.status === 'accepted')
+                    .map((application) => normalizeJobAssignment({
+                        ...application,
+                        status: application.job_status,
+                        service_status: application.job_status,
+                    }));
+                const normalizedJobs = (jobs || []).map(normalizeJobAssignment);
+                const uniqueJobs = Array.from(
+                    new Map(
+                        [...acceptedPartTimeJobs, ...normalizedJobs]
+                            .map((job) => [job.job_ref_id || job.timeline_id, job])
+                    ).values()
+                );
+
                 setAssignedServices([
                     ...(bookings || []).map(normalizeBookingAssignment),
-                    ...(jobs || []).map(normalizeJobAssignment),
+                    ...uniqueJobs,
                 ]);
+                setPartTimePayouts(employeePayouts || []);
                 const documents = await getEmployeeDocumentsList(id);
                 setEmployeeDocuments(documents || []);
             } else {
@@ -1199,19 +1372,121 @@ const AdminEmployeeProfilePage = () => {
         safeTimelinePage * timelinePageSize
     );
 
-    const payoutRows = useMemo(() => completedJobs.map((service, index) => {
+    const payoutRows = useMemo(() => {
+        if (employee?.is_part_timer) {
+            return partTimePayouts.map((payout) => ({
+                id: `part-time-${payout.application_id}`,
+                applicationId: payout.application_id,
+                jobRefId: payout.job_ref_id,
+                description: `${payout.description || payout.job_ref_id || 'Service'} payout`,
+                status: payout.payout_status === 'settled' ? 'Settled' : 'Pending',
+                amount: Number(payout.amount || 0),
+            }));
+        }
+
+        return completedJobs.map((service, index) => {
         const amount = Number(service.employee_payout || service.payout_amount || service.price || 0);
         return {
             id: service.id || index,
+            jobRefId: service.source_type === 'job' ? service.job_ref_id : null,
             description: `${service.reference_number || service.id || 'Service'} payout`,
             status: String(service.payout_status || service.payment_status || '').toLowerCase().includes('pending') ? 'Pending' : 'Settled',
             amount,
         };
-    }), [completedJobs]);
+        });
+    }, [completedJobs, employee?.is_part_timer, partTimePayouts]);
 
     const totalEarned = useMemo(() => (
         payoutRows.reduce((total, payout) => total + Number(payout.amount || 0), 0)
     ), [payoutRows]);
+
+    const handleSettlePayout = async (payout) => {
+        if (!canManageEmployees || !payout?.applicationId) return;
+
+        setSettlingPayoutId(payout.applicationId);
+        try {
+            const settledPayout = await settlePartTimePayout(payout.applicationId);
+            setPartTimePayouts((currentPayouts) => currentPayouts.map((currentPayout) => (
+                currentPayout.application_id === payout.applicationId
+                    ? {
+                        ...currentPayout,
+                        payout_status: settledPayout.payout_status,
+                        settled_at: settledPayout.settled_at,
+                    }
+                    : currentPayout
+            )));
+            toast({
+                title: 'Payout Settled',
+                description: `${payout.description} has been marked as settled.`,
+            });
+        } catch (error) {
+            toast({
+                title: 'Unable to Settle Payout',
+                description: error.message || 'Please try again.',
+                variant: 'destructive',
+            });
+        } finally {
+            setSettlingPayoutId(null);
+        }
+    };
+
+    const handleUndoSettlePayout = async (payout) => {
+        if (!canManageEmployees || !payout?.applicationId) return;
+
+        setSettlingPayoutId(payout.applicationId);
+        try {
+            const updatedPayout = await undoPartTimePayoutSettlement(payout.applicationId);
+            setPartTimePayouts((currentPayouts) => currentPayouts.map((currentPayout) => (
+                currentPayout.application_id === payout.applicationId
+                    ? {
+                        ...currentPayout,
+                        payout_status: updatedPayout.payout_status,
+                        settled_at: updatedPayout.settled_at,
+                    }
+                    : currentPayout
+            )));
+            toast({
+                title: 'Settlement Undone',
+                description: `${payout.description} is pending again.`,
+            });
+        } catch (error) {
+            toast({
+                title: 'Unable to Undo Settlement',
+                description: error.message || 'Please try again.',
+                variant: 'destructive',
+            });
+        } finally {
+            setSettlingPayoutId(null);
+        }
+    };
+
+    const handleUpdatePayoutAmount = async (payout, amount) => {
+        if (!canManageEmployees || !payout?.applicationId) return false;
+
+        setSettlingPayoutId(payout.applicationId);
+        try {
+            const updatedPayout = await updatePartTimePayoutAmount(payout.applicationId, amount);
+            setPartTimePayouts((currentPayouts) => currentPayouts.map((currentPayout) => (
+                currentPayout.application_id === payout.applicationId
+                    ? { ...currentPayout, amount: Number(updatedPayout.amount) }
+                    : currentPayout
+            )));
+            toast({
+                title: 'Earning Updated',
+                description: `${payout.description} is now ${formatCurrency(updatedPayout.amount)}.`,
+            });
+            return true;
+        } catch (error) {
+            toast({
+                title: 'Unable to Update Earning',
+                description: error.message || 'Please enter a valid amount.',
+                variant: 'destructive',
+            });
+            return false;
+        } finally {
+            setSettlingPayoutId(null);
+        }
+    };
 
     const handleSaveNote = async () => {
         if (!canManageEmployees || !noteDraft.trim() || !employee) return;
@@ -1246,14 +1521,14 @@ const AdminEmployeeProfilePage = () => {
     }
 
     return (
-        <div className="min-h-screen bg-slate-50 p-3 text-slate-900 sm:p-4 md:p-6">
+        <div className="min-h-screen w-full min-w-0 max-w-full overflow-x-hidden bg-slate-50 p-3 text-slate-900 sm:p-4 md:p-6">
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2 text-sm text-slate-500">
+                <div className="flex min-w-0 max-w-full items-center gap-2 text-sm text-slate-500">
                     <Button variant="ghost" size="sm" onClick={() => navigate('/admin-dashboard/employees')} className="h-8 rounded-xl px-2 text-slate-500 hover:bg-white">
                         <ArrowLeft className="mr-2 h-4 w-4" /> Employees
                     </Button>
                     <span>/</span>
-                    <span className="font-semibold text-slate-800">{employee.full_name || 'Employee Profile'}</span>
+                    <span className="min-w-0 truncate font-semibold text-slate-800">{employee.full_name || 'Employee Profile'}</span>
                 </div>
                 {canManageEmployees && (
                     <Button size="sm" onClick={() => setIsEditDialogOpen(true)} className="rounded-xl bg-white text-slate-700 shadow-sm hover:bg-slate-100">
@@ -1269,13 +1544,13 @@ const AdminEmployeeProfilePage = () => {
                 </div>
             )}
 
-            <div className="grid gap-5 lg:grid-cols-12">
+            <div className="grid min-w-0 max-w-full gap-5 lg:grid-cols-12">
                 <EmployeeIdentityCard
                     employee={employee}
                     pastJobsCount={completedJobs.length}
                     upcomingJobsCount={upcomingJobs.length}
                 />
-                <div className="space-y-5 lg:col-span-5">
+                <div className="contents min-w-0 max-w-full lg:block lg:col-span-5 lg:space-y-5">
                     <EmployeeNotesCard
                         notes={normalizedNotes}
                         noteDraft={noteDraft}
@@ -1294,7 +1569,7 @@ const AdminEmployeeProfilePage = () => {
                         setRangeEndDate={setHoursRangeEndDate}
                     />
                 </div>
-                <div className="space-y-5 lg:col-span-4">
+                <div className="contents min-w-0 max-w-full lg:block lg:col-span-4 lg:space-y-5">
                     <EmployeeDocumentsManager
                         employeeId={employee.id}
                         initialDocuments={employeeDocuments}
@@ -1320,7 +1595,14 @@ const AdminEmployeeProfilePage = () => {
                     setRangeEndDate={setPerformanceRangeEndDate}
                     setRangeStartDate={setPerformanceRangeStartDate}
                 />
-                <EarningsCard payouts={payoutRows} totalEarned={totalEarned} />
+                <EarningsCard
+                    payouts={payoutRows}
+                    totalEarned={totalEarned}
+                    onSettle={canManageEmployees ? handleSettlePayout : null}
+                    onUndoSettle={canManageEmployees ? handleUndoSettlePayout : null}
+                    onUpdateAmount={canManageEmployees ? handleUpdatePayoutAmount : null}
+                    payoutActionId={settlingPayoutId}
+                />
             </div>
 
             {isEditDialogOpen && canManageEmployees && (

@@ -9,8 +9,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { format } from 'date-fns';
-import { ArrowLeft, Save, UserCircle, Package, CalendarDays, DollarSign, MapPin, Tag, List, Edit2, Users, Briefcase, Phone, UploadCloud, FileText, Trash2, Download, Timer, Play, Pause, ShoppingBag, X } from 'lucide-react';
+import { ArrowLeft, Save, UserCircle, Package, CalendarDays, DollarSign, MapPin, Tag, List, Edit2, Users, Briefcase, Phone, UploadCloud, FileText, Trash2, Download, Timer, Play, Pause, ShoppingBag, X, Share2, EyeOff } from 'lucide-react';
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import {
@@ -21,6 +22,8 @@ import {
   getJobByRefId,
   getPartTimeApplicationsByJobRef,
   hideDeclinedPartTimeApplication,
+  removeJobFromPartTimeBoard,
+  shareJobToPartTimers,
   updatePartTimeApplicationStatus,
 } from '@/lib/storage/jobStorage';
 import StartJobModal from "@/components/StartJobModal";
@@ -670,6 +673,14 @@ const AdminJobDetailPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [updatingApplicationId, setUpdatingApplicationId] = useState(null);
+  const [isJobBoardUpdating, setIsJobBoardUpdating] = useState(false);
+  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+  const [shareForm, setShareForm] = useState({
+    slots_available: '',
+    hours_needed: '',
+    hourly_pay: '',
+    transport_included: 'false',
+  });
 
   const [activeJobModal, setActiveJobModal] = useState(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -691,6 +702,78 @@ const AdminJobDetailPage = () => {
   
   const canEditJob = adminProfile && (adminProfile.role === 'admin' || adminProfile.role === 'superadmin');
   const canViewPurchaseDetails = adminProfile && (adminProfile.role === 'admin' || adminProfile.role === 'superadmin');
+
+  const openShareDialog = () => {
+    setShareForm({
+      slots_available: job?.slots_available ? String(job.slots_available) : '',
+      hours_needed: job?.hours_needed ? String(job.hours_needed) : '',
+      hourly_pay: job?.hourly_pay ? String(job.hourly_pay) : '',
+      transport_included: job?.transport_included ? 'true' : 'false',
+    });
+    setIsShareDialogOpen(true);
+  };
+
+  const handleShareFormChange = (event) => {
+    const { name, value } = event.target;
+    setShareForm((currentForm) => ({ ...currentForm, [name]: value }));
+  };
+
+  const handleShareToJobBoard = async () => {
+    setIsJobBoardUpdating(true);
+    try {
+      await shareJobToPartTimers(job.job_ref_id, {
+        ...shareForm,
+        transport_included: shareForm.transport_included === 'true',
+      });
+      setJob((currentJob) => ({
+        ...currentJob,
+        is_shared_to_part_time: true,
+        slots_available: Number.parseInt(shareForm.slots_available, 10),
+        hours_needed: Number.parseFloat(shareForm.hours_needed),
+        hourly_pay: Number.parseFloat(shareForm.hourly_pay),
+        transport_included: shareForm.transport_included === 'true',
+        shared_at: new Date().toISOString(),
+      }));
+      setIsShareDialogOpen(false);
+      toast({
+        title: 'Job Shared',
+        description: `${job.job_ref_id} is now visible on the part-time job board.`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Unable to Share Job',
+        description: error.message || 'Please check the posting details and try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsJobBoardUpdating(false);
+    }
+  };
+
+  const handleRemoveFromJobBoard = async () => {
+    setIsJobBoardUpdating(true);
+    try {
+      await removeJobFromPartTimeBoard(job.job_ref_id);
+      setJob((currentJob) => ({
+        ...currentJob,
+        is_shared_to_part_time: false,
+        shared_at: null,
+      }));
+      setPartTimeApplications([]);
+      toast({
+        title: 'Job Removed',
+        description: `${job.job_ref_id} is no longer visible on the part-time job board.`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Unable to Remove Job',
+        description: error.message || 'Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsJobBoardUpdating(false);
+    }
+  };
 
 
   const fetchJobAndRelatedData = useCallback(async () => {
@@ -903,6 +986,7 @@ const AdminJobDetailPage = () => {
             title: "Application Updated",
             description: `Part-timer marked as ${updatedApplication.status}.`,
         });
+        setRefreshTrigger((currentTrigger) => currentTrigger + 1);
     } catch (error) {
         console.error("Error updating part-time application status:", error);
         toast({ title: "Error", description: `Could not update application: ${error.message}`, variant: "destructive" });
@@ -1002,6 +1086,28 @@ const AdminJobDetailPage = () => {
           <Link to="/admin-dashboard/jobs"><ArrowLeft className="mr-2 h-4 w-4 button-icon" /> Back</Link>
         </Button>
         {canEditJob && !isEditing && (
+          <Button
+            type="button"
+            variant={job.is_shared_to_part_time ? 'outline' : 'default'}
+            size="sm"
+            className={cn(
+              'admin-button-wrap',
+              job.is_shared_to_part_time && 'border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700'
+            )}
+            onClick={job.is_shared_to_part_time ? handleRemoveFromJobBoard : openShareDialog}
+            disabled={isJobBoardUpdating || (!job.is_shared_to_part_time && String(currentStatus).toLowerCase() === 'completed')}
+            title={!job.is_shared_to_part_time && String(currentStatus).toLowerCase() === 'completed'
+              ? 'Completed jobs cannot be shared to the job board.'
+              : undefined}
+          >
+            {job.is_shared_to_part_time ? (
+              <><EyeOff className="mr-2 h-4 w-4" /> {isJobBoardUpdating ? 'Removing...' : 'Remove from Job Board'}</>
+            ) : (
+              <><Share2 className="mr-2 h-4 w-4" /> Share to Job Board</>
+            )}
+          </Button>
+        )}
+        {canEditJob && !isEditing && (
           <Button onClick={() => setIsEditing(true)} size="sm" className="admin-button-wrap">
             <Edit2 className="mr-2 h-4 w-4 button-icon" /> Edit
           </Button>
@@ -1095,6 +1201,81 @@ const AdminJobDetailPage = () => {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={isShareDialogOpen} onOpenChange={(open) => !isJobBoardUpdating && setIsShareDialogOpen(open)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Share to Part-Time Job Board</DialogTitle>
+            <DialogDescription>
+              Publish {job.job_ref_id} for registered part-timers.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-1 gap-4 py-2 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="job-detail-part-time-slots">Slots Available</Label>
+              <Input
+                id="job-detail-part-time-slots"
+                name="slots_available"
+                type="number"
+                min="1"
+                step="1"
+                value={shareForm.slots_available}
+                onChange={handleShareFormChange}
+                placeholder="2"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="job-detail-part-time-hours">Hours Needed</Label>
+              <Input
+                id="job-detail-part-time-hours"
+                name="hours_needed"
+                type="number"
+                min="0.5"
+                step="0.5"
+                value={shareForm.hours_needed}
+                onChange={handleShareFormChange}
+                placeholder="4"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="job-detail-part-time-pay">Hourly Pay (BD)</Label>
+              <Input
+                id="job-detail-part-time-pay"
+                name="hourly_pay"
+                type="number"
+                min="0.001"
+                step="0.001"
+                value={shareForm.hourly_pay}
+                onChange={handleShareFormChange}
+                placeholder="2.400"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="job-detail-part-time-transport">Transport Included?</Label>
+              <Select
+                value={shareForm.transport_included}
+                onValueChange={(value) => setShareForm((currentForm) => ({ ...currentForm, transport_included: value }))}
+              >
+                <SelectTrigger id="job-detail-part-time-transport">
+                  <SelectValue placeholder="Select option" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="true">Yes</SelectItem>
+                  <SelectItem value="false">No</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsShareDialogOpen(false)} disabled={isJobBoardUpdating}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={handleShareToJobBoard} disabled={isJobBoardUpdating}>
+              {isJobBoardUpdating ? 'Sharing...' : 'Share Job'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Admin Start Job Modal Integration */}
       {activeJobModal && (

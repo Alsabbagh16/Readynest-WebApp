@@ -11,9 +11,10 @@ import {
   createPartTimeApplication,
   getActivePartTimePostings,
   getPartTimeApplicationsByEmployee,
+  getPartTimePayoutsByEmployee,
   verifyPartTimerByMobile,
 } from '@/lib/storage/jobStorage';
-import { Briefcase, CalendarDays, Clock, MessageCircle, MapPin, Phone, Users } from 'lucide-react';
+import { Banknote, Briefcase, CalendarDays, Car, Clock, LogOut, MessageCircle, MapPin, Phone, Settings, Users, Wallet } from 'lucide-react';
 import { format } from 'date-fns';
 
 const PART_TIME_SESSION_STORAGE_KEY = 'readynest_part_time_verified_session';
@@ -43,6 +44,22 @@ const getApplicationStatusClassName = (status) => {
       return 'border-red-200 bg-red-50 text-red-700';
     default:
       return 'border-amber-200 bg-amber-50 text-amber-700';
+  }
+};
+
+const getJobStatusClassName = (status) => {
+  switch ((status || '').toLowerCase()) {
+    case 'completed':
+      return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+    case 'in progress':
+      return 'border-blue-200 bg-blue-50 text-blue-700';
+    case 'cancelled':
+    case 'failed':
+      return 'border-red-200 bg-red-50 text-red-700';
+    case 'on hold':
+      return 'border-amber-200 bg-amber-50 text-amber-700';
+    default:
+      return 'border-sky-200 bg-sky-50 text-sky-700';
   }
 };
 
@@ -130,8 +147,8 @@ const AppliedJobCard = ({ application }) => {
             <CardTitle className="text-lg text-slate-950">{application.title}</CardTitle>
             <p className="mt-1 text-sm text-slate-500">Ref: {application.job_ref_id}</p>
           </div>
-          <Badge variant="outline" className={`capitalize ${getApplicationStatusClassName(application.status)}`}>
-            {application.status || 'interested'}
+          <Badge variant="outline" className={`capitalize ${getJobStatusClassName(application.job_status)}`}>
+            {application.job_status || 'Scheduled'}
           </Badge>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -141,33 +158,79 @@ const AppliedJobCard = ({ application }) => {
           <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700">
             <Clock className="mr-1 h-3 w-3" /> {Number.isInteger(hoursNeeded) ? hoursNeeded : hoursNeeded.toFixed(1)} Hours needed
           </Badge>
+          <Badge variant="outline" className={`capitalize ${getApplicationStatusClassName(application.status)}`}>
+            Application: {application.status || 'interested'}
+          </Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-3 text-sm text-slate-600">
         <div className="flex items-center gap-2">
           <CalendarDays className="h-4 w-4 text-slate-400" />
-          <span>Applied {formatDateSafe(application.applied_at)}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <CalendarDays className="h-4 w-4 text-slate-400" />
-          <span>{formatDateSafe(application.preferred_date)}</span>
+          <span>Job date: {formatDateSafe(application.preferred_date)}</span>
         </div>
         <div className="flex items-center gap-2">
           <MapPin className="h-4 w-4 text-slate-400" />
           <span>{location}</span>
         </div>
-        <Badge
-          variant="outline"
-          className={application.transport_included
-            ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
-            : 'border-amber-200 bg-amber-50 text-amber-700'}
-        >
-          {application.transport_included ? 'Transport Included' : 'Transport Not Included'}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Car className="h-4 w-4 text-slate-400" />
+          <span>{application.transport_included ? 'Transportation Included' : 'Transportation Not Included'}</span>
+        </div>
       </CardContent>
     </Card>
   );
 };
+
+const formatCurrency = (amount) => `${Number(amount || 0).toFixed(3)} BD`;
+
+const PayoutList = ({ title, payouts, emptyMessage, settled }) => (
+  <Card className="border-slate-200 shadow-sm">
+    <CardHeader className="pb-3">
+      <div className="flex items-center justify-between gap-3">
+        <CardTitle className="text-base text-slate-950">{title}</CardTitle>
+        <Badge
+          variant="outline"
+          className={settled
+            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+            : 'border-amber-200 bg-amber-50 text-amber-700'}
+        >
+          {payouts.length} payment{payouts.length === 1 ? '' : 's'}
+        </Badge>
+      </div>
+    </CardHeader>
+    <CardContent>
+      {payouts.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
+          {emptyMessage}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {payouts.map((payout) => (
+            <div key={payout.application_id} className="flex items-center justify-between gap-4 rounded-lg bg-slate-50 p-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-slate-900">{payout.description}</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {payout.job_ref_id} · {Number(payout.hours_needed || 0)} hr × {formatCurrency(payout.hourly_pay)}
+                </p>
+                <p className="mt-1 text-xs text-slate-400">
+                  {settled && payout.settled_at
+                    ? `Paid ${formatDateSafe(payout.settled_at)}`
+                    : formatDateSafe(payout.preferred_date)}
+                </p>
+              </div>
+              <div className="shrink-0 text-right">
+                <p className="font-bold text-slate-950">{formatCurrency(payout.amount)}</p>
+                <span className={`text-xs font-medium ${settled ? 'text-emerald-600' : 'text-amber-600'}`}>
+                  {settled ? 'Settled' : 'Pending'}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </CardContent>
+  </Card>
+);
 
 const PartTimeCareersPage = () => {
   const { toast } = useToast();
@@ -179,6 +242,7 @@ const PartTimeCareersPage = () => {
   const [verifying, setVerifying] = useState(false);
   const [appliedJobRefs, setAppliedJobRefs] = useState([]);
   const [applications, setApplications] = useState([]);
+  const [payouts, setPayouts] = useState([]);
   const [activeTab, setActiveTab] = useState('available');
   const [errorMessage, setErrorMessage] = useState('');
   const [whatsAppPromptOpen, setWhatsAppPromptOpen] = useState(false);
@@ -191,8 +255,12 @@ const PartTimeCareersPage = () => {
 
     setApplicationsLoading(true);
     try {
-      const employeeApplications = await getPartTimeApplicationsByEmployee(partTimerSession.id);
+      const [employeeApplications, employeePayouts] = await Promise.all([
+        getPartTimeApplicationsByEmployee(partTimerSession.id),
+        getPartTimePayoutsByEmployee(partTimerSession.id),
+      ]);
       setApplications(employeeApplications);
+      setPayouts(employeePayouts);
       setAppliedJobRefs(employeeApplications.map((application) => application.job_ref_id));
     } catch (error) {
       console.error('Error loading part-time applications:', error);
@@ -325,7 +393,34 @@ const PartTimeCareersPage = () => {
     }
   };
 
+  const handleLogout = () => {
+    window.localStorage.removeItem(PART_TIME_SESSION_STORAGE_KEY);
+    setPartTimerSession(null);
+    setPostings([]);
+    setApplications([]);
+    setPayouts([]);
+    setAppliedJobRefs([]);
+    setActiveTab('available');
+    setErrorMessage('');
+  };
+
   const activePostingsCount = useMemo(() => postings.length, [postings]);
+  const settledPayouts = useMemo(
+    () => payouts.filter((payout) => payout.payout_status === 'settled'),
+    [payouts]
+  );
+  const pendingPayouts = useMemo(
+    () => payouts.filter((payout) => payout.payout_status !== 'settled'),
+    [payouts]
+  );
+  const settledTotal = useMemo(
+    () => settledPayouts.reduce((total, payout) => total + Number(payout.amount || 0), 0),
+    [settledPayouts]
+  );
+  const pendingTotal = useMemo(
+    () => pendingPayouts.reduce((total, payout) => total + Number(payout.amount || 0), 0),
+    [pendingPayouts]
+  );
   const whatsAppLink = useMemo(
     () => buildPartTimerWhatsAppLink(whatsAppPromptPhone || phoneInput),
     [phoneInput, whatsAppPromptPhone]
@@ -411,12 +506,21 @@ const PartTimeCareersPage = () => {
         </div>
       </section>
 
-      <section className="mx-auto max-w-6xl px-4 py-8">
+      <section className="mx-auto max-w-6xl px-4 pb-16 pt-8 md:pb-20">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="mb-6">
-            <TabsTrigger value="available">Available</TabsTrigger>
-            <TabsTrigger value="applied">Applied</TabsTrigger>
-          </TabsList>
+          <div className="mb-6 flex items-center justify-between gap-3">
+            <TabsList className="min-w-0 overflow-x-auto">
+              <TabsTrigger value="available">Available</TabsTrigger>
+              <TabsTrigger value="applied">Applied</TabsTrigger>
+              <TabsTrigger value="payout">Payout</TabsTrigger>
+            </TabsList>
+            <TabsList className="shrink-0">
+              <TabsTrigger value="settings" aria-label="Settings" title="Settings" className="gap-2">
+                <Settings className="h-4 w-4" />
+                <span className="hidden sm:inline">Settings</span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="available">
             {loading ? (
@@ -455,6 +559,64 @@ const PartTimeCareersPage = () => {
                 ))}
               </div>
             )}
+          </TabsContent>
+
+          <TabsContent value="payout">
+            {applicationsLoading ? (
+              <div className="rounded-lg border bg-white p-8 text-center text-slate-500">Loading payouts...</div>
+            ) : (
+              <div className="space-y-5">
+                <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                  <Card className="border-emerald-200 bg-emerald-50 shadow-none">
+                    <CardContent className="flex items-center justify-between gap-2 p-3 sm:p-5">
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-emerald-700 sm:text-sm">PaidOut Earnings</p>
+                        <p className="mt-1 text-xl font-bold text-emerald-950 sm:text-2xl">{formatCurrency(settledTotal)}</p>
+                      </div>
+                      <div className="hidden rounded-full bg-white p-3 text-emerald-600 sm:block"><Wallet className="h-5 w-5" /></div>
+                    </CardContent>
+                  </Card>
+                  <Card className="border-amber-200 bg-amber-50 shadow-none">
+                    <CardContent className="flex items-center justify-between gap-2 p-3 sm:p-5">
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-amber-700 sm:text-sm">Pending Payouts</p>
+                        <p className="mt-1 text-xl font-bold text-amber-950 sm:text-2xl">{formatCurrency(pendingTotal)}</p>
+                      </div>
+                      <div className="hidden rounded-full bg-white p-3 text-amber-600 sm:block"><Banknote className="h-5 w-5" /></div>
+                    </CardContent>
+                  </Card>
+                </div>
+                <div className="grid gap-5 lg:grid-cols-2">
+                  <PayoutList
+                    title="PaidOut Earnings"
+                    payouts={settledPayouts}
+                    emptyMessage="No settled payouts yet."
+                    settled
+                  />
+                  <PayoutList
+                    title="Pending Payouts"
+                    payouts={pendingPayouts}
+                    emptyMessage="No pending payouts."
+                  />
+                </div>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="settings">
+            <Card className="mx-auto max-w-xl border-slate-200 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg text-slate-950">Part-Timer Settings</CardTitle>
+                <p className="text-sm text-slate-500">
+                  Signed in as {partTimerSession.full_name || partTimerSession.mobile}.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <Button type="button" variant="destructive" className="w-full sm:w-auto" onClick={handleLogout}>
+                  <LogOut className="mr-2 h-4 w-4" /> Log Out
+                </Button>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </section>
