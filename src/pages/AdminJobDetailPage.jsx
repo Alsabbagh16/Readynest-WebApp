@@ -703,6 +703,11 @@ const AdminJobDetailPage = () => {
   const canEditJob = adminProfile && (adminProfile.role === 'admin' || adminProfile.role === 'superadmin');
   const canViewPurchaseDetails = adminProfile && (adminProfile.role === 'admin' || adminProfile.role === 'superadmin');
 
+  const refreshJobDocuments = useCallback(async () => {
+    const documents = await getJobDocuments(jobRefId);
+    setJobDocuments(documents || []);
+  }, [jobRefId]);
+
   const openShareDialog = () => {
     setShareForm({
       slots_available: job?.slots_available ? String(job.slots_available) : '',
@@ -845,8 +850,7 @@ const AdminJobDetailPage = () => {
         else setAvailablePurchases(purchasesData || []);
       }
 
-      const documents = await getJobDocuments(jobRefId);
-      setJobDocuments(documents || []);
+      await refreshJobDocuments();
 
     } catch (error) {
       console.error("Error fetching job details:", error);
@@ -854,7 +858,7 @@ const AdminJobDetailPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [jobRefId, toast, canEditJob]);
+  }, [jobRefId, toast, canEditJob, refreshJobDocuments]);
 
   useEffect(() => {
     fetchJobAndRelatedData();
@@ -1283,6 +1287,7 @@ const AdminJobDetailPage = () => {
             isOpen={!!activeJobModal}
             onClose={() => setActiveJobModal(null)}
             onComplete={handleJobComplete}
+            onDocumentsChange={refreshJobDocuments}
             job={activeJobModal}
         />
       )}

@@ -454,17 +454,39 @@ export const uploadJobDocument = async (jobRefId, file) => {
  * NOTE: This function requires 'await' inside the .map() and uses Promise.all.
  */
 export const getJobDocuments = async (jobRefId) => {
-    // 1. List files
-    const { data: fileList, error: listError } = await supabase.storage
-        .from(JOB_DOCUMENTS_BUCKET)
-        .list(jobRefId, {
-            limit: 100,
-            offset: 0,
-            sortBy: { column: 'name', order: 'asc' },
-        });
+    const listFilesRecursively = async (folderPath, depth = 0) => {
+        const { data: entries, error: listError } = await supabase.storage
+            .from(JOB_DOCUMENTS_BUCKET)
+            .list(folderPath, {
+                limit: 100,
+                offset: 0,
+                sortBy: { column: 'name', order: 'asc' },
+            });
 
-    if (listError) {
-        if (listError.message.includes('not found')) { // Catch bucket not found error
+        if (listError) throw listError;
+        if (!entries || entries.length === 0) return [];
+
+        const nestedFiles = [];
+        for (const entry of entries) {
+            if (entry.name === '.emptyFolderPlaceholder') continue;
+
+            const entryPath = `${folderPath}/${entry.name}`;
+            const isFolder = !entry.id && !entry.metadata;
+            if (isFolder && depth < 4) {
+                nestedFiles.push(...await listFilesRecursively(entryPath, depth + 1));
+            } else if (!isFolder) {
+                nestedFiles.push({ ...entry, filePath: entryPath });
+            }
+        }
+
+        return nestedFiles;
+    };
+
+    let validFiles;
+    try {
+        validFiles = await listFilesRecursively(jobRefId);
+    } catch (listError) {
+        if (listError.message?.includes('not found')) {
             console.error(`Storage bucket '${JOB_DOCUMENTS_BUCKET}' not found. Check configuration.`);
             throw listError;
         }
@@ -476,13 +498,12 @@ export const getJobDocuments = async (jobRefId) => {
         throw listError;
     }
 
-    if (!fileList || fileList.length === 0) return [];
-
-    const validFiles = fileList.filter(file => file.id !== '.emptyFolderPlaceholder');
+    if (validFiles.length === 0) return [];
 
     // 2. Map valid files to an array of promises for Signed URLs
     const documentPromises = validFiles.map(async (file) => {
-        const filePath = `${jobRefId}/${file.name}`;
+        const filePath = file.filePath;
+        const displayName = file.name.replace(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}-/i, '');
 
         // Asynchronously request the signed URL
         const { data: signedUrlData, error: signedUrlError } = await supabase.storage
@@ -492,11 +513,11 @@ export const getJobDocuments = async (jobRefId) => {
         if (signedUrlError) {
             console.error(`Error creating signed URL for ${file.name}:`, signedUrlError);
             // Return an object with an error placeholder for the URL
-            return { name: file.name, path: filePath, publicURL: '#error', filePath: filePath };
+            return { name: displayName, path: filePath, publicURL: '#error', filePath: filePath };
         }
 
         return {
-            name: file.name,
+            name: displayName,
             path: filePath,
             publicURL: signedUrlData.signedUrl, // The temporary secure link
             filePath: filePath

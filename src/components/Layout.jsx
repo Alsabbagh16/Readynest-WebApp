@@ -6,7 +6,7 @@ import Footer from "@/components/Footer";
 const Layout = () => {
   const location = useLocation();
   const isHourlyBooking = ['/hourlybooking', '/hourly-booking'].includes(location.pathname);
-  const hideFooter = isHourlyBooking || location.pathname.toLowerCase() === '/careers/parttime';
+  const hideFooter = isHourlyBooking || ['/careers/parttime', '/parttime'].includes(location.pathname.toLowerCase());
 
   return (
     <div className="min-h-screen flex flex-col relative">

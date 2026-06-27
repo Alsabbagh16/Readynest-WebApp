@@ -32,7 +32,7 @@ const checklistItems = [
 // Estimated max duration for progress bar visualization (e.g., 4 hours)
 const MAX_DURATION_SECONDS = 4 * 60 * 60;
 
-const StartJobModal = ({ isOpen, onClose, onComplete, job }) => {
+const StartJobModal = ({ isOpen, onClose, onComplete, onDocumentsChange, job }) => {
   const [checkedItems, setCheckedItems] = useState({});
   const { time, isRunning, isPaused, startTimer, pauseTimer, resumeTimer, resetTimer, formatTime, setElapsedTime } = useJobTimer();
   const { toast } = useToast();
@@ -193,6 +193,11 @@ const StartJobModal = ({ isOpen, onClose, onComplete, job }) => {
       }
       setBeforePhotos(prev => [...prev, ...uploadedPhotos]);
       setSelectedBeforeFiles([]);
+      try {
+        await onDocumentsChange?.();
+      } catch (refreshError) {
+        console.error("Could not refresh job documents after upload:", refreshError);
+      }
       toast({ title: "Before Photos Uploaded", description: `${uploadedPhotos.length} photo(s) uploaded successfully.` });
     } catch (error) {
       console.error("Error uploading before photos:", error);
@@ -219,6 +224,11 @@ const StartJobModal = ({ isOpen, onClose, onComplete, job }) => {
       }
       setAfterPhotos(prev => [...prev, ...uploadedPhotos]);
       setSelectedAfterFiles([]);
+      try {
+        await onDocumentsChange?.();
+      } catch (refreshError) {
+        console.error("Could not refresh job documents after upload:", refreshError);
+      }
       toast({ title: "After Photos Uploaded", description: `${uploadedPhotos.length} photo(s) uploaded successfully.` });
     } catch (error) {
       console.error("Error uploading after photos:", error);
