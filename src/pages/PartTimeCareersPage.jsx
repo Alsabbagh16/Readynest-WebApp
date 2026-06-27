@@ -250,10 +250,10 @@ const PartTimeCareersPage = () => {
 
   const hasAccess = Boolean(partTimerSession?.id);
 
-  const fetchApplications = useCallback(async () => {
+  const fetchApplications = useCallback(async (showLoading = true) => {
     if (!partTimerSession?.id) return;
 
-    setApplicationsLoading(true);
+    if (showLoading) setApplicationsLoading(true);
     try {
       const [employeeApplications, employeePayouts] = await Promise.all([
         getPartTimeApplicationsByEmployee(partTimerSession.id),
@@ -264,40 +264,57 @@ const PartTimeCareersPage = () => {
       setAppliedJobRefs(employeeApplications.map((application) => application.job_ref_id));
     } catch (error) {
       console.error('Error loading part-time applications:', error);
-      toast({
-        title: 'Unable to Load Applied Jobs',
-        description: error.message || 'Please try again shortly.',
-        variant: 'destructive',
-      });
+      if (showLoading) {
+        toast({
+          title: 'Unable to Load Applied Jobs',
+          description: error.message || 'Please try again shortly.',
+          variant: 'destructive',
+        });
+      }
     } finally {
-      setApplicationsLoading(false);
+      if (showLoading) setApplicationsLoading(false);
     }
   }, [partTimerSession?.id, toast]);
 
+  const fetchPostings = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoading(true);
+    setErrorMessage('');
+    try {
+      const activePostings = await getActivePartTimePostings();
+      setPostings(activePostings);
+    } catch (error) {
+      console.error('Error loading part-time postings:', error);
+      if (showLoading) setErrorMessage('Could not load part-time positions. Please try again shortly.');
+    } finally {
+      if (showLoading) setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!hasAccess) return;
-
-    const fetchPostings = async () => {
-      setLoading(true);
-      setErrorMessage('');
-      try {
-        const activePostings = await getActivePartTimePostings();
-        setPostings(activePostings);
-      } catch (error) {
-        console.error('Error loading part-time postings:', error);
-        setErrorMessage('Could not load part-time positions. Please try again shortly.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchPostings();
-  }, [hasAccess]);
+  }, [fetchPostings, hasAccess]);
 
   useEffect(() => {
     if (!hasAccess) return;
     fetchApplications();
   }, [fetchApplications, hasAccess]);
+
+  useEffect(() => {
+    if (!hasAccess) return undefined;
+
+    const refreshPortalData = () => {
+      fetchPostings(false);
+      fetchApplications(false);
+    };
+    const refreshInterval = window.setInterval(refreshPortalData, 30000);
+    window.addEventListener('focus', refreshPortalData);
+
+    return () => {
+      window.clearInterval(refreshInterval);
+      window.removeEventListener('focus', refreshPortalData);
+    };
+  }, [fetchApplications, fetchPostings, hasAccess]);
 
   const handlePhoneSubmit = async (event) => {
     event.preventDefault();
