@@ -95,6 +95,10 @@ const HourlyBookingPage = () => {
 
   const [workCondition, setWorkCondition] = useState('');
 
+  const minimumHours = serviceType === 'Subscription'
+    ? (rates?.subscriptionMinHours || rates?.minHours || 1)
+    : (rates?.minHours || 1);
+
 
 
   // Step B: Address & Phone State
@@ -156,31 +160,10 @@ const HourlyBookingPage = () => {
 
 
 
-  // Sync hours if service rates load slower
-
+  // Clamp the selected hours whenever the active service minimum changes.
   useEffect(() => {
-
-    if (rates.minHours && hours < rates.minHours) {
-
-      setHours(rates.minHours);
-
-    }
-
-  }, [rates.minHours, hours]);
-
-
-
-  // Update hours to minimum when rates load
-
-  useEffect(() => {
-
-    if (rates?.minHours && hours !== rates.minHours) {
-
-      setHours(rates.minHours);
-
-    }
-
-  }, [rates?.minHours]);
+    setHours((currentHours) => Math.max(minimumHours, currentHours));
+  }, [minimumHours]);
 
 
 
@@ -835,7 +818,7 @@ const HourlyBookingPage = () => {
 
   const updateHours = (delta) => {
 
-    setHours(prev => Math.min(Math.max(rates.minHours || 1, prev + delta), 12));
+    setHours(prev => Math.min(Math.max(minimumHours, prev + delta), 12));
 
   };
 
@@ -1127,13 +1110,13 @@ const HourlyBookingPage = () => {
 
                       </Label>
 
-                      <span className="text-sm font-medium text-muted-foreground">Min {rates.minHours || 1} - Max 12</span>
+                      <span className="text-sm font-medium text-muted-foreground">Min {minimumHours} - Max 12</span>
 
                     </div>
 
                     <div className="flex items-center justify-between bg-muted/30 p-4 rounded-xl border border-border shadow-inner">
 
-                      <Button variant="outline" size="icon" className="h-12 w-12 rounded-full bg-background" onClick={() => updateHours(-1)} disabled={hours <= (rates.minHours || 1)}>
+                      <Button variant="outline" size="icon" className="h-12 w-12 rounded-full bg-background" onClick={() => updateHours(-1)} disabled={hours <= minimumHours}>
 
                         <Minus className="h-5 w-5 text-foreground" />
 

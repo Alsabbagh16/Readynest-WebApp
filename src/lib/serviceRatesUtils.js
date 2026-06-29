@@ -16,7 +16,9 @@ export const fetchServiceRates = async () => {
     }
 
     // Parse the JSON value from the database
-    const serviceRates = data?.value ? JSON.parse(data.value) : null;
+    const serviceRates = data?.value
+      ? (typeof data.value === 'string' ? JSON.parse(data.value) : data.value)
+      : null;
     
     if (!serviceRates) {
       console.log('No service rates found in database, using fallback');
@@ -36,6 +38,7 @@ export const fetchServiceRates = async () => {
 const getFallbackRates = () => {
   return {
     minHours: 2,
+    subscriptionMinHours: 2,
     maxCleaners: 4,
     pricePerCleaner: 3,
     subscriptionRate: 4, // Base multiplier for subscription
@@ -64,7 +67,7 @@ export const calculateSubscriptionAmount = (standardAmount, subscriptionConfig) 
 };
 
 // Calculate hourly service amount with subscription support
-export const calculateHourlyAmount = (cleaners, hours, isSubscription, serviceRates) => {
+export const calculateHourlyAmount = (cleaners, hours, isSubscription, serviceRates, subscriptionPlanType = 'Weekly') => {
   if (!serviceRates || !cleaners || !hours) {
     return 0;
   }
@@ -78,11 +81,13 @@ export const calculateHourlyAmount = (cleaners, hours, isSubscription, serviceRa
 
   // Use new subscription calculation if available
   if (serviceRates.subscriptionCalculation && serviceRates.subscriptionCalculation.enabled) {
-    return calculateSubscriptionAmount(standardAmount, serviceRates.subscriptionCalculation);
+    const subscriptionAmount = calculateSubscriptionAmount(standardAmount, serviceRates.subscriptionCalculation);
+    return subscriptionPlanType === 'Twice Weekly' ? subscriptionAmount * 2 : subscriptionAmount;
   }
   
   // Fallback to old subscription rate with proper formula
   const multipliedAmount = standardAmount * serviceRates.subscriptionRate;
   const discount = multipliedAmount * (serviceRates.subscriptionDiscount / 100);
-  return multipliedAmount - discount;
+  const subscriptionAmount = multipliedAmount - discount;
+  return subscriptionPlanType === 'Twice Weekly' ? subscriptionAmount * 2 : subscriptionAmount;
 };

@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 export const useServiceRates = () => {
   const [rates, setRates] = useState({
     minHours: 1,
+    subscriptionMinHours: 1,
     maxCleaners: 4,
     pricePerCleaner: null,
     subscriptionRate: null,
@@ -27,7 +28,8 @@ export const useServiceRates = () => {
       }
 
       if (data?.value) {
-        setRates(prev => ({ ...prev, ...data.value }));
+        const storedRates = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+        setRates(prev => ({ ...prev, ...storedRates }));
       }
     } catch (err) {
       console.error('Error fetching service rates:', err);

@@ -125,12 +125,13 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
           cleaners,
           hours,
           hourlyService.isSubscription,
-          serviceRates
+          serviceRates,
+          hourlyService.subscriptionPlanType
         );
         setFormData(prev => ({ ...prev, amount: calculatedAmount.toString() }));
       }
     }
-  }, [hourlyService.cleaners, hourlyService.hours, hourlyService.isSubscription, serviceRates]);
+  }, [hourlyService.cleaners, hourlyService.hours, hourlyService.isSubscription, hourlyService.subscriptionPlanType, serviceRates]);
 
   const fetchServiceRatesData = async () => {
     const rates = await fetchServiceRates();
@@ -142,7 +143,8 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
         hourlyService.cleaners,
         hourlyService.hours,
         hourlyService.isSubscription,
-        rates
+        rates,
+        hourlyService.subscriptionPlanType
       );
       setFormData(prev => ({ ...prev, amount: calculatedAmount.toString() }));
     }
@@ -274,7 +276,8 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
           Number(updatedService.cleaners),
           Number(updatedService.hours),
           updatedService.isSubscription,
-          serviceRates
+          serviceRates,
+          updatedService.subscriptionPlanType
         );
         setFormData(prev => ({ ...prev, amount: calculatedAmount.toString() }));
       }
@@ -827,7 +830,8 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
                       hourlyService.cleaners,
                       hourlyService.hours,
                       hourlyService.isSubscription,
-                      serviceRates
+                      serviceRates,
+                      hourlyService.subscriptionPlanType
                     ).toFixed(3)}
                   </div>
                 )}

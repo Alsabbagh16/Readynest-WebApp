@@ -11,6 +11,7 @@ const ServiceRatesTab = () => {
   const { rates, loading: initialLoading, saveRates } = useServiceRates();
   const [serviceRates, setServiceRates] = useState({
     minHours: rates?.minHours || 2,
+    subscriptionMinHours: rates?.subscriptionMinHours || rates?.minHours || 2,
     maxCleaners: rates?.maxCleaners || 4,
     pricePerCleaner: rates?.pricePerCleaner || 15,
     subscriptionRate: rates?.subscriptionRate || 12,
@@ -25,6 +26,7 @@ const ServiceRatesTab = () => {
     if (rates) {
       setServiceRates({
         minHours: rates.minHours || 2,
+        subscriptionMinHours: rates.subscriptionMinHours || rates.minHours || 2,
         maxCleaners: rates.maxCleaners || 4,
         pricePerCleaner: rates.pricePerCleaner || 15,
         subscriptionRate: rates.subscriptionRate || 12,
@@ -46,6 +48,7 @@ const ServiceRatesTab = () => {
     
     const parsedData = {
       minHours: parseInt(serviceRates.minHours, 10),
+      subscriptionMinHours: parseInt(serviceRates.subscriptionMinHours, 10),
       maxCleaners: parseInt(serviceRates.maxCleaners, 10),
       pricePerCleaner: parseFloat(serviceRates.pricePerCleaner),
       subscriptionRate: parseFloat(serviceRates.subscriptionRate),
@@ -56,6 +59,12 @@ const ServiceRatesTab = () => {
 
     if (parsedData.minHours < 1 || parsedData.minHours > 12) {
       toast({ title: "Validation Error", description: "Min hours must be between 1 and 12.", variant: "destructive" });
+      setSaving(false);
+      return;
+    }
+
+    if (parsedData.subscriptionMinHours < 1 || parsedData.subscriptionMinHours > 12) {
+      toast({ title: "Validation Error", description: "Subscription minimum hours must be between 1 and 12.", variant: "destructive" });
       setSaving(false);
       return;
     }
@@ -155,6 +164,19 @@ const ServiceRatesTab = () => {
                 max="12"
                 required
                 value={serviceRates.minHours}
+                onChange={handleChange}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="subscriptionMinHours">Minimum Subscription Hours (1-12)</Label>
+              <Input
+                id="subscriptionMinHours"
+                name="subscriptionMinHours"
+                type="number"
+                min="1"
+                max="12"
+                required
+                value={serviceRates.subscriptionMinHours}
                 onChange={handleChange}
               />
             </div>
