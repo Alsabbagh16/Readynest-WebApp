@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { format as formatTz, utcToZonedTime, zonedTimeToUtc } from 'date-fns-tz';
 import { ArrowLeft, Save, UserCircle, ShoppingBag, CalendarDays, DollarSign, MapPin, List, Edit2, Briefcase, Phone, Clock, MessageSquare, Tag, FileText, Calculator, ExternalLink, Flag, AlertTriangle } from 'lucide-react';
 import InvoiceModal from '@/components/AdminDashboard/InvoiceModal';
@@ -229,6 +230,38 @@ const PurchaseServicePaymentInfo = ({ purchase, isEditing, editableFields, onInp
                     </Select>
                 </div>
 
+                <div className="space-y-2">
+                    <Label htmlFor="is_subscription" className="text-sm font-medium">Subscription</Label>
+                    <div className="flex h-10 items-center gap-2">
+                        <Checkbox
+                            id="is_subscription"
+                            checked={editableFields.is_subscription}
+                            onCheckedChange={(checked) => onSelectChange('is_subscription', checked === true)}
+                        />
+                        <Label htmlFor="is_subscription" className="text-sm font-normal">Subscription</Label>
+                    </div>
+                </div>
+
+                {editableFields.is_subscription && (
+                    <div>
+                        <Label htmlFor="subscription_plan_type" className="text-sm font-medium">
+                            Frequency <span className="text-red-500">*</span>
+                        </Label>
+                        <Select
+                            value={editableFields.subscription_plan_type || 'Weekly'}
+                            onValueChange={(val) => onSelectChange('subscription_plan_type', val)}
+                        >
+                            <SelectTrigger id="subscription_plan_type" className="mt-1 text-sm">
+                                <SelectValue placeholder="Select frequency" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="Weekly">Weekly</SelectItem>
+                                <SelectItem value="Twice Weekly">Twice Weekly</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                )}
+
                 <div>
                     <Label htmlFor="discount_type" className="text-sm font-medium">Discount Type</Label>
                     <Select 
@@ -306,6 +339,10 @@ const PurchaseServicePaymentInfo = ({ purchase, isEditing, editableFields, onInp
                 valueClassName="font-medium text-primary"
             />
             <DetailItem label="Payment Type" value={purchase.payment_type || 'N/A'} />
+            <DetailItem label="Subscription" value={purchase.is_subscription ? 'Yes' : 'No'} />
+            {purchase.is_subscription && (
+                <DetailItem label="Frequency" value={purchase.subscription_plan_type || 'Weekly'} />
+            )}
             
             <div className="mt-4 pt-3 border-t border-dashed">
                 {(() => {
@@ -600,7 +637,9 @@ const AdminPurchaseDetailPage = () => {
     address_alt_phone: '',
     name: '',
     email: '',
-    customer_id: null
+    customer_id: null,
+    is_subscription: false,
+    subscription_plan_type: 'Weekly'
   });
 
   // Use Auto-fill Hook
@@ -652,6 +691,8 @@ const AdminPurchaseDetailPage = () => {
             discount_type: discountType,
             discount_value: discountValue,
             coupon_code: data.coupon_code || '',
+            is_subscription: data.is_subscription === true,
+            subscription_plan_type: data.subscription_plan_type || 'Weekly',
             
             user_phone: data.user_phone || '',
             email: data.email || '',
@@ -740,6 +781,24 @@ const AdminPurchaseDetailPage = () => {
         setLoading(false);
         return;
       }
+      if (editableFields.is_subscription && !editableFields.subscription_plan_type) {
+        toast({
+          title: "Validation Error",
+          description: "Please select a subscription frequency.",
+          variant: "destructive"
+        });
+        setLoading(false);
+        return;
+      }
+      if (editableFields.is_subscription && !editableFields.customer_id && !purchase.user_id) {
+        toast({
+          title: "Validation Error",
+          description: "Subscription invoices require a registered customer account.",
+          variant: "destructive"
+        });
+        setLoading(false);
+        return;
+      }
       
       const { discountAmount, finalTotal } = calculateTransactionTotals(
           editableFields.base_amount, 
@@ -771,6 +830,8 @@ const AdminPurchaseDetailPage = () => {
         discount_amount: discountAmount,
         original_amount: baseAmount, // Store pre-discount amount for invoice
         coupon_code: editableFields.coupon_code ? editableFields.coupon_code.trim() : null,
+        is_subscription: editableFields.is_subscription,
+        subscription_plan_type: editableFields.subscription_plan_type || 'Weekly',
         
         user_phone: editableFields.user_phone,
         email: editableFields.email,

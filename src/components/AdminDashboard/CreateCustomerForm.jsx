@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/use-toast";
 import { UserPlus, Mail, Phone, User, CreditCard, Lock } from 'lucide-react';
 import { createUser } from '@/lib/storage/userStorage';
@@ -19,7 +20,9 @@ const CreateCustomerForm = ({ onSuccess, onCancel }) => {
     password: '',
     confirmPassword: '',
     user_type: 'Personal',
-    credits: 0
+    credits: 0,
+    is_subscriber: false,
+    subscription_plan_type: 'Weekly'
   });
 
   const handleInputChange = (e) => {
@@ -78,7 +81,9 @@ const CreateCustomerForm = ({ onSuccess, onCancel }) => {
         phone: formData.phone.trim(),
         password: formData.password,
         user_type: formData.user_type,
-        credits: parseInt(formData.credits) || 0
+        credits: parseInt(formData.credits) || 0,
+        is_subscriber: formData.is_subscriber,
+        subscription_plan_type: formData.is_subscriber ? formData.subscription_plan_type : null
       };
 
       const newCustomer = await createUser(customerData);
@@ -110,7 +115,9 @@ const CreateCustomerForm = ({ onSuccess, onCancel }) => {
       password: '',
       confirmPassword: '',
       user_type: 'Personal',
-      credits: 0
+      credits: 0,
+      is_subscriber: false,
+      subscription_plan_type: 'Weekly'
     });
   };
 
@@ -149,6 +156,40 @@ const CreateCustomerForm = ({ onSuccess, onCancel }) => {
               className="w-full"
             />
           </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="create-is-subscriber">Subscriber</Label>
+            <div className="flex h-10 items-center gap-2">
+              <Checkbox
+                id="create-is-subscriber"
+                checked={formData.is_subscriber}
+                onCheckedChange={(checked) => setFormData((current) => ({
+                  ...current,
+                  is_subscriber: checked === true,
+                }))}
+              />
+              <Label htmlFor="create-is-subscriber" className="font-normal">Subscription customer</Label>
+            </div>
+          </div>
+          {formData.is_subscriber && (
+            <div className="space-y-2">
+              <Label htmlFor="create-subscription-plan">Cleaning Frequency</Label>
+              <Select
+                value={formData.subscription_plan_type}
+                onValueChange={(value) => setFormData((current) => ({ ...current, subscription_plan_type: value }))}
+              >
+                <SelectTrigger id="create-subscription-plan">
+                  <SelectValue placeholder="Select frequency" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Weekly">Weekly</SelectItem>
+                  <SelectItem value="Twice Weekly">Twice Weekly</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
 
         <div className="space-y-2">

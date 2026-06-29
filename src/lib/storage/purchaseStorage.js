@@ -38,6 +38,10 @@ export const createPurchase = async (purchaseData) => {
         paid_amount: paidAmount,
         final_amount_due_on_arrival: finalAmount,
         hours: Number.isFinite(hours) ? hours : null,
+        is_subscription: purchaseData.is_subscription === true,
+        subscription_plan_type: purchaseData.is_subscription
+            ? (purchaseData.subscription_plan_type || 'Weekly')
+            : null,
         discount_amount: parseFloat(purchaseData.discount_amount || 0),
         original_amount: parseFloat(purchaseData.original_amount || 0) || null,
         coupon_code: purchaseData.coupon_code || null,

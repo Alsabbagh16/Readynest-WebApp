@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, ShoppingCart, Briefcase, LogOut, ListChecks, Settings2, UserCircle, Menu, X, ChevronRight, LayoutTemplate, Tag, CalendarDays, ShieldCheck, DollarSign, Mail, Package } from 'lucide-react';
+import { Users, ShoppingCart, Briefcase, LogOut, ListChecks, Settings2, UserCircle, Menu, X, ChevronDown, ChevronRight, LayoutTemplate, Tag, CalendarDays, ShieldCheck, DollarSign, Mail, Package, Repeat2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { updateJob } from "@/lib/storage/jobStorage";
 import { format } from "date-fns";
@@ -20,6 +20,7 @@ import JobsCalendarTab from '@/components/AdminDashboard/JobsCalendarTab';
 import ServiceRatesTab from '@/components/AdminDashboard/ServiceRatesTab';
 import ReportIssueTab from '@/components/AdminDashboard/ReportIssueTab';
 import InventoryTab from '@/components/AdminDashboard/InventoryTab';
+import SubscriptionManagementTab from '@/components/AdminDashboard/SubscriptionManagementTab';
 import ManageRolesPage from '@/pages/ManageRolesPage';
 import AdminPurchaseDetailPage from '@/pages/AdminPurchaseDetailPage';
 import AdminJobDetailPage from '@/pages/AdminJobDetailPage'; 
@@ -50,6 +51,39 @@ const PermissionDeniedPage = () => (
   </div>
 );
 
+const adminTabGroups = [
+  {
+    id: 'workspace',
+    label: 'Workspace',
+    icon: UserCircle,
+    tabIds: ['my-account', 'report-issue'],
+  },
+  {
+    id: 'operations',
+    label: 'Operations',
+    icon: ListChecks,
+    tabIds: ['jobs-calendar', 'jobs', 'purchases', 'subscription-management'],
+  },
+  {
+    id: 'people',
+    label: 'People',
+    icon: Users,
+    tabIds: ['accounts', 'employees'],
+  },
+  {
+    id: 'services',
+    label: 'Services',
+    icon: Package,
+    tabIds: ['manage-services', 'service-rates', 'coupons', 'inventory'],
+  },
+  {
+    id: 'administration',
+    label: 'Administration',
+    icon: Settings2,
+    tabIds: ['customize-website', 'manage-roles'],
+  },
+];
+
 const AdminDashboardContent = () => {
   const { adminUser, adminProfile, adminLogout } = useAdminAuth();
   const { hasPerm, isSuperadmin, hasUiRoles } = usePermissionContext();
@@ -69,6 +103,7 @@ const AdminDashboardContent = () => {
     { id: 'jobs-calendar', label: 'Jobs Calendar', icon: CalendarDays, path: '/admin-dashboard/jobs-calendar', component: <JobsCalendarTab />, permission: 'tab.jobs_list.view' },
     { id: 'jobs', label: 'Jobs List', icon: ListChecks, path: '/admin-dashboard/jobs', component: <RecentServicesTab />, permission: 'tab.jobs_list.view' },
     { id: 'purchases', label: 'Purchases', icon: ShoppingCart, path: '/admin-dashboard/purchases', component: <RecentPurchasesTab />, permission: 'tab.recent_purchases.view' },
+    { id: 'subscription-management', label: 'Subscription Management', icon: Repeat2, path: '/admin-dashboard/subscription-management', component: <SubscriptionManagementTab />, permission: 'tab.subscription_management.view' },
     { id: 'accounts', label: 'Registered Accounts', icon: Users, path: '/admin-dashboard/accounts', component: <RegisteredAccountsTab />, permission: 'tab.registered_accounts.view' },
     { id: 'employees', label: 'Employees', icon: Briefcase, path: '/admin-dashboard/employees', component: <EmployeesTab />, permission: 'tab.employees.view' },
     { id: 'manage-services', label: 'Services & Products', icon: Settings2, path: '/admin-dashboard/manage-services', component: <ManageServicesTab />, permission: 'tab.services_products.view' },
@@ -107,6 +142,17 @@ const AdminDashboardContent = () => {
     }
   }, [adminProfile, hasPerm, isSuperadmin, hasUiRoles]);
 
+  const visibleTabGroups = useMemo(() => {
+    const visibleTabsById = new Map(visibleTabs.map((tab) => [tab.id, tab]));
+
+    return adminTabGroups
+      .map((group) => ({
+        ...group,
+        tabs: group.tabIds.map((tabId) => visibleTabsById.get(tabId)).filter(Boolean),
+      }))
+      .filter((group) => group.tabs.length > 0);
+  }, [visibleTabs]);
+
   const getCurrentTabId = () => {
     const pathSegments = location.pathname.split('/');
     const currentTabSlug = pathSegments[2];
@@ -126,10 +172,29 @@ const AdminDashboardContent = () => {
   };
   
   const [activeTabId, setActiveTabId] = useState(getCurrentTabId());
+  const [expandedGroups, setExpandedGroups] = useState({});
 
   useEffect(() => {
      setActiveTabId(getCurrentTabId());
   }, [location.pathname, visibleTabs]);
+
+  useEffect(() => {
+    const activeGroup = visibleTabGroups.find((group) => group.tabs.some((tab) => tab.id === activeTabId));
+    if (!activeGroup) return;
+
+    setExpandedGroups((currentGroups) => (
+      currentGroups[activeGroup.id]
+        ? currentGroups
+        : { ...currentGroups, [activeGroup.id]: true }
+    ));
+  }, [activeTabId, visibleTabGroups]);
+
+  const toggleGroup = (groupId) => {
+    setExpandedGroups((currentGroups) => ({
+      ...currentGroups,
+      [groupId]: !currentGroups[groupId],
+    }));
+  };
 
   const getPageTitle = () => {
     const pathSegments = location.pathname.split('/');
@@ -243,26 +308,62 @@ const AdminDashboardContent = () => {
           </button>
         </div>
 
-        <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
-          {visibleTabs.map((tab) => {
-            const isActive = activeTabId === tab.id;
+        <nav className="flex-1 space-y-2 overflow-y-auto p-4">
+          {visibleTabGroups.map((group) => {
+            const isExpanded = Boolean(expandedGroups[group.id]);
+            const containsActiveTab = group.tabs.some((tab) => tab.id === activeTabId);
+
             return (
-              <Link
-                key={tab.id}
-                to={tab.path}
-                className={`
-                  flex items-center w-full px-3 py-3 rounded-lg text-sm font-medium transition-all duration-200 group
-                  ${isActive 
-                    ? 'bg-primary text-white shadow-md shadow-primary/20' 
-                    : 'text-gray-400 hover:bg-gray-800 hover:text-white'
-                  }
-                `}
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                <tab.icon className={`mr-3 h-5 w-5 ${isActive ? 'text-white' : 'text-gray-400 group-hover:text-white'}`} />
-                <span className="flex-1">{tab.label}</span>
-                {isActive && <ChevronRight className="h-4 w-4 text-white/50" />}
-              </Link>
+              <div key={group.id}>
+                <button
+                  type="button"
+                  className={`flex h-10 w-full items-center rounded-lg px-3 text-sm font-semibold transition-colors ${
+                    containsActiveTab
+                      ? 'bg-gray-800 text-white'
+                      : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                  }`}
+                  onClick={() => toggleGroup(group.id)}
+                  aria-expanded={isExpanded}
+                >
+                  <group.icon className={`mr-3 h-4 w-4 ${containsActiveTab ? 'text-primary' : 'text-gray-500'}`} />
+                  <span className="flex-1 text-left">{group.label}</span>
+                  <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                </button>
+
+                <AnimatePresence initial={false}>
+                  {isExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.18 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="mt-1 space-y-1 border-l border-gray-800 pl-3 ml-5">
+                        {group.tabs.map((tab) => {
+                          const isActive = activeTabId === tab.id;
+                          return (
+                            <Link
+                              key={tab.id}
+                              to={tab.path}
+                              className={`group flex min-h-9 w-full items-center rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                                isActive
+                                  ? 'bg-primary text-white shadow-sm shadow-primary/20'
+                                  : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                              }`}
+                              onClick={() => setIsMobileMenuOpen(false)}
+                            >
+                              <tab.icon className={`mr-3 h-4 w-4 shrink-0 ${isActive ? 'text-white' : 'text-gray-500 group-hover:text-white'}`} />
+                              <span className="min-w-0 flex-1 truncate text-left">{tab.label}</span>
+                              {isActive && <ChevronRight className="h-3.5 w-3.5 shrink-0 text-white/60" />}
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             );
           })}
         </nav>

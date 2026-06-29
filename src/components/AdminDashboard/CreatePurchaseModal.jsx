@@ -18,6 +18,7 @@ import { Loader2, ChevronDown, Check, Users, Clock, MapPin, ChevronsUpDown, X } 
 import CustomerSelector from './CustomerSelector';
 import { useCustomerAutoFill } from '@/hooks/useCustomerAutoFill';
 import { createPurchase } from '@/lib/storage/purchaseStorage';
+import { createUser } from '@/lib/storage/userStorage';
 import { fetchServiceRates, calculateHourlyAmount } from '@/lib/serviceRatesUtils';
 import { cn } from '@/lib/utils';
 import {
@@ -54,7 +55,8 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
   const [hourlyService, setHourlyService] = useState({
     cleaners: '',
     hours: '',
-    isSubscription: false
+    isSubscription: false,
+    subscriptionPlanType: 'Weekly'
   });
 
   const [formData, setFormData] = useState({
@@ -63,7 +65,7 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
     phone: '',
     productId: 'custom',
     amount: '',
-    paymentType: 'Cash',
+    paymentType: 'BenefitPay',
     status: 'Pending',
     preferred_booking_date: '',
     customer_id: null,
@@ -177,7 +179,61 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
   };
 
   const handleCustomerSelect = (customerId) => {
-    setFormData(prev => ({ ...prev, customer_id: customerId }));
+    setFormData(prev => ({ ...prev, customer_id: customerId, user_id: customerId }));
+  };
+
+  const createCustomerForPurchase = async () => {
+    const name = formData.name.trim();
+    const email = formData.email.trim().toLowerCase();
+    const phone = formData.phone.trim();
+
+    if (!name || !email || !phone || !formData.address_street.trim() || !formData.address_city.trim()) {
+      throw new Error("Enter the customer's name, email, phone, street, and city to create the customer and purchase.");
+    }
+
+    const [{ data: emailMatches, error: emailError }, { data: phoneMatches, error: phoneError }] = await Promise.all([
+      supabase.from('profiles').select('id').ilike('email', email).limit(1),
+      supabase.from('profiles').select('id').eq('phone', phone).limit(1),
+    ]);
+    if (emailError) throw emailError;
+    if (phoneError) throw phoneError;
+    if (emailMatches?.length || phoneMatches?.length) {
+      throw new Error("User exists, please select customer.");
+    }
+
+    const nameParts = name.split(/\s+/);
+    const newCustomer = await createUser({
+      first_name: nameParts[0],
+      last_name: nameParts.slice(1).join(' '),
+      email,
+      phone,
+      user_type: 'Personal',
+      credits: 0,
+      address: {
+        street: formData.address_street.trim(),
+        city: formData.address_city.trim(),
+        zip: formData.address_zip.trim(),
+        phone: formData.address_phone.trim() || phone,
+        alt_phone: formData.address_alt_phone.trim() || null,
+      }
+    });
+
+    setFormData((current) => ({
+      ...current,
+      customer_id: newCustomer.id,
+      user_id: newCustomer.id,
+    }));
+    if (newCustomer.address) {
+      setCustomerAddresses([newCustomer.address]);
+      setSelectedAddressId(newCustomer.address.id);
+    }
+    return newCustomer;
+  };
+
+  const handleDialogOpenChange = (nextOpen) => {
+    if (!nextOpen && !loading) {
+      onClose();
+    }
   };
 
   const handleAddressSelect = (addressId) => {
@@ -201,14 +257,15 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
   };
 
   const handleHourlyServiceChange = (field, value) => {
-    // Convert string values to numbers properly
-    const numValue = field === 'isSubscription' ? value : (value === '' ? '' : Number(value));
+    const nextValue = field === 'isSubscription' || field === 'subscriptionPlanType'
+      ? value
+      : (value === '' ? '' : Number(value));
     
     // Update the state first
     setHourlyService(prev => {
       const updatedService = {
         ...prev,
-        [field]: numValue
+        [field]: nextValue
       };
       
       // Auto-calculate amount when hourly service fields are filled
@@ -253,6 +310,17 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
       if (!formData.name || !formData.email) {
         throw new Error("Please fill in required fields (Name, Email).");
       }
+      if (hourlyService.isSubscription && !hourlyService.subscriptionPlanType) {
+        throw new Error("Please select a subscription frequency.");
+      }
+
+      let resolvedCustomerId = formData.user_id || formData.customer_id;
+      let createdCustomer = false;
+      if (!resolvedCustomerId) {
+        const newCustomer = await createCustomerForPurchase();
+        resolvedCustomerId = newCustomer.id;
+        createdCustomer = true;
+      }
 
       const isCustom = formData.productId === 'custom' || !formData.productId;
       const product = !isCustom ? products.find(p => p.id === formData.productId) : null;
@@ -266,8 +334,8 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
       }
 
       const purchasePayload = {
-        customer_id: formData.customer_id,
-        user_id: formData.user_id || formData.customer_id,
+        customer_id: resolvedCustomerId,
+        user_id: resolvedCustomerId,
         email: formData.email,
         name: formData.name,
         user_phone: formData.phone,
@@ -283,6 +351,10 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
         paid_amount: formData.amount,
         final_amount_due_on_arrival: formData.amount,
         hours: hourlyService.hours === '' ? null : Number(hourlyService.hours),
+        is_subscription: hourlyService.isSubscription,
+        subscription_plan_type: hourlyService.isSubscription
+          ? hourlyService.subscriptionPlanType
+          : null,
         payment_type: formData.paymentType,
         status: formData.status,
         preferred_booking_date: isoDate,
@@ -353,20 +425,26 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
         }
       }
 
-      toast({ title: "Success", description: "Purchase created successfully." });
+      toast({
+        title: "Success",
+        description: createdCustomer
+          ? "Customer and purchase created successfully."
+          : "Purchase created successfully."
+      });
       setRecoveryMessage('');
       onSuccess();
       onClose();
       
       // Reset Form
       setFormData({
-        name: '', email: '', phone: '', productId: 'custom', amount: '', paymentType: 'Cash', status: 'Pending', preferred_booking_date: '',
+        name: '', email: '', phone: '', productId: 'custom', amount: '', paymentType: 'BenefitPay', status: 'Pending', preferred_booking_date: '',
         customer_id: null, user_id: null, address_street: '', address_city: '', address_zip: '', address_phone: '', address_alt_phone: ''
       });
       setHourlyService({
         cleaners: '',
         hours: '',
-        isSubscription: false
+        isSubscription: false,
+        subscriptionPlanType: 'Weekly'
       });
       setSelectedAddressId(null);
       setCustomerAddresses([]);
@@ -457,8 +535,16 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+    <Dialog open={isOpen} onOpenChange={handleDialogOpenChange}>
+      <DialogContent
+        className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto"
+        onPointerDownOutside={(event) => {
+          if (loading) event.preventDefault();
+        }}
+        onEscapeKeyDown={(event) => {
+          if (loading) event.preventDefault();
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Create New Purchase</DialogTitle>
           <DialogDescription>
@@ -521,17 +607,6 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
             />
           </div>
           
-          <div className="space-y-2">
-            <Label htmlFor="preferred_booking_date">Preferred Booking Date</Label>
-            <Input
-              id="preferred_booking_date"
-              name="preferred_booking_date"
-              type="datetime-local"
-              value={formData.preferred_booking_date}
-              onChange={handleChange}
-            />
-          </div>
-
           <div className="space-y-2 border-t pt-2 mt-2">
             <Label className="text-xs font-semibold uppercase text-muted-foreground">Address Details</Label>
             
@@ -636,6 +711,18 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
               <Input name="address_city" placeholder="City" value={formData.address_city} onChange={handleChange} className="text-sm" />
               <Input name="address_zip" placeholder="Zip/Block" value={formData.address_zip} onChange={handleChange} className="text-sm" />
             </div>
+
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="preferred_booking_date">Preferred Booking Date</Label>
+            <Input
+              id="preferred_booking_date"
+              name="preferred_booking_date"
+              type="datetime-local"
+              value={formData.preferred_booking_date}
+              onChange={handleChange}
+            />
           </div>
 
           <div className="space-y-2 border-t pt-2 mt-2 relative">
@@ -704,17 +791,35 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
                     onCheckedChange={(checked) => handleHourlyServiceChange('isSubscription', checked)}
                   />
                   <Label htmlFor="subscription" className="text-sm">
-                    Apply subscription rate
+                    Subscription
                   </Label>
                 </div>
               </div>
             </div>
+
+            {hourlyService.isSubscription && (
+              <div className="space-y-2">
+                <Label htmlFor="subscription-plan-type">
+                  Frequency <span className="text-red-500">*</span>
+                </Label>
+                <select
+                  id="subscription-plan-type"
+                  value={hourlyService.subscriptionPlanType}
+                  onChange={(event) => handleHourlyServiceChange('subscriptionPlanType', event.target.value)}
+                  required
+                  className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm"
+                >
+                  <option value="Weekly">Weekly</option>
+                  <option value="Twice Weekly">Twice Weekly</option>
+                </select>
+              </div>
+            )}
             
             {serviceRates && (
               <div className="text-xs text-slate-600 bg-slate-50 p-3 rounded">
                 <div className="grid grid-cols-2 gap-2">
                 <div>Standard Rate: BHD {serviceRates.pricePerCleaner}/hour per cleaner</div>
-                  <div>Subscription = 4 Cleans / 20% discount</div>
+                  <div>Subscription pricing includes the configured discount</div>
                 </div>
                 {hourlyService.cleaners && hourlyService.hours && (
                   <div className="mt-2 pt-2 border-t border-slate-200">
@@ -771,7 +876,7 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
               <option value="Cash">Cash</option>
               <option value="Credit Card">Credit Card</option>
               <option value="Bank Transfer">Bank Transfer</option>
-              <option value="BenefitPay">BenefitPay</option>
+              <option value="BenefitPay">Benefit Pay</option>
             </select>
           </div>
 
@@ -779,7 +884,11 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
             <Button type="button" variant="outline" onClick={onClose} disabled={loading || !!recoveryMessage}>Cancel</Button>
             <Button type="submit" disabled={loading || !!recoveryMessage}>
               {(loading || !!recoveryMessage) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {(loading || !!recoveryMessage) ? 'Processing...' : 'Create Purchase'}
+              {(loading || !!recoveryMessage)
+                ? 'Processing...'
+                : formData.customer_id || formData.user_id
+                  ? 'Create Purchase'
+                  : 'Create Purchase & Customer'}
             </Button>
           </DialogFooter>
         </form>

@@ -69,6 +69,12 @@ const UserInfoSection = ({ user }) => (
             <div className="flex items-center dark:text-slate-300"><Calendar className="h-4 w-4 mr-1 text-gray-500 dark:text-slate-400" /> <strong>DOB:</strong> {formatDateSafe(user.dob)}</div>
             <div className="flex items-center dark:text-slate-300"><Calendar className="h-4 w-4 mr-1 text-gray-500 dark:text-slate-400" /> <strong>Joined:</strong> {formatDateSafe(user.created_at)}</div>
             <div className="flex items-center dark:text-slate-300"><CreditCard className="h-4 w-4 mr-1 text-gray-500 dark:text-slate-400" /> <strong>Credits:</strong> {user.credits || 0}</div>
+            <div className="flex items-center gap-2 dark:text-slate-300">
+                <strong>Subscriber:</strong>
+                <Badge variant={user.is_subscriber ? 'default' : 'secondary'}>
+                    {user.is_subscriber ? user.subscription_plan_type || 'Subscriber' : 'No'}
+                </Badge>
+            </div>
         </div>
     </section>
 );

@@ -17,8 +17,8 @@ export default [
 		settings: {
 			react: { version: 'detect' },
 			'import/resolver': {
-				node: { extensions: ['.js', '.jsx'] },
-				alias: { map: [['@', './src']], extensions: ['.js', '.jsx'] },
+				node: { extensions: ['.js', '.jsx', '.ts', '.tsx'] },
+				alias: { map: [['@', './src']], extensions: ['.js', '.jsx', '.ts', '.tsx'] },
 			},
 		},
 		rules: {

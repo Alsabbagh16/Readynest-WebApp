@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Eye, EyeOff } from 'lucide-react';
 
 const EditUserForm = ({ user, onSave, onCancel }) => {
@@ -17,6 +18,8 @@ const EditUserForm = ({ user, onSave, onCancel }) => {
     user_type: 'Personal',
     credits: 0,
     password: '',
+    is_subscriber: false,
+    subscription_plan_type: 'Weekly',
   });
   const [showPassword, setShowPassword] = useState(false);
 
@@ -32,6 +35,8 @@ const EditUserForm = ({ user, onSave, onCancel }) => {
         user_type: user.user_type || 'Personal',
         credits: user.credits || 0,
         password: '',
+        is_subscriber: user.is_subscriber === true,
+        subscription_plan_type: user.subscription_plan_type || 'Weekly',
       });
     }
   }, [user]);
@@ -66,6 +71,8 @@ const EditUserForm = ({ user, onSave, onCancel }) => {
       dob: formData.dob,
       user_type: formData.user_type,
       credits: creditsNum,
+      is_subscriber: formData.is_subscriber,
+      subscription_plan_type: formData.subscription_plan_type,
     };
 
     if (formData.password) {
@@ -115,10 +122,41 @@ const EditUserForm = ({ user, onSave, onCancel }) => {
                 </SelectContent>
             </Select>
           </div>
-           <div>
+          <div>
             <Label htmlFor="edit-credits">Credits</Label>
             <Input id="edit-credits" name="credits" type="number" min="0" value={formData.credits} onChange={handleChange} required />
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="edit-is-subscriber">Subscriber</Label>
+            <div className="flex h-10 items-center gap-2">
+              <Checkbox
+                id="edit-is-subscriber"
+                checked={formData.is_subscriber}
+                onCheckedChange={(checked) => setFormData((current) => ({
+                  ...current,
+                  is_subscriber: checked === true,
+                }))}
+              />
+              <Label htmlFor="edit-is-subscriber" className="font-normal">Subscription customer</Label>
+            </div>
+          </div>
+          {formData.is_subscriber && (
+            <div>
+              <Label htmlFor="edit-subscription-plan">Cleaning Frequency</Label>
+              <Select
+                value={formData.subscription_plan_type}
+                onValueChange={(value) => setFormData((current) => ({ ...current, subscription_plan_type: value }))}
+              >
+                <SelectTrigger id="edit-subscription-plan">
+                  <SelectValue placeholder="Select frequency" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Weekly">Weekly</SelectItem>
+                  <SelectItem value="Twice Weekly">Twice Weekly</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
            <div className="relative md:col-span-2">
               <Label htmlFor="edit-password">Password</Label>
               <Input

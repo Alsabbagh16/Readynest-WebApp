@@ -400,7 +400,7 @@ const EmployeeOtherDetailsCard = ({ employee }) => {
     );
 };
 
-const EmployeeIdentityCard = ({ employee, pastJobsCount, upcomingJobsCount }) => {
+const EmployeeIdentityCard = ({ employee, pastJobsCount, upcomingJobsCount, showMessaging = true }) => {
     const employmentType = employee.is_part_timer ? 'Part-Time' : 'Regular';
     const status = employee.role === 'suspended' || employee.status === 'suspended' ? 'Suspended' : 'Active';
     const whatsAppPhone = String(employee.mobile || '').replace(/[^\d]/g, '');
@@ -433,7 +433,7 @@ const EmployeeIdentityCard = ({ employee, pastJobsCount, upcomingJobsCount }) =>
                     </div>
                 </div>
 
-                <Button asChild={Boolean(whatsAppHref)} className="h-11 w-full rounded-xl bg-blue-600 text-sm font-semibold hover:bg-blue-700">
+                {showMessaging && <Button asChild={Boolean(whatsAppHref)} className="h-11 w-full rounded-xl bg-blue-600 text-sm font-semibold hover:bg-blue-700">
                     {whatsAppHref ? (
                         <a href={whatsAppHref} target="_blank" rel="noreferrer">
                             <MessageCircle className="mr-2 h-4 w-4" /> WhatsApp Employee
@@ -441,7 +441,7 @@ const EmployeeIdentityCard = ({ employee, pastJobsCount, upcomingJobsCount }) =>
                     ) : (
                         <span>Send Message</span>
                     )}
-                </Button>
+                </Button>}
 
                 <div className="mt-6 grid grid-cols-2 gap-x-5 gap-y-4 border-t border-slate-100 pt-5">
                     <DetailField label="Gender" value={employee.sex} />
@@ -506,6 +506,7 @@ const HoursWorkedCard = ({
     setFilterMode,
     setRangeStartDate,
     setRangeEndDate,
+    showFilters = true,
 }) => {
     const [isMobileOpen, setIsMobileOpen] = useState(false);
 
@@ -529,7 +530,7 @@ const HoursWorkedCard = ({
                             </span>
                         </p>
                     </div>
-                    <div className="grid grid-cols-3 rounded-xl border border-blue-100 bg-white p-1 text-xs font-semibold text-slate-500 shadow-sm">
+                    {showFilters && <div className="grid grid-cols-3 rounded-xl border border-blue-100 bg-white p-1 text-xs font-semibold text-slate-500 shadow-sm">
                         {[
                             ['monthly', 'Monthly'],
                             ['range', 'Range'],
@@ -548,10 +549,10 @@ const HoursWorkedCard = ({
                                 {label}
                             </button>
                         ))}
-                    </div>
+                    </div>}
                 </div>
             </div>
-            {filterMode === 'range' && (
+            {showFilters && filterMode === 'range' && (
                 <div className="grid gap-3 sm:grid-cols-2">
                     <div>
                         <label className="mb-1 block text-xs font-semibold text-slate-500" htmlFor="hours-range-start">Range start</label>
@@ -1174,8 +1175,9 @@ const EarningsCard = ({ payouts, totalEarned, onSettle, onUndoSettle, onUpdateAm
 };
 
 
-const AdminEmployeeProfilePage = () => {
-    const { id } = useParams();
+const AdminEmployeeProfilePage = ({ employeeId = null, selfService = false }) => {
+    const { id: routeEmployeeId } = useParams();
+    const id = employeeId || routeEmployeeId;
     const navigate = useNavigate();
     const { toast } = useToast();
     const { adminProfile } = useAdminAuth();
@@ -1201,7 +1203,7 @@ const AdminEmployeeProfilePage = () => {
 
     const timelinePageSize = 5;
 
-    const canManageEmployees = adminProfile && (adminProfile.role === 'admin' || adminProfile.role === 'superadmin');
+    const canManageEmployees = !selfService && adminProfile && (adminProfile.role === 'admin' || adminProfile.role === 'superadmin');
 
     const fetchEmployeeData = useCallback(async () => {
         setLoading(true);
@@ -1213,7 +1215,7 @@ const AdminEmployeeProfilePage = () => {
                     getBookingsByEmployeeId(id),
                     getJobsByEmployeeId(id),
                     empData.is_part_timer ? getPartTimeApplicationsByEmployee(id) : Promise.resolve([]),
-                    empData.is_part_timer ? getPartTimePayoutsByEmployee(id) : Promise.resolve([]),
+                    !selfService && empData.is_part_timer ? getPartTimePayoutsByEmployee(id) : Promise.resolve([]),
                 ]);
 
                 const acceptedPartTimeJobs = (partTimeApplications || [])
@@ -1248,7 +1250,7 @@ const AdminEmployeeProfilePage = () => {
         } finally {
             setLoading(false);
         }
-    }, [id, navigate, toast]);
+    }, [id, navigate, selfService, toast]);
 
     useEffect(() => {
         fetchEmployeeData();
@@ -1523,21 +1525,26 @@ const AdminEmployeeProfilePage = () => {
     return (
         <div className="min-h-screen w-full min-w-0 max-w-full overflow-x-hidden bg-slate-50 p-3 text-slate-900 sm:p-4 md:p-6">
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex min-w-0 max-w-full items-center gap-2 text-sm text-slate-500">
+                {selfService ? (
+                    <div>
+                        <h1 className="text-xl font-bold text-slate-900">My Account</h1>
+                        <p className="mt-1 text-sm text-slate-500">Profile, schedule, and performance</p>
+                    </div>
+                ) : <div className="flex min-w-0 max-w-full items-center gap-2 text-sm text-slate-500">
                     <Button variant="ghost" size="sm" onClick={() => navigate('/admin-dashboard/employees')} className="h-8 rounded-xl px-2 text-slate-500 hover:bg-white">
                         <ArrowLeft className="mr-2 h-4 w-4" /> Employees
                     </Button>
                     <span>/</span>
                     <span className="min-w-0 truncate font-semibold text-slate-800">{employee.full_name || 'Employee Profile'}</span>
-                </div>
-                {canManageEmployees && (
+                </div>}
+                {!selfService && canManageEmployees && (
                     <Button size="sm" onClick={() => setIsEditDialogOpen(true)} className="rounded-xl bg-white text-slate-700 shadow-sm hover:bg-slate-100">
                         <Edit3 className="mr-2 h-4 w-4" /> Edit Employee
                     </Button>
                 )}
             </div>
 
-            {!canManageEmployees && (
+            {!selfService && !canManageEmployees && (
                 <div className="mb-5 flex items-center rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
                     <ShieldAlert className="mr-2 h-5 w-5" />
                     Your role does not permit editing employee details.
@@ -1549,16 +1556,17 @@ const AdminEmployeeProfilePage = () => {
                     employee={employee}
                     pastJobsCount={completedJobs.length}
                     upcomingJobsCount={upcomingJobs.length}
+                    showMessaging={!selfService}
                 />
                 <div className="contents min-w-0 max-w-full lg:block lg:col-span-5 lg:space-y-5">
-                    <EmployeeNotesCard
+                    {!selfService && <EmployeeNotesCard
                         notes={normalizedNotes}
                         noteDraft={noteDraft}
                         setNoteDraft={setNoteDraft}
                         onSaveNote={handleSaveNote}
                         canManage={canManageEmployees}
                         savingNote={savingNote}
-                    />
+                    />}
                     <HoursWorkedCard
                         activeMetric={filteredHoursMetric}
                         filterMode={hoursFilterMode}
@@ -1567,6 +1575,7 @@ const AdminEmployeeProfilePage = () => {
                         setFilterMode={setHoursFilterMode}
                         setRangeStartDate={setHoursRangeStartDate}
                         setRangeEndDate={setHoursRangeEndDate}
+                        showFilters={!selfService}
                     />
                 </div>
                 <div className="contents min-w-0 max-w-full lg:block lg:col-span-4 lg:space-y-5">
@@ -1595,14 +1604,14 @@ const AdminEmployeeProfilePage = () => {
                     setRangeEndDate={setPerformanceRangeEndDate}
                     setRangeStartDate={setPerformanceRangeStartDate}
                 />
-                <EarningsCard
+                {!selfService && <EarningsCard
                     payouts={payoutRows}
                     totalEarned={totalEarned}
                     onSettle={canManageEmployees ? handleSettlePayout : null}
                     onUndoSettle={canManageEmployees ? handleUndoSettlePayout : null}
                     onUpdateAmount={canManageEmployees ? handleUpdatePayoutAmount : null}
                     payoutActionId={settlingPayoutId}
-                />
+                />}
             </div>
 
             {isEditDialogOpen && canManageEmployees && (

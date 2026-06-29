@@ -41,7 +41,14 @@ export const createUser = async (userData) => {
 
     if (error) {
       console.error('Error calling create-user function:', error);
-      throw new Error(`Failed to create user account: ${error.message}`);
+      let functionMessage = '';
+      try {
+        const errorPayload = await error.context?.json();
+        functionMessage = errorPayload?.error || errorPayload?.message || '';
+      } catch (contextError) {
+        console.warn('Could not parse create-user error response:', contextError);
+      }
+      throw new Error(functionMessage || `Failed to create user account: ${error.message}`);
     }
 
     if (!data?.success) {
@@ -113,13 +120,21 @@ export const findUserByEmail = async (email) => {
 
 
 export const adminUpdateUserProfile = async (userId, updatedData) => {
-  const { firstName, lastName, userType, ...restOfData } = updatedData;
+  const {
+    firstName,
+    lastName,
+    userType,
+    first_name: firstNameSnake,
+    last_name: lastNameSnake,
+    user_type: userTypeSnake,
+    ...restOfData
+  } = updatedData;
   
   const dataToUpdate = {
     ...restOfData,
-    first_name: firstName,
-    last_name: lastName,
-    user_type: userType,
+    first_name: firstNameSnake ?? firstName,
+    last_name: lastNameSnake ?? lastName,
+    user_type: userTypeSnake ?? userType,
     updated_at: new Date().toISOString()
   };
 
@@ -129,28 +144,30 @@ export const adminUpdateUserProfile = async (userId, updatedData) => {
   
   delete dataToUpdate.name; 
   delete dataToUpdate.createdAt; 
+  delete dataToUpdate.id;
+  delete dataToUpdate.password;
 
-  const { data, error } = await supabase
-    .from('profiles')
-    .update(dataToUpdate)
-    .eq('id', userId)
-    .select('id') // Explicitly select only 'id' or minimal fields
-    .single();
+  // PostgreSQL date/number-backed optional columns cannot accept an empty string.
+  ['dob', 'phone'].forEach((field) => {
+    if (typeof dataToUpdate[field] === 'string' && dataToUpdate[field].trim() === '') {
+      dataToUpdate[field] = null;
+    }
+  });
+  Object.keys(dataToUpdate).forEach((field) => {
+    if (dataToUpdate[field] === undefined) delete dataToUpdate[field];
+  });
+
+  const { data, error } = await supabase.rpc('admin_update_customer_profile', {
+    p_user_id: userId,
+    p_updates: dataToUpdate,
+  });
 
   if (error) {
     console.error(`Error updating profile for user ${userId}:`, error);
-    // Check if the error is specifically about no rows returned, which might be okay if RLS prevents seeing the row after update
-    if (error.code === 'PGRST116' && error.details.includes("JSON object requested, but 0 rows returned")) {
-        console.warn(`Profile update for user ${userId} likely succeeded, but RLS prevented returning the row. Continuing assuming success.`);
-        return { id: userId, ...dataToUpdate }; // Return a minimal success-like object
-    }
     throw error;
   }
-  if (!data) { // This case might be hit if RLS prevents returning the row even if the update was successful
-    console.warn(`Profile update for user ${userId} returned no data, but no explicit error. Assuming success due to potential RLS.`);
-    return { id: userId, ...dataToUpdate }; // Return a minimal success-like object
-  }
-  return data;
+  if (data !== true) throw new Error('The customer profile update was not confirmed.');
+  return { id: userId, ...dataToUpdate };
 };
 
 export const adminAddAddress = async (userId, addressData) => {
