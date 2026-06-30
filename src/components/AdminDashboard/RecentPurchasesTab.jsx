@@ -342,9 +342,13 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
         // Custom date range filtering
         if (customDateRange.start || customDateRange.end) {
           filtered = filtered.filter(purchase => {
-            const purchaseDate = new Date(purchase.created_at);
+            const purchaseDate = purchase.preferred_booking_date
+              ? new Date(purchase.preferred_booking_date)
+              : null;
             const startDate = customDateRange.start ? new Date(customDateRange.start) : null;
             const endDate = customDateRange.end ? new Date(customDateRange.end) : null;
+
+            if (!purchaseDate || Number.isNaN(purchaseDate.getTime())) return false;
             
             if (startDate && purchaseDate < startDate) return false;
             if (endDate) {
@@ -361,7 +365,11 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
         const range = getDateRange(dateRangeFilter);
         if (range) {
           filtered = filtered.filter(purchase => {
-            const purchaseDate = new Date(purchase.created_at);
+            const purchaseDate = purchase.preferred_booking_date
+              ? new Date(purchase.preferred_booking_date)
+              : null;
+
+            if (!purchaseDate || Number.isNaN(purchaseDate.getTime())) return false;
             
             if (range.start && purchaseDate < range.start) return false;
             if (range.end && purchaseDate > range.end) return false;
