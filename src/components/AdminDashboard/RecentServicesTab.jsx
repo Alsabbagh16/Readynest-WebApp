@@ -514,7 +514,13 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
                     <TableCell>
                          <div className="flex items-center gap-1 text-sm text-gray-600 max-w-[150px] truncate" title={job.user_address?.label || job.user_address?.street}>
                             <MapPin className="h-3 w-3 text-gray-400 shrink-0" />
-                            {job.user_address?.city || 'Location'}
+                            {[
+                              job.user_address?.city,
+                              job.user_address?.block_number
+                                || job.user_address?.block
+                                || job.user_address?.zip
+                                || job.user_address?.zip_code,
+                            ].filter(Boolean).join(', ') || 'Location'}
                          </div>
                     </TableCell>
                     <TableCell>
