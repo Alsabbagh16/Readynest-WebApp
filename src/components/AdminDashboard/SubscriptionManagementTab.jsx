@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { format } from 'date-fns';
 import { Link } from 'react-router-dom';
 import {
@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import SubscriptionDashboardErrorBoundary from '@/components/SubscriptionDashboardErrorBoundary';
 import { useSubscriptionDashboard } from '@/hooks/useSubscriptionDashboard';
+import { subscriptionApi } from '@/lib/api/subscriptionApi';
 
 const statusStyles = {
   active: 'border-emerald-200 bg-emerald-50 text-emerald-700',
@@ -44,57 +45,63 @@ const formatDate = (date) => {
   return Number.isNaN(parsedDate.getTime()) ? 'No completed clean' : format(parsedDate, 'MMM d, yyyy');
 };
 
-const RetentionDots = ({ history, styles, label, describe }) => {
+const RetentionDots = ({ history, styles, label, describe, onSelect, selectedPurchaseRef }) => {
   const paddedHistory = [...(history || [])];
   while (paddedHistory.length < 4) paddedHistory.unshift(null);
 
   return (
     <div className="mt-1 flex items-center gap-1.5" aria-label={label}>
-      {paddedHistory.slice(-4).map((entry, index) => (
-        <span
-          key={entry?.period_start || `empty-${index}`}
-          className={`h-2.5 w-2.5 rounded-full ${entry ? styles[entry.status] : 'bg-slate-200'}`}
-          title={entry ? describe(entry) : 'Before subscription started'}
-        />
-      ))}
+      {paddedHistory.slice(-4).map((entry, index) => {
+        const dotClassName = `block h-2.5 w-2.5 rounded-full ${entry ? styles[entry.status] : 'bg-slate-200'} ${
+          selectedPurchaseRef && entry?.purchase_ref_id === selectedPurchaseRef ? 'ring-2 ring-blue-500 ring-offset-1' : ''
+        }`;
+        return entry?.purchase_ref_id && onSelect ? (
+          <button
+            key={entry.period_start}
+            type="button"
+            className="rounded-full"
+            title={`${describe(entry)} - click to filter services`}
+            onClick={() => onSelect(entry)}
+          >
+            <span className={dotClassName} />
+          </button>
+        ) : (
+          <span
+            key={entry?.period_start || `empty-${index}`}
+            className={dotClassName}
+            title={entry ? describe(entry) : 'No subscription payment for this period'}
+          />
+        );
+      })}
     </div>
   );
 };
 
 const ServiceRetentionDots = ({ history, twiceWeekly }) => {
-  const paddedHistory = [...(history || [])];
-  while (paddedHistory.length < 4) paddedHistory.unshift(null);
-  const slotsPerWeek = twiceWeekly ? 2 : 1;
+  const expectedSlots = twiceWeekly ? 8 : 4;
+  const paddedHistory = [...(history || [])].slice(0, expectedSlots);
+  while (paddedHistory.length < expectedSlots) paddedHistory.push(null);
 
   return (
     <div
       className="mt-1 grid w-fit grid-cols-4 gap-1.5"
-      aria-label={twiceWeekly ? 'Four-week service fulfillment, two jobs per week' : 'Four-week service fulfillment'}
+      aria-label={twiceWeekly ? 'Latest subscription purchase, eight expected jobs' : 'Latest subscription purchase, four expected jobs'}
     >
-      {paddedHistory.slice(-4).map((entry, weekIndex) => (
-        <div key={entry?.period_start || `empty-week-${weekIndex}`} className="flex flex-col gap-1">
-          {Array.from({ length: slotsPerWeek }, (_, slotIndex) => {
-            const isCompleted = entry && slotIndex < Number(entry.completed_count || 0);
-            const slotStyle = !entry
-              ? 'bg-slate-200'
-              : entry.status === 'empty'
-                ? serviceStyles.empty
-              : isCompleted
-                ? serviceStyles.completed
-                : entry.status === 'missed'
-                  ? serviceStyles.missed
-                  : serviceStyles.partial;
-            return (
-              <span
-                key={`${entry?.period_start || weekIndex}-${slotIndex}`}
-                className={`h-2.5 w-2.5 rounded-full ${slotStyle}`}
-                title={entry
-                  ? `${entry.period_start}: ${entry.completed_count}/${entry.expected_count} jobs completed`
-                  : 'Before subscription started'}
-              />
-            );
-          })}
-        </div>
+      {paddedHistory.map((entry, slotIndex) => (
+        entry?.job_ref_id ? (
+          <Link
+            key={entry.slot_number}
+            to={`/admin-dashboard/job/${entry.job_ref_id}`}
+            className={`h-2.5 w-2.5 rounded-full ${serviceStyles[entry.status]} transition-transform hover:scale-125`}
+            title={`Job ${entry.job_ref_id}: ${entry.job_status || entry.status}`}
+          />
+        ) : (
+          <span
+            key={entry?.slot_number || `empty-slot-${slotIndex}`}
+            className={`h-2.5 w-2.5 rounded-full ${serviceStyles.empty}`}
+            title={`Expected job ${slotIndex + 1}: not created`}
+          />
+        )
       ))}
     </div>
   );
@@ -112,6 +119,8 @@ const MetricCard = ({ label, value, icon: Icon, alert = false }) => (
 
 const SubscriptionManagementContent = () => {
   const { toast } = useToast();
+  const [serviceFilters, setServiceFilters] = useState({});
+  const [serviceFilterLoading, setServiceFilterLoading] = useState(null);
   const {
     filteredSubscriptions,
     churnRisk,
@@ -125,6 +134,45 @@ const SubscriptionManagementContent = () => {
     markScheduled,
     followUp,
   } = useSubscriptionDashboard();
+
+  const handlePaymentFilter = async (subscription, paymentPeriod) => {
+    const purchaseRefId = paymentPeriod.purchase_ref_id;
+    if (!purchaseRefId) return;
+    if (serviceFilters[subscription.client_id]?.purchase_ref_id === purchaseRefId) {
+      setServiceFilters((current) => {
+        const next = { ...current };
+        delete next[subscription.client_id];
+        return next;
+      });
+      return;
+    }
+
+    setServiceFilterLoading(`${subscription.client_id}:${purchaseRefId}`);
+    try {
+      const service = await subscriptionApi.getPurchaseService(purchaseRefId);
+      setServiceFilters((current) => ({ ...current, [subscription.client_id]: service }));
+    } catch (requestError) {
+      toast({
+        title: 'Unable to Filter Services',
+        description: requestError.message || 'Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setServiceFilterLoading(null);
+    }
+  };
+
+  const getNextClean = (history) => {
+    const now = new Date();
+    const nextJob = (history || [])
+      .filter((entry) => {
+        if (!entry?.preferred_date || !entry.job_ref_id) return false;
+        const status = String(entry.job_status || '').toLowerCase();
+        return new Date(entry.preferred_date) >= now && !['completed', 'cancelled', 'failed'].includes(status);
+      })
+      .sort((left, right) => new Date(left.preferred_date) - new Date(right.preferred_date))[0];
+    return nextJob ? format(new Date(nextJob.preferred_date), 'MMM d, h:mm a') : 'Not scheduled';
+  };
 
   const handleSchedule = async (subscription) => {
     try {
@@ -229,12 +277,16 @@ const SubscriptionManagementContent = () => {
               No subscribers match this status.
             </div>
           ) : (
-            <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-              <div className="hidden grid-cols-[minmax(170px,1.4fr)_100px_90px_110px_110px_100px] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-500 lg:grid">
-                <span>Client</span><span>Plan</span><span>Status</span><span>Payments</span><span>Service</span><span>Last Clean</span>
+            <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+              <div className="hidden min-w-[880px] grid-cols-[minmax(170px,1.4fr)_100px_90px_110px_120px_100px_120px] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-500 lg:grid">
+                <span>Client</span><span>Plan</span><span>Status</span><span>Payments</span><span>Service</span><span>Last Clean</span><span>Next Clean</span>
               </div>
-              {filteredSubscriptions.map((subscription) => (
-                <div key={subscription.client_id} className="grid gap-3 border-b border-slate-100 p-4 last:border-b-0 lg:grid-cols-[minmax(170px,1.4fr)_100px_90px_110px_110px_100px] lg:items-center">
+              {filteredSubscriptions.map((subscription) => {
+                const filteredService = serviceFilters[subscription.client_id];
+                const serviceHistory = filteredService?.service_history || subscription.service_history;
+                const servicePlan = filteredService?.plan_type || subscription.plan_type;
+                const serviceScore = filteredService?.service_score ?? subscription.service_fulfillment_score;
+                return <div key={subscription.client_id} className="grid gap-3 border-b border-slate-100 p-4 last:border-b-0 lg:min-w-[880px] lg:grid-cols-[minmax(170px,1.4fr)_100px_90px_110px_120px_100px_120px] lg:items-center">
                   <div className="min-w-0">
                     <Link to={`/admin-dashboard/user/${subscription.client_id}`} className="block truncate text-sm font-semibold text-blue-700 hover:underline">
                       {subscription.client_name || 'Unnamed Client'}
@@ -255,18 +307,28 @@ const SubscriptionManagementContent = () => {
                       styles={paymentStyles}
                       label="Four-month payment retention"
                       describe={(entry) => `${entry.period_start}: ${entry.status}`}
+                      onSelect={(entry) => handlePaymentFilter(subscription, entry)}
+                      selectedPurchaseRef={filteredService?.purchase_ref_id}
+                    />
+                    {serviceFilterLoading?.startsWith(`${subscription.client_id}:`) && <p className="mt-1 text-[10px] text-blue-500">Loading...</p>}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">{Number(serviceScore || 0).toFixed(0)}%</p>
+                    <ServiceRetentionDots
+                      history={serviceHistory}
+                      twiceWeekly={servicePlan === 'Twice Weekly'}
                     />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-slate-800">{Number(subscription.service_fulfillment_score || 0).toFixed(0)}%</p>
-                    <ServiceRetentionDots
-                      history={subscription.service_history}
-                      twiceWeekly={subscription.plan_type === 'Twice Weekly'}
-                    />
+                    <p className="mb-1 text-[10px] font-semibold uppercase text-slate-400 lg:hidden">Last Clean</p>
+                    <p className="text-xs font-medium text-slate-600">{formatDate(subscription.last_clean_date)}</p>
                   </div>
-                  <p className="text-xs font-medium text-slate-600">{formatDate(subscription.last_clean_date)}</p>
-                </div>
-              ))}
+                  <div>
+                    <p className="mb-1 text-[10px] font-semibold uppercase text-slate-400 lg:hidden">Next Clean</p>
+                    <p className="text-xs font-semibold text-slate-700">{getNextClean(serviceHistory)}</p>
+                  </div>
+                </div>;
+              })}
             </div>
           )}
         </section>

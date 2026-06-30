@@ -3,6 +3,7 @@ import type {
   ChurnRiskSubscription,
   FollowUpPayload,
   SubscriptionDashboardRow,
+  SubscriptionPurchaseService,
   SubscriptionStatus,
 } from '@/types/subscription';
 
@@ -35,6 +36,15 @@ export const subscriptionApi = {
   async getChurnRisk(): Promise<ChurnRiskSubscription[]> {
     const { data, error } = await supabase.rpc('get_subscription_churn_risk');
     return unwrap<ChurnRiskSubscription[]>(data || [], error);
+  },
+
+  async getPurchaseService(purchaseRefId: string): Promise<SubscriptionPurchaseService> {
+    const { data, error } = await supabase.rpc('get_subscription_purchase_service', {
+      p_purchase_ref_id: purchaseRefId,
+    });
+    const rows = unwrap<SubscriptionPurchaseService[]>(data || [], error);
+    if (!rows[0]) throw new SubscriptionApiError('Subscription purchase service details were not returned.');
+    return rows[0];
   },
 
   // POST /api/subscriptions/follow-up

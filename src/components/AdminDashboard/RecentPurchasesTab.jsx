@@ -299,7 +299,16 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
     let filtered = purchases;
     
     if (searchTerm) {
-      const searchLower = searchTerm.toLowerCase();
+      const normalizedSearch = searchTerm.trim().toLowerCase();
+      const hideMarkerIndex = normalizedSearch.indexOf('hide:');
+      const searchLower = (hideMarkerIndex >= 0
+        ? normalizedSearch.slice(0, hideMarkerIndex)
+        : normalizedSearch).trim();
+      const hiddenName = (hideMarkerIndex >= 0
+        ? normalizedSearch.slice(hideMarkerIndex + 'hide:'.length)
+        : '').trim();
+
+      if (searchLower) {
       filtered = filtered.filter(purchase => {
         return (
           purchase.purchase_ref_id?.toLowerCase().includes(searchLower) ||
@@ -310,6 +319,17 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
           purchase.coupon_code?.toLowerCase().includes(searchLower)
         );
       });
+      }
+
+      if (hiddenName) {
+        filtered = filtered.filter((purchase) => {
+          const profileName = [purchase.profiles?.first_name, purchase.profiles?.last_name]
+            .filter(Boolean)
+            .join(' ');
+          const customerName = `${purchase.name || ''} ${profileName}`.trim().toLowerCase();
+          return !customerName.includes(hiddenName);
+        });
+      }
     }
     
     if (statusFilter !== 'All') {

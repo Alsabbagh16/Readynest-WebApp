@@ -10,11 +10,19 @@ export interface PaymentRetentionPeriod {
 }
 
 export interface ServiceFulfillmentPeriod {
-  period_start: string;
+  slot_number: number;
   status: ServiceFulfillmentStatus;
-  job_count: number;
-  completed_count: number;
-  expected_count: number;
+  job_status: string | null;
+  job_ref_id: string | null;
+  preferred_date: string | null;
+}
+
+export interface SubscriptionPurchaseService {
+  purchase_ref_id: string;
+  plan_type: 'Weekly' | 'Twice Weekly';
+  expected_jobs: number;
+  service_score: number;
+  service_history: ServiceFulfillmentPeriod[];
 }
 
 export interface SubscriptionDashboardRow {

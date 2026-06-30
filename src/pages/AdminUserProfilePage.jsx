@@ -3,6 +3,8 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { 
     findUserById, 
     adminUpdateUserProfile, 
+    adminAddAddress,
+    adminUpdateAddress,
     getUserNotes, 
     saveUserNotes,
     uploadUserDocumentFile,
@@ -17,11 +19,12 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, User, Mail, Calendar, CreditCard, Edit, MapPin, FileText, UploadCloud, Save, ShieldAlert, Phone, ShoppingCart, Trash2, Download } from 'lucide-react';
+import { ArrowLeft, User, Mail, Calendar, CreditCard, Edit, MapPin, FileText, UploadCloud, Save, ShieldAlert, Phone, ShoppingCart, Trash2, Download, PlusCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from "@/components/ui/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import EditUserForm from '@/components/AdminDashboard/EditUserForm';
+import AddressForm from '@/components/Dashboard/AddressForm';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 
 const formatDateSafe = (dateString) => {
@@ -79,18 +82,60 @@ const UserInfoSection = ({ user }) => (
     </section>
 );
 
-const SavedAddressesSection = ({ addresses }) => {
+const SavedAddressesSection = ({ addresses, canManage, onSaveAddress }) => {
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [editingAddress, setEditingAddress] = useState(null);
+
+    const openAddressDialog = (address = null) => {
+        setEditingAddress(address);
+        setIsDialogOpen(true);
+    };
+
+    const handleSave = async (addressData) => {
+        setIsSaving(true);
+        try {
+            await onSaveAddress(addressData, editingAddress);
+            setIsDialogOpen(false);
+            setEditingAddress(null);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     return (
         <section>
-            <h3 className="font-semibold text-lg border-b pb-2 mb-3 dark:text-slate-100 dark:border-slate-700">Saved Addresses</h3>
+            <div className="flex items-center justify-between gap-3 border-b pb-2 mb-3 dark:border-slate-700">
+                <h3 className="font-semibold text-lg dark:text-slate-100">Saved Addresses</h3>
+                {canManage && (
+                    <Button onClick={() => openAddressDialog()} size="sm" variant="outline" className="shrink-0 dark:border-slate-600 dark:hover:bg-slate-700">
+                        <PlusCircle className="mr-2 h-4 w-4" /> Add Address
+                    </Button>
+                )}
+            </div>
             {addresses && addresses.length > 0 ? (
                 <div className="grid gap-4 md:grid-cols-2">
                     {addresses.map((addr) => (
                         <div key={addr.id} className="text-sm p-3 border rounded bg-gray-50/50 dark:bg-slate-800/30 dark:border-slate-700">
-                            <p className="font-medium flex items-center dark:text-slate-200">
-                                <MapPin className="h-4 w-4 mr-1 text-gray-500 dark:text-slate-400" />
-                                {addr.label || addr.street || 'Address'}
-                            </p>
+                            <div className="flex items-start justify-between gap-2">
+                                <p className="font-medium flex items-center dark:text-slate-200">
+                                    <MapPin className="h-4 w-4 mr-1 text-gray-500 dark:text-slate-400" />
+                                    {addr.label || addr.street || 'Address'}
+                                </p>
+                                {canManage && (
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => openAddressDialog(addr)}
+                                        className="h-8 w-8 shrink-0"
+                                        title="Edit address"
+                                    >
+                                        <Edit className="h-4 w-4" />
+                                        <span className="sr-only">Edit address</span>
+                                    </Button>
+                                )}
+                            </div>
                             <p className="text-xs text-muted-foreground dark:text-slate-400 pl-5">
                                 {addr.street}<br />
                                 {addr.city}, {addr.state} {addr.zip_code || addr.zip}
@@ -109,6 +154,27 @@ const SavedAddressesSection = ({ addresses }) => {
                     ))}
                 </div>
             ) : <p className="text-sm text-gray-500 dark:text-slate-400">No saved addresses found.</p>}
+            <Dialog open={isDialogOpen} onOpenChange={(open) => {
+                setIsDialogOpen(open);
+                if (!open) setEditingAddress(null);
+            }}>
+                <DialogContent className="sm:max-w-[425px] dark:bg-slate-800 dark:border-slate-700">
+                    <DialogHeader>
+                        <DialogTitle className="dark:text-white">{editingAddress ? 'Edit Saved Address' : 'Add Saved Address'}</DialogTitle>
+                        <DialogDescription className="dark:text-slate-400">
+                            {editingAddress ? 'Update this customer booking address.' : 'Add a booking address to this customer profile.'}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <fieldset disabled={isSaving}>
+                        <AddressForm
+                            key={editingAddress?.id || 'new-address'}
+                            address={editingAddress}
+                            onSave={handleSave}
+                            onCancel={() => setIsDialogOpen(false)}
+                        />
+                    </fieldset>
+                </DialogContent>
+            </Dialog>
         </section>
     );
 };
@@ -444,6 +510,26 @@ const AdminUserProfilePage = () => {
         }
     };
 
+    const handleSaveAddress = async (addressData, existingAddress) => {
+        try {
+            if (existingAddress) {
+                await adminUpdateAddress(id, existingAddress.id, addressData);
+            } else {
+                await adminAddAddress(id, addressData);
+            }
+            toast({
+                title: existingAddress ? "Address Updated" : "Address Added",
+                description: existingAddress
+                    ? "The saved address has been updated."
+                    : "The saved address is now available for this customer."
+            });
+            await fetchData();
+        } catch (error) {
+            toast({ title: "Unable to Save Address", description: error.message, variant: "destructive" });
+            throw error;
+        }
+    };
+
     if (loading) return <div className="p-6 text-center dark:text-slate-300">Loading user profile...</div>;
     if (!user) return <div className="p-6 text-center dark:text-slate-300">User not found.</div>;
     
@@ -485,7 +571,11 @@ const AdminUserProfilePage = () => {
                 </CardHeader>
                 <CardContent className="space-y-6">
                     <UserInfoSection user={user} />
-                    <SavedAddressesSection addresses={user.addresses || []} />
+                    <SavedAddressesSection
+                        addresses={user.addresses || []}
+                        canManage={canEditUser}
+                        onSaveAddress={handleSaveAddress}
+                    />
                     <AdminNotesSection notes={notes} setNotes={setNotes} handleSaveNotes={handleSaveNotes} createdByAdmin={user.createdByAdmin} />
                     <PurchaseHistorySection purchaseHistory={purchaseHistory} />
                     <UserDocumentsManager 

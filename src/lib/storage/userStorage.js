@@ -171,20 +171,36 @@ export const adminUpdateUserProfile = async (userId, updatedData) => {
 };
 
 export const adminAddAddress = async (userId, addressData) => {
-  const { data, error } = await supabase
-    .from('addresses')
-    .insert([{ ...addressData, user_id: userId }])
-    .select();
+  const { data, error } = await supabase.rpc('admin_add_customer_address', {
+    p_user_id: userId,
+    p_address: {
+      label: addressData.label?.trim() || null,
+      street: addressData.street?.trim(),
+      city: addressData.city?.trim(),
+      zip: addressData.zip?.trim(),
+      phone: addressData.phone?.trim(),
+      alt_phone: addressData.alt_phone?.trim() || null,
+      is_default: Boolean(addressData.is_default),
+    },
+  });
   if (error) throw error;
   return data;
 };
 
-export const adminUpdateAddress = async (addressId, updatedAddressData) => {
-  const { data, error } = await supabase
-    .from('addresses')
-    .update({ ...updatedAddressData, updated_at: new Date().toISOString() })
-    .eq('id', addressId)
-    .select();
+export const adminUpdateAddress = async (userId, addressId, addressData) => {
+  const { data, error } = await supabase.rpc('admin_update_customer_address', {
+    p_user_id: userId,
+    p_address_id: addressId,
+    p_address: {
+      label: addressData.label?.trim() || null,
+      street: addressData.street?.trim(),
+      city: addressData.city?.trim(),
+      zip: addressData.zip?.trim(),
+      phone: addressData.phone?.trim(),
+      alt_phone: addressData.alt_phone?.trim() || null,
+      is_default: Boolean(addressData.is_default),
+    },
+  });
   if (error) throw error;
   return data;
 };
