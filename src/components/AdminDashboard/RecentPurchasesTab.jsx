@@ -91,6 +91,8 @@ const getStatusBadgeVariant = (status) => {
     case 'pending payment':
     case 'pending':
       return 'default';
+    case 'partially paid':
+      return 'warning';
     case 'processing':
       return 'outline';
     case 'cancelled':
@@ -193,6 +195,7 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
           product_name,
           product_id, 
           paid_amount,
+          amount_received,
           status,
           user_id,
           address,
@@ -536,11 +539,11 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
       csvFn: (purchase) => !purchase.product_id ? 'Custom Purchase' : (purchase.product_name || 'N/A')
     },
     {
-      header: "Base Amount",
-      accessor: "paid_amount",
+      header: "Amount Paid",
+      accessor: "amount_received",
       className: "text-right",
-      cell: (purchase) => `BHD ${Number(purchase.paid_amount).toFixed(3)}`,
-      csvFn: (purchase) => Number(purchase.paid_amount).toFixed(3)
+      cell: (purchase) => `BHD ${Number(purchase.amount_received || 0).toFixed(3)}`,
+      csvFn: (purchase) => Number(purchase.amount_received || 0).toFixed(3)
     },
     {
       header: "Final Amount",
@@ -565,6 +568,24 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
           ? Number(purchase.final_amount_due_on_arrival) 
           : Number(purchase.paid_amount);
          return val.toFixed(3);
+      }
+    },
+    {
+      header: "Balance",
+      accessor: "balance",
+      className: "text-right",
+      cell: (purchase) => {
+        const finalAmount = purchase.final_amount_due_on_arrival !== null
+          ? Number(purchase.final_amount_due_on_arrival)
+          : Number(purchase.paid_amount);
+        const balance = Math.max(finalAmount - Number(purchase.amount_received || 0), 0);
+        return <span className="font-semibold">BHD {balance.toFixed(3)}</span>;
+      },
+      csvFn: (purchase) => {
+        const finalAmount = purchase.final_amount_due_on_arrival !== null
+          ? Number(purchase.final_amount_due_on_arrival)
+          : Number(purchase.paid_amount);
+        return Math.max(finalAmount - Number(purchase.amount_received || 0), 0).toFixed(3);
       }
     },
     {
@@ -765,6 +786,7 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
               <SelectContent>
                 <SelectItem value="All">All Status</SelectItem>
                 <SelectItem value="Pending">Pending</SelectItem>
+                <SelectItem value="Partially Paid">Partially Paid</SelectItem>
                 <SelectItem value="Confirmed">Confirmed</SelectItem>
                 <SelectItem value="Paid">Paid</SelectItem>
                 <SelectItem value="Completed">Completed</SelectItem>

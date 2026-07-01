@@ -55,6 +55,8 @@ const getStatusBadgeVariant = (status) => {
     case 'pending':
     case 'processing':
       return 'default';
+    case 'partially paid':
+      return 'warning';
     case 'cancelled':
     case 'failed':
     case 'refunded':
@@ -85,7 +87,7 @@ const calculateTransactionTotals = (baseAmountStr, discountType, discountValueSt
     };
 };
 
-const availableStatuses = ["Pending", "Confirmed", "Paid", "Processing", "Completed", "Cancelled", "Refunded", "Failed", "Flagged", "Test"];
+const availableStatuses = ["Pending", "Partially Paid", "Confirmed", "Paid", "Processing", "Completed", "Cancelled", "Refunded", "Failed", "Flagged", "Test"];
 const paymentTypeOptions = ["Cash", "Cash on Arrival", "Credit Card", "Bank Transfer", "BenefitPay"];
 
 // --- Components ---
@@ -144,7 +146,18 @@ const PurchaseCustomerInfo = ({ purchase, customerName, isEditing, editableField
         </div>
     ) : (
         <>
-            <DetailItem label="Contact Name" value={customerName || 'Guest'} />
+            <DetailItem
+                label="Contact Name"
+                value={purchase.user_id ? (
+                    <Link
+                        to={`/admin-dashboard/user/${purchase.user_id}`}
+                        className="inline-flex items-center font-medium text-primary hover:underline"
+                    >
+                        {customerName || purchase.name || 'Customer'}
+                        <ExternalLink className="ml-1 h-3.5 w-3.5" />
+                    </Link>
+                ) : (customerName || 'Guest')}
+            />
             <DetailItem label="Email" value={purchase.email || 'N/A'} />
             <DetailItem 
                 label="User Mobile" 
@@ -168,6 +181,14 @@ const PurchaseServicePaymentInfo = ({ purchase, isEditing, editableFields, onInp
     const displayAmount = purchase.final_amount_due_on_arrival !== null 
         ? purchase.final_amount_due_on_arrival 
         : purchase.paid_amount;
+    const enteredAmountReceived = Number(editableFields?.amount_received);
+    const editAmountReceived = editableFields?.status === 'Paid'
+        ? finalTotal
+        : Math.min(Math.max(Number.isFinite(enteredAmountReceived) ? enteredAmountReceived : 0, 0), finalTotal);
+    const savedAmountReceived = Math.min(
+        Math.max(Number(purchase.amount_received) || 0, 0),
+        Number(displayAmount) || 0
+    );
 
     return (
   <Section title="Service & Payment" icon={<ShoppingBag className="h-5 w-5 text-primary"/>}>
@@ -228,6 +249,21 @@ const PurchaseServicePaymentInfo = ({ purchase, isEditing, editableFields, onInp
                             ))}
                         </SelectContent>
                     </Select>
+                </div>
+
+                <div>
+                    <Label htmlFor="amount_received" className="text-sm font-medium">Amount Paid (BHD)</Label>
+                    <Input
+                        id="amount_received"
+                        name="amount_received"
+                        type="number"
+                        step="0.001"
+                        min="0"
+                        max={finalTotal}
+                        value={editableFields.amount_received}
+                        onChange={onInputChange}
+                        className="mt-1 text-sm font-semibold"
+                    />
                 </div>
 
                 <div className="space-y-2">
@@ -327,6 +363,14 @@ const PurchaseServicePaymentInfo = ({ purchase, isEditing, editableFields, onInp
                     <span>Total Due:</span>
                     <span className="text-primary">BHD {finalTotal.toFixed(3)}</span>
                 </div>
+                <div className="flex justify-between items-center text-sm py-1 text-green-700 dark:text-green-400">
+                    <span>Amount Paid:</span>
+                    <span className="font-semibold">BHD {editAmountReceived.toFixed(3)}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm py-1 font-semibold">
+                    <span>Remaining:</span>
+                    <span>BHD {Math.max(finalTotal - editAmountReceived, 0).toFixed(3)}</span>
+                </div>
             </div>
         </div>
     ) : (
@@ -417,6 +461,12 @@ const PurchaseServicePaymentInfo = ({ purchase, isEditing, editableFields, onInp
                         BHD {Number(displayAmount).toFixed(3)}
                     </dd>
                 </div>
+                <DetailItem label="Amount Paid" value={`BHD ${savedAmountReceived.toFixed(3)}`} valueClassName="font-semibold text-green-700 dark:text-green-400" />
+                <DetailItem
+                    label="Remaining"
+                    value={`BHD ${Math.max((Number(displayAmount) || 0) - savedAmountReceived, 0).toFixed(3)}`}
+                    valueClassName="font-semibold"
+                />
             </div>
         </>
     )}
@@ -617,6 +667,7 @@ const AdminPurchaseDetailPage = () => {
   const [isEditingFlagReason, setIsEditingFlagReason] = useState(false);
   const [flagReasonInput, setFlagReasonInput] = useState('');
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
+  const [isPaymentAmountDirty, setIsPaymentAmountDirty] = useState(false);
 
   const [editableFields, setEditableFields] = useState({
     status: '',
@@ -639,7 +690,8 @@ const AdminPurchaseDetailPage = () => {
     email: '',
     customer_id: null,
     is_subscription: false,
-    subscription_plan_type: 'Weekly'
+    subscription_plan_type: 'Weekly',
+    amount_received: ''
   });
 
   // Use Auto-fill Hook
@@ -693,6 +745,9 @@ const AdminPurchaseDetailPage = () => {
             coupon_code: data.coupon_code || '',
             is_subscription: data.is_subscription === true,
             subscription_plan_type: data.subscription_plan_type || 'Weekly',
+            amount_received: data.amount_received === null || data.amount_received === undefined
+                ? '0'
+                : String(data.amount_received),
             
             user_phone: data.user_phone || '',
             email: data.email || '',
@@ -709,6 +764,7 @@ const AdminPurchaseDetailPage = () => {
         
         // Initialize flag reason input
         setFlagReasonInput(data.notes || '');
+        setIsPaymentAmountDirty(false);
       } else {
         navigate("/admin-dashboard/purchases");
       }
@@ -726,11 +782,48 @@ const AdminPurchaseDetailPage = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    if (name === 'amount_received') {
+      setIsPaymentAmountDirty(true);
+      setEditableFields(prev => {
+        if (value === '') {
+          return {
+            ...prev,
+            amount_received: '',
+            status: ['Paid', 'Partially Paid'].includes(prev.status) ? 'Pending' : prev.status,
+          };
+        }
+
+        const entered = Number(value);
+        if (!Number.isFinite(entered) || entered < 0) {
+          return { ...prev, amount_received: value };
+        }
+
+        const { finalTotal } = calculateTransactionTotals(prev.base_amount, prev.discount_type, prev.discount_value);
+        if (finalTotal > 0 && entered >= finalTotal) {
+          return { ...prev, amount_received: String(finalTotal), status: 'Paid' };
+        }
+        if (entered > 0) {
+          return { ...prev, amount_received: value, status: 'Partially Paid' };
+        }
+        return {
+          ...prev,
+          amount_received: value,
+          status: ['Paid', 'Partially Paid'].includes(prev.status) ? 'Pending' : prev.status,
+        };
+      });
+      return;
+    }
     setEditableFields(prev => ({ ...prev, [name]: value }));
   };
 
   const handleSelectChange = (name, value) => {
-    setEditableFields(prev => ({ ...prev, [name]: value }));
+    setEditableFields(prev => {
+      if (name === 'status' && value === 'Paid') {
+        const { finalTotal } = calculateTransactionTotals(prev.base_amount, prev.discount_type, prev.discount_value);
+        return { ...prev, status: value, amount_received: String(finalTotal) };
+      }
+      return { ...prev, [name]: value };
+    });
   };
   
   const handleSaveFlagReason = async () => {
@@ -806,6 +899,29 @@ const AdminPurchaseDetailPage = () => {
           editableFields.discount_value
       );
 
+      const rawAmountReceived = editableFields.amount_received === ''
+          ? 0
+          : Number(editableFields.amount_received);
+      if (!Number.isFinite(rawAmountReceived) || rawAmountReceived < 0) {
+        toast({
+          title: "Validation Error",
+          description: "Amount Paid must be a valid non-negative number.",
+          variant: "destructive"
+        });
+        setLoading(false);
+        return;
+      }
+
+      let normalizedAmountReceived = Math.min(rawAmountReceived, finalTotal);
+      let normalizedStatus = editableFields.status;
+      if (editableFields.status === 'Paid') {
+        normalizedAmountReceived = finalTotal;
+      } else if (isPaymentAmountDirty) {
+        if (finalTotal > 0 && normalizedAmountReceived >= finalTotal) normalizedStatus = 'Paid';
+        else if (normalizedAmountReceived > 0) normalizedStatus = 'Partially Paid';
+        else if (normalizedStatus === 'Partially Paid') normalizedStatus = 'Pending';
+      }
+
       let isoPreferredDate = null;
       if (editableFields.preferred_booking_date) {
         try {
@@ -820,12 +936,13 @@ const AdminPurchaseDetailPage = () => {
       const baseAmount = Number(editableFields.base_amount) || 0;
 
       const updateData = {
-        status: editableFields.status,
+        status: normalizedStatus,
         product_name: editableFields.product_name,
         preferred_booking_date: isoPreferredDate,
         scheduled_at: isoPreferredDate, // Keep synced if updating preferred
         paid_amount: finalTotal,
         final_amount_due_on_arrival: finalTotal,
+        amount_received: normalizedAmountReceived,
         payment_type: editableFields.payment_type || 'Cash',
         discount_amount: discountAmount,
         original_amount: baseAmount, // Store pre-discount amount for invoice
