@@ -67,6 +67,7 @@ export const addEmployee = async (employeeData) => {
         visa_issuance_date: employeeData.visaIssuanceDate || null,
         visa_expiry_date: employeeData.visaExpiryDate || null,
         photo_url: employeeData.photoUrl || null,
+        preferred_off_day: employeeData.preferredOffDay || null,
         role: employeeData.role || 'employee',
         document_urls: [],
         created_at: new Date().toISOString(),
@@ -171,6 +172,7 @@ export const updateEmployee = async (updatedData) => {
     visa_issuance_date: updatedData.visaIssuanceDate || updatedData.visa_issuance_date || null,
     visa_expiry_date: updatedData.visaExpiryDate || updatedData.visa_expiry_date || null,
     photo_url: updatedData.photoUrl ?? updatedData.photo_url,
+    preferred_off_day: updatedData.preferredOffDay ?? updatedData.preferred_off_day,
     document_urls: updatedData.document_urls,
     updated_at: new Date().toISOString(),
   };
@@ -181,7 +183,7 @@ export const updateEmployee = async (updatedData) => {
     'date_of_birth', 'hire_date', 'visa_number', 'visa_issuance_date', 'visa_expiry_date', 
     'photo_url', 'role', 'document_urls', 'is_part_timer', 'visible_in_job_assignment',
     'age', 'employee_code', 'metadata_code', 'numeric_metadata_code', 'phone_suffix',
-    'internal_notes', 'updated_at'
+    'internal_notes', 'preferred_off_day', 'updated_at'
   ];
 
   const filteredPayload = Object.keys(payloadToUpdate)

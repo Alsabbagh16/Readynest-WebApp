@@ -4,32 +4,33 @@ import { DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
 import EmployeeFormFields from '@/components/AdminDashboard/EmployeeFormFields';
 
+const INITIAL_FORM_DATA = {
+  id: '',
+  email: '',
+  mobile: '',
+  address: '',
+  position: '',
+  fullName: '',
+  origin: '',
+  sex: '',
+  passportNumber: '',
+  passportIssueDate: '',
+  passportExpiryDate: '',
+  dateOfBirth: '',
+  hireDate: '',
+  visaNumber: '',
+  visaIssuanceDate: '',
+  visaExpiryDate: '',
+  photoUrl: '',
+  preferredOffDay: '',
+  role: 'employee',
+};
+
 const EmployeeForm = ({ employee, onSave, onCancel }) => {
   const { toast } = useToast();
   const isEditingEmployee = !!employee;
 
-  const initialFormData = {
-    id: '',
-    email: '',
-    mobile: '',
-    address: '',
-    position: '',
-    fullName: '',
-    origin: '',
-    sex: '',
-    passportNumber: '',
-    passportIssueDate: '',
-    passportExpiryDate: '',
-    dateOfBirth: '',
-    hireDate: '',
-    visaNumber: '',
-    visaIssuanceDate: '',
-    visaExpiryDate: '',
-    photoUrl: '',
-    role: 'employee', 
-  };
-
-  const [formData, setFormData] = useState(initialFormData);
+  const [formData, setFormData] = useState(INITIAL_FORM_DATA);
 
   useEffect(() => {
     if (employee) {
@@ -51,10 +52,11 @@ const EmployeeForm = ({ employee, onSave, onCancel }) => {
         visaIssuanceDate: employee.visa_issuance_date || employee.visaIssuanceDate || '',
         visaExpiryDate: employee.visa_expiry_date || employee.visaExpiryDate || '',
         photoUrl: employee.photo_url || employee.photoUrl || '',
+        preferredOffDay: employee.preferred_off_day || employee.preferredOffDay || '',
         role: employee.role || 'employee',
       });
     } else {
-      setFormData(initialFormData);
+      setFormData(INITIAL_FORM_DATA);
     }
   }, [employee]);
 

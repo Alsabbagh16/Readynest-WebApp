@@ -26,6 +26,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import EditUserForm from '@/components/AdminDashboard/EditUserForm';
 import AddressForm from '@/components/Dashboard/AddressForm';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
+import { getEmployees } from '@/lib/storage/employeeStorage';
 
 const formatDateSafe = (dateString) => {
     try {
@@ -63,7 +64,7 @@ const getStatusBadgeVariant = (status) => {
     }
 };
 
-const UserInfoSection = ({ user }) => (
+const UserInfoSection = ({ user, preferredCleaner }) => (
     <section>
         <h3 className="font-semibold text-lg border-b pb-2 mb-3 dark:text-slate-100 dark:border-slate-700">User Information</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-2 text-sm">
@@ -72,6 +73,15 @@ const UserInfoSection = ({ user }) => (
             <div className="flex items-center dark:text-slate-300"><Calendar className="h-4 w-4 mr-1 text-gray-500 dark:text-slate-400" /> <strong>DOB:</strong> {formatDateSafe(user.dob)}</div>
             <div className="flex items-center dark:text-slate-300"><Calendar className="h-4 w-4 mr-1 text-gray-500 dark:text-slate-400" /> <strong>Joined:</strong> {formatDateSafe(user.created_at)}</div>
             <div className="flex items-center dark:text-slate-300"><CreditCard className="h-4 w-4 mr-1 text-gray-500 dark:text-slate-400" /> <strong>Credits:</strong> {user.credits || 0}</div>
+            <div className="flex items-center gap-1 dark:text-slate-300">
+                <User className="h-4 w-4 text-gray-500 dark:text-slate-400" />
+                <strong>Preferred Cleaner:</strong>
+                {preferredCleaner ? (
+                    <Link to={`/admin-dashboard/employee/${preferredCleaner.id}`} className="text-primary hover:underline">
+                        {preferredCleaner.full_name || preferredCleaner.email}
+                    </Link>
+                ) : 'No preference'}
+            </div>
             <div className="flex items-center gap-2 dark:text-slate-300">
                 <strong>Subscriber:</strong>
                 <Badge variant={user.is_subscriber ? 'default' : 'secondary'}>
@@ -437,6 +447,7 @@ const AdminUserProfilePage = () => {
     const [user, setUser] = useState(null);
     const [purchaseHistory, setPurchaseHistory] = useState([]);
     const [userDocuments, setUserDocuments] = useState([]);
+    const [cleanerEmployees, setCleanerEmployees] = useState([]);
     const [notes, setNotes] = useState('');
     const [loading, setLoading] = useState(true);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -459,6 +470,14 @@ const AdminUserProfilePage = () => {
 
                 const documents = await getUserDocumentsList(id);
                 setUserDocuments(documents || []);
+
+                const employees = await getEmployees();
+                setCleanerEmployees((employees || [])
+                    .filter((employee) => (
+                        employee.visible_in_job_assignment !== false
+                        && !['admin', 'superadmin', 'suspended'].includes(String(employee.role || '').toLowerCase())
+                    ))
+                    .sort((a, b) => String(a.full_name || '').localeCompare(String(b.full_name || ''))));
 
             } else {
                 toast({ title: "Error", description: "User not found.", variant: "destructive" });
@@ -532,6 +551,7 @@ const AdminUserProfilePage = () => {
 
     if (loading) return <div className="p-6 text-center dark:text-slate-300">Loading user profile...</div>;
     if (!user) return <div className="p-6 text-center dark:text-slate-300">User not found.</div>;
+    const preferredCleaner = cleanerEmployees.find((employee) => employee.id === user.preferred_cleaner_id) || null;
     
     return (
         <div className="p-6 space-y-6 dark:text-slate-300">
@@ -551,7 +571,12 @@ const AdminUserProfilePage = () => {
                                 <DialogTitle className="dark:text-white">Edit User</DialogTitle>
                                 <DialogDescription className="dark:text-slate-400">Update the details for {user.email}.</DialogDescription>
                             </DialogHeader>
-                            <EditUserForm user={user} onSave={handleSaveUser} onCancel={() => setIsEditDialogOpen(false)} />
+                            <EditUserForm
+                                user={user}
+                                cleanerEmployees={cleanerEmployees}
+                                onSave={handleSaveUser}
+                                onCancel={() => setIsEditDialogOpen(false)}
+                            />
                         </DialogContent>
                     </Dialog>
                 )}
@@ -570,7 +595,7 @@ const AdminUserProfilePage = () => {
                     <CardDescription className="dark:text-slate-400">{user.user_type || 'Personal'} User</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                    <UserInfoSection user={user} />
+                    <UserInfoSection user={user} preferredCleaner={preferredCleaner} />
                     <SavedAddressesSection
                         addresses={user.addresses || []}
                         canManage={canEditUser}

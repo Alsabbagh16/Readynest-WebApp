@@ -41,6 +41,21 @@ const EmployeeFormFields = ({ formData, handleChange, isEditingEmployee }) => {
           <Input id="emp-position" name="position" value={formData.position} onChange={handleChange} />
         </div>
         <div>
+          <Label htmlFor="emp-preferredOffDay">Preferred Off Day</Label>
+          <select
+            id="emp-preferredOffDay"
+            name="preferredOffDay"
+            value={formData.preferredOffDay}
+            onChange={handleChange}
+            className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+          >
+            <option value="">No preference</option>
+            {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => (
+              <option key={day} value={day}>{day}</option>
+            ))}
+          </select>
+        </div>
+        <div>
           <Label htmlFor="emp-role" className="flex gap-1">Role <span className="text-red-500">*</span></Label>
           <select 
             id="emp-role" 

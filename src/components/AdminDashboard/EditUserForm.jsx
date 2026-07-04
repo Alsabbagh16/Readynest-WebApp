@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Eye, EyeOff } from 'lucide-react';
 
-const EditUserForm = ({ user, onSave, onCancel }) => {
+const EditUserForm = ({ user, cleanerEmployees = [], onSave, onCancel }) => {
   const [formData, setFormData] = useState({
     id: '',
     first_name: '',
@@ -20,6 +20,7 @@ const EditUserForm = ({ user, onSave, onCancel }) => {
     password: '',
     is_subscriber: false,
     subscription_plan_type: 'Weekly',
+    preferred_cleaner_id: '',
   });
   const [showPassword, setShowPassword] = useState(false);
 
@@ -37,6 +38,7 @@ const EditUserForm = ({ user, onSave, onCancel }) => {
         password: '',
         is_subscriber: user.is_subscriber === true,
         subscription_plan_type: user.subscription_plan_type || 'Weekly',
+        preferred_cleaner_id: user.preferred_cleaner_id || '',
       });
     }
   }, [user]);
@@ -73,6 +75,7 @@ const EditUserForm = ({ user, onSave, onCancel }) => {
       credits: creditsNum,
       is_subscriber: formData.is_subscriber,
       subscription_plan_type: formData.subscription_plan_type,
+      preferred_cleaner_id: formData.preferred_cleaner_id || null,
     };
 
     if (formData.password) {
@@ -125,6 +128,28 @@ const EditUserForm = ({ user, onSave, onCancel }) => {
           <div>
             <Label htmlFor="edit-credits">Credits</Label>
             <Input id="edit-credits" name="credits" type="number" min="0" value={formData.credits} onChange={handleChange} required />
+          </div>
+          <div>
+            <Label htmlFor="edit-preferred-cleaner">Preferred Cleaner</Label>
+            <Select
+              value={formData.preferred_cleaner_id || '__none__'}
+              onValueChange={(value) => setFormData((current) => ({
+                ...current,
+                preferred_cleaner_id: value === '__none__' ? '' : value,
+              }))}
+            >
+              <SelectTrigger id="edit-preferred-cleaner">
+                <SelectValue placeholder="Select cleaner..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">No preference</SelectItem>
+                {cleanerEmployees.map((employee) => (
+                  <SelectItem key={employee.id} value={employee.id}>
+                    {employee.full_name || employee.email} ({employee.is_part_timer ? 'Part-Time' : 'Regular'})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-2">
             <Label htmlFor="edit-is-subscriber">Subscriber</Label>

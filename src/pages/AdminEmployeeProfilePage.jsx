@@ -450,6 +450,7 @@ const EmployeeIdentityCard = ({ employee, pastJobsCount, upcomingJobsCount, show
                     <DetailField label="Employment Type" value={employmentType} />
                     <DetailField label="Status" value={status} />
                     <DetailField label="Position" value={employee.position || (employee.is_part_timer ? 'Part Timer' : 'Employee')} />
+                    <DetailField label="Preferred Off Day" value={employee.preferred_off_day || 'No preference'} />
                 </div>
             </CardContent>
         </Card>
@@ -917,6 +918,7 @@ const JobTimelineCard = ({
     activeTab,
     currentPage,
     filterMode,
+    isFullWidth = false,
     items,
     pageCount,
     paginatedItems,
@@ -939,7 +941,7 @@ const JobTimelineCard = ({
                 : 'Upcoming Jobs';
 
     return (
-    <Card className="order-4 min-w-0 max-w-full rounded-2xl border-0 bg-white shadow-sm lg:order-none lg:col-span-9">
+    <Card className={`order-4 min-w-0 max-w-full rounded-2xl border-0 bg-white shadow-sm lg:order-none ${isFullWidth ? 'lg:col-span-12' : 'lg:col-span-9'}`}>
         <CardHeader className="min-w-0 max-w-full pb-2">
             <MobileSectionToggle title={mobileTitle} isOpen={isMobileOpen} onToggle={() => setIsMobileOpen((isOpen) => !isOpen)} />
             <div className={`${isMobileOpen ? 'block' : 'hidden'} max-w-full overflow-x-auto pt-3 lg:block lg:pt-0`}>
@@ -1045,6 +1047,24 @@ const EarningsCard = ({ payouts, totalEarned, onSettle, onUndoSettle, onUpdateAm
     const [editingPayoutId, setEditingPayoutId] = useState(null);
     const [amountDraft, setAmountDraft] = useState('');
     const [isMobileOpen, setIsMobileOpen] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const payoutsPerPage = 5;
+    const pageCount = Math.max(1, Math.ceil(payouts.length / payoutsPerPage));
+    const payoutIdentity = payouts.map((payout) => payout.id).join('|');
+    const paginatedPayouts = payouts.slice(
+        (currentPage - 1) * payoutsPerPage,
+        currentPage * payoutsPerPage
+    );
+
+    useEffect(() => {
+        setCurrentPage(1);
+        setEditingPayoutId(null);
+        setAmountDraft('');
+    }, [payoutIdentity]);
+
+    useEffect(() => {
+        setCurrentPage((page) => Math.min(page, pageCount));
+    }, [pageCount]);
 
     const startEditingAmount = (payout) => {
         setEditingPayoutId(payout.applicationId);
@@ -1070,7 +1090,7 @@ const EarningsCard = ({ payouts, totalEarned, onSettle, onUndoSettle, onUpdateAm
             <CardContent className={`${isMobileOpen ? 'block' : 'hidden'} lg:block`}>
                 {payouts.length > 0 ? (
                     <div className="space-y-3">
-                        {payouts.map((payout) => (
+                        {paginatedPayouts.map((payout) => (
                             <div key={payout.id} className="relative flex min-w-0 items-center justify-between gap-3 rounded-xl bg-slate-50 p-3">
                                 {payout.status === 'Settled' && payout.applicationId && onUndoSettle && (
                                     <Button
@@ -1159,6 +1179,42 @@ const EarningsCard = ({ payouts, totalEarned, onSettle, onUndoSettle, onUpdateAm
                                 </div>
                             </div>
                         ))}
+                        {pageCount > 1 && (
+                            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+                                <p className="text-xs font-medium text-slate-400">
+                                    Showing {(currentPage - 1) * payoutsPerPage + 1}-{Math.min(currentPage * payoutsPerPage, payouts.length)} of {payouts.length}
+                                </p>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-8 rounded-xl"
+                                        onClick={() => {
+                                            cancelEditingAmount();
+                                            setCurrentPage((page) => Math.max(1, page - 1));
+                                        }}
+                                        disabled={currentPage <= 1}
+                                    >
+                                        Previous
+                                    </Button>
+                                    <span className="text-xs font-semibold text-slate-500">{currentPage} / {pageCount}</span>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-8 rounded-xl"
+                                        onClick={() => {
+                                            cancelEditingAmount();
+                                            setCurrentPage((page) => Math.min(pageCount, page + 1));
+                                        }}
+                                        disabled={currentPage >= pageCount}
+                                    >
+                                        Next
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 ) : (
                     <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500">
@@ -1591,6 +1647,7 @@ const AdminEmployeeProfilePage = ({ employeeId = null, selfService = false }) =>
                 <JobTimelineCard
                     activeTab={timelineTab}
                     filterMode={performanceFilterMode}
+                    isFullWidth={selfService || !employee.is_part_timer}
                     items={visibleTimelineItems}
                     currentPage={safeTimelinePage}
                     pageCount={timelinePageCount}
@@ -1604,7 +1661,7 @@ const AdminEmployeeProfilePage = ({ employeeId = null, selfService = false }) =>
                     setRangeEndDate={setPerformanceRangeEndDate}
                     setRangeStartDate={setPerformanceRangeStartDate}
                 />
-                {!selfService && <EarningsCard
+                {!selfService && employee.is_part_timer && <EarningsCard
                     payouts={payoutRows}
                     totalEarned={totalEarned}
                     onSettle={canManageEmployees ? handleSettlePayout : null}
