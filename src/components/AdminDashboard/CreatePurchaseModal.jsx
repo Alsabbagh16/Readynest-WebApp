@@ -186,11 +186,11 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
 
   const createCustomerForPurchase = async () => {
     const name = formData.name.trim();
-    const email = formData.email.trim().toLowerCase();
+    const email = formData.email.trim().toLowerCase() || `rn${crypto.randomUUID().replaceAll('-', '').slice(0, 14)}@readynest.co`;
     const phone = formData.phone.trim();
 
-    if (!name || !email || !phone || !formData.address_street.trim() || !formData.address_city.trim()) {
-      throw new Error("Enter the customer's name, email, phone, street, and city to create the customer and purchase.");
+    if (!name || !phone || !formData.address_street.trim() || !formData.address_city.trim()) {
+      throw new Error("Enter the customer's name, phone, street, and city to create the customer and purchase.");
     }
 
     const [{ data: emailMatches, error: emailError }, { data: phoneMatches, error: phoneError }] = await Promise.all([
@@ -222,6 +222,7 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
 
     setFormData((current) => ({
       ...current,
+      email,
       customer_id: newCustomer.id,
       user_id: newCustomer.id,
     }));
@@ -310,18 +311,20 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
     setRecoveryMessage('');
 
     try {
-      if (!formData.name || !formData.email) {
-        throw new Error("Please fill in required fields (Name, Email).");
+      if (!formData.name) {
+        throw new Error("Please fill in the customer's name.");
       }
       if (hourlyService.isSubscription && !hourlyService.subscriptionPlanType) {
         throw new Error("Please select a subscription frequency.");
       }
 
       let resolvedCustomerId = formData.user_id || formData.customer_id;
+      let resolvedEmail = formData.email.trim().toLowerCase() || `rn${crypto.randomUUID().replaceAll('-', '').slice(0, 14)}@readynest.co`;
       let createdCustomer = false;
       if (!resolvedCustomerId) {
         const newCustomer = await createCustomerForPurchase();
         resolvedCustomerId = newCustomer.id;
+        resolvedEmail = newCustomer.email;
         createdCustomer = true;
       }
 
@@ -339,7 +342,7 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
       const purchasePayload = {
         customer_id: resolvedCustomerId,
         user_id: resolvedCustomerId,
-        email: formData.email,
+        email: resolvedEmail,
         name: formData.name,
         user_phone: formData.phone,
         product_id: isCustom ? null : formData.productId,
@@ -598,7 +601,7 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="email">Email Address *</Label>
+            <Label htmlFor="email">Email Address <span className="font-normal text-muted-foreground">(Optional)</span></Label>
             <Input
               id="email"
               name="email"
@@ -606,7 +609,6 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
               value={formData.email}
               onChange={handleChange}
               placeholder="john@example.com"
-              required
             />
           </div>
           

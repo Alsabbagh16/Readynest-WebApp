@@ -5,7 +5,7 @@ import { format } from 'date-fns';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import { RefreshCcw, Download, Edit, XCircle, ShoppingCart, ExternalLink, Phone, Tag, Mail, User, PlusCircle, FileText, CalendarDays, Calendar, ChevronLeft, ChevronRight, Search, Filter, AlertTriangle, Trash2, CheckSquare, CreditCard } from 'lucide-react';
+import { RefreshCcw, Download, Edit, XCircle, ShoppingCart, ExternalLink, Phone, Tag, User, PlusCircle, FileText, CalendarDays, Calendar, ChevronLeft, ChevronRight, Search, Filter, AlertTriangle, Trash2, CheckSquare, CreditCard } from 'lucide-react';
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -495,9 +495,6 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
         <div>
           <div className="flex items-center font-medium">
              <User className="h-3 w-3 mr-1 text-muted-foreground" /> {purchase.name || 'Guest'}
-          </div>
-          <div className="text-xs text-muted-foreground flex items-center mt-0.5">
-             <Mail className="h-3 w-3 mr-1" /> {purchase.email || 'N/A'}
           </div>
           <div className="text-xs text-muted-foreground flex items-center mt-0.5">
               <Phone className="h-3 w-3 mr-1" /> 

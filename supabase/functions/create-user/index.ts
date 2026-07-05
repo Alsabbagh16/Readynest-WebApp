@@ -18,6 +18,8 @@ const generatePassword = () => {
   return `${randomPart}Aa1!`;
 };
 
+const generatePlaceholderEmail = () => `rn${crypto.randomUUID().replaceAll('-', '').slice(0, 14)}@readynest.co`;
+
 serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
@@ -49,12 +51,12 @@ serve(async (request) => {
     }
 
     const { userData } = await request.json();
-    if (!userData?.email || !userData?.first_name) {
-      return json({ error: 'Name and email are required.' }, 400);
+    if (!userData?.first_name) {
+      return json({ error: 'Name is required.' }, 400);
     }
 
-    const email = userData.email.trim().toLowerCase();
-    const phone = userData.phone.trim();
+    const email = userData.email?.trim().toLowerCase() || generatePlaceholderEmail();
+    const phone = userData.phone?.trim() || '';
     const { data: emailMatch } = await supabaseAdmin
       .from('profiles')
       .select('id')

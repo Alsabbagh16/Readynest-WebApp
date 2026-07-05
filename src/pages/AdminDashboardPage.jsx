@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, ShoppingCart, Briefcase, LogOut, ListChecks, Settings2, UserCircle, Menu, X, ChevronDown, ChevronRight, LayoutTemplate, Tag, CalendarDays, ShieldCheck, DollarSign, Mail, Package, Repeat2 } from 'lucide-react';
+import { Users, ShoppingCart, Briefcase, LogOut, ListChecks, Settings2, UserCircle, Menu, X, ChevronDown, ChevronRight, LayoutTemplate, Tag, CalendarDays, ShieldCheck, DollarSign, Mail, Package, Repeat2, Truck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { updateJob } from "@/lib/storage/jobStorage";
 import { format } from "date-fns";
@@ -21,6 +21,7 @@ import ServiceRatesTab from '@/components/AdminDashboard/ServiceRatesTab';
 import ReportIssueTab from '@/components/AdminDashboard/ReportIssueTab';
 import InventoryTab from '@/components/AdminDashboard/InventoryTab';
 import SubscriptionManagementTab from '@/components/AdminDashboard/SubscriptionManagementTab';
+import VehicleLogisticsTab from '@/components/AdminDashboard/VehicleLogisticsTab';
 import ManageRolesPage from '@/pages/ManageRolesPage';
 import AdminPurchaseDetailPage from '@/pages/AdminPurchaseDetailPage';
 import AdminJobDetailPage from '@/pages/AdminJobDetailPage'; 
@@ -62,7 +63,7 @@ const adminTabGroups = [
     id: 'operations',
     label: 'Operations',
     icon: ListChecks,
-    tabIds: ['jobs-calendar', 'jobs', 'purchases', 'subscription-management'],
+    tabIds: ['jobs-calendar', 'jobs', 'purchases', 'subscription-management', 'vehicle-logistics'],
   },
   {
     id: 'people',
@@ -104,6 +105,7 @@ const AdminDashboardContent = () => {
     { id: 'jobs', label: 'Jobs List', icon: ListChecks, path: '/admin-dashboard/jobs', component: <RecentServicesTab />, permission: 'tab.jobs_list.view' },
     { id: 'purchases', label: 'Purchases', icon: ShoppingCart, path: '/admin-dashboard/purchases', component: <RecentPurchasesTab />, permission: 'tab.recent_purchases.view' },
     { id: 'subscription-management', label: 'Subscription Management', icon: Repeat2, path: '/admin-dashboard/subscription-management', component: <SubscriptionManagementTab />, permission: 'tab.subscription_management.view' },
+    { id: 'vehicle-logistics', label: 'Vehicle Logistics', icon: Truck, path: '/admin-dashboard/vehicle-logistics', component: <VehicleLogisticsTab />, permission: 'tab.vehicle_logistics.view' },
     { id: 'accounts', label: 'Registered Accounts', icon: Users, path: '/admin-dashboard/accounts', component: <RegisteredAccountsTab />, permission: 'tab.registered_accounts.view' },
     { id: 'employees', label: 'Employees', icon: Briefcase, path: '/admin-dashboard/employees', component: <EmployeesTab />, permission: 'tab.employees.view' },
     { id: 'manage-services', label: 'Services & Products', icon: Settings2, path: '/admin-dashboard/manage-services', component: <ManageServicesTab />, permission: 'tab.services_products.view' },
@@ -127,6 +129,12 @@ const AdminDashboardContent = () => {
         if (tab.id === 'manage-roles') {
              if (isSuperadmin) return true;
              return hasUiRoles && hasPerm('tab.manage_roles.view');
+        }
+
+        if (tab.id === 'vehicle-logistics') {
+             if (isSuperadmin) return true;
+             if (hasUiRoles) return hasPerm('tab.vehicle_logistics.view');
+             return adminProfile.role === 'admin';
         }
         
         // For superadmins, show all tabs
@@ -393,7 +401,7 @@ const AdminDashboardContent = () => {
 
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto overflow-x-hidden bg-gray-100">
       
-         <header className="bg-white shadow-sm border-b border-gray-200 p-4 md:px-6 md:py-4 flex items-center justify-between flex-shrink-0 z-10 sticky top-0">
+         <header className="bg-white shadow-sm border-b border-gray-200 p-4 md:px-6 md:py-4 flex items-center justify-between flex-shrink-0 z-40 sticky top-0">
             <div className="flex items-center flex-1 min-w-0">
                 <button 
                     onClick={() => setIsMobileMenuOpen(true)}
