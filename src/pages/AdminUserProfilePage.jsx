@@ -19,7 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, User, Mail, Calendar, CreditCard, Edit, MapPin, FileText, UploadCloud, Save, ShieldAlert, Phone, ShoppingCart, Trash2, Download, PlusCircle } from 'lucide-react';
+import { ArrowLeft, User, Mail, Calendar, CreditCard, Edit, MapPin, FileText, UploadCloud, Save, ShieldAlert, Phone, ShoppingCart, Trash2, Download, PlusCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from "@/components/ui/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -216,6 +216,15 @@ const AdminNotesSection = ({ notes, setNotes, handleSaveNotes, createdByAdmin })
 
 
 const PurchaseHistorySection = ({ purchaseHistory }) => {
+    const purchasesPerPage = 5;
+    const [currentPage, setCurrentPage] = useState(1);
+    const pageCount = Math.max(1, Math.ceil(purchaseHistory.length / purchasesPerPage));
+    const pagePurchases = purchaseHistory.slice((currentPage - 1) * purchasesPerPage, currentPage * purchasesPerPage);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [purchaseHistory]);
+
     return (
         <section>
             <h3 className="font-semibold text-lg border-b pb-2 mb-3 flex items-center dark:text-slate-100 dark:border-slate-700">
@@ -234,7 +243,7 @@ const PurchaseHistorySection = ({ purchaseHistory }) => {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {purchaseHistory.map(purchase => (
+                            {pagePurchases.map(purchase => (
                                 <TableRow key={purchase.purchase_ref_id || purchase.id} className="dark:border-slate-700">
                                     <TableCell>
                                         <Link 
@@ -259,6 +268,16 @@ const PurchaseHistorySection = ({ purchaseHistory }) => {
                             ))}
                         </TableBody>
                     </Table>
+                    {pageCount > 1 && (
+                        <div className="flex items-center justify-between gap-3 border-t px-3 py-2 dark:border-slate-700">
+                            <p className="text-xs text-muted-foreground">Showing {(currentPage - 1) * purchasesPerPage + 1}-{Math.min(currentPage * purchasesPerPage, purchaseHistory.length)} of {purchaseHistory.length}</p>
+                            <div className="flex items-center gap-2">
+                                <Button type="button" variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} aria-label="Previous purchases page"><ChevronLeft className="h-4 w-4" /></Button>
+                                <span className="min-w-[52px] text-center text-xs font-medium">{currentPage} / {pageCount}</span>
+                                <Button type="button" variant="outline" size="sm" disabled={currentPage === pageCount} onClick={() => setCurrentPage((page) => Math.min(pageCount, page + 1))} aria-label="Next purchases page"><ChevronRight className="h-4 w-4" /></Button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             ) : <p className="text-sm text-gray-500 dark:text-slate-400">No purchase history found for this user.</p>}
         </section>

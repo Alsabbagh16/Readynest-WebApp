@@ -15,6 +15,7 @@ import { generateJobRefId } from '@/lib/storage/jobStorage';
 import { toLocalDatetimeInputString } from '@/lib/dateTimeHelpers';
 import { sendJobCreatedNotification } from '@/lib/whatsappService';
 import { getVisibleAssigneeOptions } from '@/lib/localEmployeeDirectory';
+import PurchaseSearchSelect from '@/components/AdminDashboard/PurchaseSearchSelect';
 
 // Helper to convert DB timestamp to local input string by stripping timezone info
 // treating the stored time as "Face Value" / Wall Clock time
@@ -95,7 +96,7 @@ const JobCoreDetailsFormSection = ({ formData, handleInputChange, availableStatu
         </Select>
       </div>
       <div className="md:col-span-2">
-        <Label htmlFor="hours_needed" className="dark:text-slate-300">Job Duration (Hours)</Label>
+        <Label htmlFor="hours_needed" className="dark:text-slate-300">Job Duration (Hours) <span className="text-red-500">*</span></Label>
         <Input
           id="hours_needed"
           name="hours_needed"
@@ -106,6 +107,7 @@ const JobCoreDetailsFormSection = ({ formData, handleInputChange, availableStatu
           onChange={handleInputChange}
           placeholder="Example: 3"
           className="dark:bg-slate-700 dark:border-slate-600 dark:text-white"
+          required
         />
         <p className="text-[10px] text-muted-foreground mt-1">
           Used by the day scheduler to extend the job block from the selected start time.
@@ -286,27 +288,7 @@ const PurchaseLinkFormSection = ({ formData, handlePurchaseSelect, availablePurc
         Select a purchase to auto-fill details...
       </Label>
       
-      <Select 
-        value={formData.purchase_ref_id || "none"} 
-        onValueChange={(val) => handlePurchaseSelect(val === "none" ? null : val)}
-        disabled={loadingPurchases}
-      >
-        <SelectTrigger id="purchase_select" className="dark:bg-slate-700 dark:border-slate-600 dark:text-white w-full">
-            <SelectValue placeholder={loadingPurchases ? "Loading purchases..." : "Select a purchase..."} />
-        </SelectTrigger>
-        <SelectContent className="max-h-[300px] dark:bg-slate-700 dark:border-slate-600 dark:text-white">
-            <SelectItem value="none">None (Create standalone job)</SelectItem>
-            {availablePurchases.map((p) => {
-                const displayName = p.name || (p.profiles ? `${p.profiles.first_name || ''} ${p.profiles.last_name || ''}`.trim() : p.email);
-                const displayAmount = p.paid_amount ? `BHD ${Number(p.paid_amount).toFixed(2)}` : '';
-                return (
-                    <SelectItem key={p.purchase_ref_id} value={p.purchase_ref_id}>
-                        {`Purchase #${p.purchase_ref_id} - ${displayName} - ${displayAmount}`}
-                    </SelectItem>
-                );
-            })}
-        </SelectContent>
-      </Select>
+      <PurchaseSearchSelect value={formData.purchase_ref_id} purchases={availablePurchases} onValueChange={handlePurchaseSelect} loading={loadingPurchases} noneLabel="None (Create standalone job)" />
 
       {formData.purchase_ref_id && (
         <p className="text-xs text-muted-foreground mt-2 dark:text-slate-400">
@@ -370,7 +352,7 @@ const AdminCreateJobPage = () => {
         .from('purchases')
         .select('purchase_ref_id, name, email, user_phone, address, product_name, preferred_booking_date, selected_addons, user_id, paid_amount, hours, profiles(first_name, last_name, phone)')
         .order('created_at', { ascending: false })
-        .limit(100); 
+        .limit(1000);
       
       if (purchasesError) throw purchasesError;
       setAvailablePurchases(purchasesData || []);
@@ -523,8 +505,14 @@ const AdminCreateJobPage = () => {
 
     setIsSubmitting(true);
 
+    const parsedHours = Number(formData.hours_needed);
     if (!formData.preferred_date || !formData.user_name || !formData.user_email || !formData.user_address.street || !formData.user_address.city || !formData.user_address.zip || !formData.user_address.phone) {
         toast({ title: "Missing Required Fields", description: "Please fill in all required fields (*).", variant: "destructive"});
+        setIsSubmitting(false);
+        return;
+    }
+    if (!Number.isFinite(parsedHours) || parsedHours < 0.5) {
+        toast({ title: "Job Duration Required", description: "Enter a job duration of at least 0.5 hours.", variant: "destructive" });
         setIsSubmitting(false);
         return;
     }
@@ -553,7 +541,7 @@ const AdminCreateJobPage = () => {
         ...formData,
         purchase_ref_id: finalPurchaseId,
         preferred_date: formattedDateForStorage,
-        hours_needed: formData.hours_needed ? Number(formData.hours_needed) : null,
+        hours_needed: parsedHours,
         document_urls: [], 
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),

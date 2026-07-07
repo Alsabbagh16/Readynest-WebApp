@@ -75,17 +75,32 @@ export const uploadVehicleImage = async (vehicleId: string, file: File): Promise
 };
 
 export const fetchVehicleMetrics = async (vehicleId: string, from: string, to: string): Promise<VehicleTelemetrySummary> => {
-  const [{ data, error }, { data: allTelemetry, error: telemetryError }] = await Promise.all([
+  const [{ data, error }, { data: allTelemetry, error: telemetryError }, { data: latestPosition, error: positionError }, { data: routeData, error: routeError }] = await Promise.all([
     supabase.rpc('get_vehicle_logistics_dashboard', {
       p_vehicle_id: vehicleId,
       p_from: from,
       p_to: to,
     }),
     supabase.from('vehicle_telemetry_daily').select('distance_km').eq('vehicle_id', vehicleId),
+    supabase.from('vehicle_telemetry_positions')
+      .select('latitude, longitude, recorded_at, speed_mps, battery_level, is_moving, accuracy_m')
+      .eq('vehicle_id', vehicleId)
+      .order('recorded_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase.rpc('get_vehicle_route', {
+      p_vehicle_id: vehicleId,
+      p_from: from,
+      p_to: to,
+      p_max_points: 1000,
+    }),
   ]);
   assertNoError(error);
   assertNoError(telemetryError);
+  assertNoError(positionError);
+  assertNoError(routeError);
   const metrics = (data || {}) as Partial<VehicleTelemetrySummary>;
+  const route = routeData || {};
   return {
     completed_jobs: Number(metrics.completed_jobs || 0),
     total_jobs_completed: Number(metrics.total_jobs_completed || 0),
@@ -96,6 +111,25 @@ export const fetchVehicleMetrics = async (vehicleId: string, from: string, to: s
     waiting_minutes: Number(metrics.waiting_minutes || 0),
     last_synced_at: metrics.last_synced_at || null,
     device_status: metrics.device_status || null,
+    latest_position: latestPosition ? {
+      ...latestPosition,
+      latitude: Number(latestPosition.latitude),
+      longitude: Number(latestPosition.longitude),
+      speed_mps: latestPosition.speed_mps === null ? null : Number(latestPosition.speed_mps),
+      battery_level: latestPosition.battery_level === null ? null : Number(latestPosition.battery_level),
+      accuracy_m: latestPosition.accuracy_m === null ? null : Number(latestPosition.accuracy_m),
+    } : null,
+    route: {
+      points: (route.points || []).map((point: any) => ({
+        ...point,
+        latitude: Number(point.latitude),
+        longitude: Number(point.longitude),
+      })),
+      distance_km: Number(route.distance_km || 0),
+      started_at: route.started_at || null,
+      ended_at: route.ended_at || null,
+      total_points: Number(route.total_points || 0),
+    },
   };
 };
 

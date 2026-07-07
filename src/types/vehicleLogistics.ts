@@ -89,6 +89,31 @@ export interface VehicleLocationMetric {
   job_count: number;
 }
 
+export interface VehicleLatestPosition {
+  latitude: number;
+  longitude: number;
+  recorded_at: string;
+  speed_mps: number | null;
+  battery_level: number | null;
+  is_moving: boolean | null;
+  accuracy_m: number | null;
+}
+
+export interface VehicleRoutePoint {
+  latitude: number;
+  longitude: number;
+  recorded_at: string;
+  is_moving: boolean | null;
+}
+
+export interface VehicleRoute {
+  points: VehicleRoutePoint[];
+  distance_km: number;
+  started_at: string | null;
+  ended_at: string | null;
+  total_points: number;
+}
+
 export interface VehicleTelemetrySummary {
   completed_jobs: number;
   total_jobs_completed: number;
@@ -99,6 +124,8 @@ export interface VehicleTelemetrySummary {
   waiting_minutes: number;
   last_synced_at: string | null;
   device_status: string | null;
+  latest_position: VehicleLatestPosition | null;
+  route: VehicleRoute;
 }
 
 export interface TraccarDeviceOption {

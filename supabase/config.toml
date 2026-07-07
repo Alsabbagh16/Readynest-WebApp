@@ -25,3 +25,8 @@ entrypoint = "./functions/send-whatsapp/index.ts"
 enabled = true
 verify_jwt = true
 entrypoint = "./functions/vehicle-telemetry-sync/index.ts"
+
+[functions.vehicle-location-ingest]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/vehicle-location-ingest/index.ts"

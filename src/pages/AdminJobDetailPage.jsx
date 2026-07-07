@@ -29,6 +29,7 @@ import {
 import StartJobModal from "@/components/StartJobModal";
 import { cn } from "@/lib/utils";
 import { getAllAssigneeDirectory, getVisibleAssigneeOptions, mapAssignedEmployeeDetails } from '@/lib/localEmployeeDirectory';
+import PurchaseSearchSelect from '@/components/AdminDashboard/PurchaseSearchSelect';
 
 // Format date treating it as "Face Value" by stripping timezone info before parsing.
 // This prevents new Date() from applying local timezone offsets to the displayed time.
@@ -129,6 +130,7 @@ const JobServiceDetailsSection = ({ job, purchaseDetails, canViewPurchaseDetails
             <DetailItem label="Linked Purchase Ref" value={job.purchase_ref_id} />
         )}
         {!job.purchase_ref_id && <DetailItem label="Product Name" value="Direct Job (No Purchase)" />}
+        <DetailItem label="Job Duration" value={job.hours_needed ? `${Number(job.hours_needed).toLocaleString('en-BH', { maximumFractionDigits: 2 })} ${Number(job.hours_needed) === 1 ? 'Hour' : 'Hours'}` : 'Not specified'} icon={<Timer className="h-4 w-4 text-muted-foreground"/>}/>
         <DetailItem label="Preferred Date" value={formatDateSafe(job.preferred_date, true)} icon={<CalendarDays className="h-4 w-4 text-muted-foreground"/>}/>
     </Section>
 );
@@ -513,26 +515,7 @@ const JobEditForm = ({ editableFields, handleInputChange, handleStatusChange, al
             <Label htmlFor="purchase_select_edit" className="flex items-center dark:text-slate-300 mb-2">
                 <ShoppingBag className="h-4 w-4 mr-2" /> Linked Purchase
             </Label>
-            <Select 
-                value={editableFields.purchase_ref_id || "none"} 
-                onValueChange={(val) => handlePurchaseSelect(val === "none" ? null : val)}
-            >
-                <SelectTrigger id="purchase_select_edit" className="dark:bg-slate-700 dark:border-slate-600 dark:text-white w-full">
-                    <SelectValue placeholder="Select a purchase..." />
-                </SelectTrigger>
-                <SelectContent className="max-h-[300px] dark:bg-slate-700 dark:border-slate-600 dark:text-white">
-                    <SelectItem value="none">None (Unlink Purchase)</SelectItem>
-                    {availablePurchases.map((p) => {
-                        const displayName = p.name || (p.profiles ? `${p.profiles.first_name || ''} ${p.profiles.last_name || ''}`.trim() : p.email);
-                        const displayAmount = p.paid_amount ? `BHD ${Number(p.paid_amount).toFixed(2)}` : '';
-                        return (
-                            <SelectItem key={p.purchase_ref_id} value={p.purchase_ref_id}>
-                                {`Purchase #${p.purchase_ref_id} - ${displayName} - ${displayAmount}`}
-                            </SelectItem>
-                        );
-                    })}
-                </SelectContent>
-            </Select>
+            <PurchaseSearchSelect value={editableFields.purchase_ref_id} purchases={availablePurchases} onValueChange={handlePurchaseSelect} noneLabel="None (Unlink Purchase)" />
             <p className="text-xs text-muted-foreground mt-1">
                 Changing this will update the link reference.
             </p>
@@ -844,7 +827,7 @@ const AdminJobDetailPage = () => {
             .from('purchases')
             .select('purchase_ref_id, name, email, user_phone, address, product_name, paid_amount, hours, profiles(first_name, last_name, phone)')
             .order('created_at', { ascending: false })
-            .limit(100);
+            .limit(1000);
         
         if (purchasesError) console.error("Error fetching purchases list:", purchasesError);
         else setAvailablePurchases(purchasesData || []);

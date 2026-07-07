@@ -21,6 +21,8 @@ const emptyMetrics: VehicleTelemetrySummary = {
   waiting_minutes: 0,
   last_synced_at: null,
   device_status: null,
+  latest_position: null,
+  route: { points: [], distance_km: 0, started_at: null, ended_at: null, total_points: 0 },
 };
 
 const monthRange = () => {
@@ -95,14 +97,34 @@ export const useVehicleLogistics = (canViewPerformance: boolean) => {
 
   useEffect(() => { loadFleet(); }, [loadFleet]);
   useEffect(() => { loadDetails(); }, [loadDetails]);
+  useEffect(() => {
+    if (!activeVehicle || !canViewPerformance) return undefined;
+    let active = true;
+    const refresh = async () => {
+      try {
+        const refreshedMetrics = await fetchVehicleMetrics(activeVehicle.id, range.from, range.to);
+        if (active) setMetrics(refreshedMetrics);
+      } catch (error) {
+        console.warn('Automatic vehicle telemetry refresh failed:', error);
+      }
+    };
+    const intervalId = window.setInterval(refresh, 60000);
+    return () => { active = false; window.clearInterval(intervalId); };
+  }, [activeVehicle, canViewPerformance, range.from, range.to]);
 
   const refreshTelemetry = useCallback(async () => {
     if (!activeVehicle) return;
     setSyncing(true);
     try {
-      await syncVehicleTelemetry(activeVehicle.id, range.from, range.to);
+      // Phone telemetry is aggregated as it arrives, so it only needs to be reloaded.
+      // The legacy Traccar API sync remains available for server-mapped vehicles.
+      if (!activeVehicle.traccar_unique_id && activeVehicle.traccar_device_id) {
+        await syncVehicleTelemetry(activeVehicle.id, range.from, range.to);
+      }
       await loadDetails();
-      toast({ title: 'Telemetry Updated', description: `${activeVehicle.name} has been synchronized with Traccar.` });
+      toast({ title: 'Telemetry Updated', description: activeVehicle.traccar_unique_id
+        ? `${activeVehicle.name} has been refreshed from phone telemetry.`
+        : `${activeVehicle.name} has been synchronized with Traccar.` });
     } catch (error) {
       toast({ title: 'Telemetry Sync Failed', description: error instanceof Error ? error.message : 'Unknown error', variant: 'destructive' });
     } finally {

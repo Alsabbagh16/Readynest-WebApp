@@ -14,6 +14,9 @@ create index if not exists vehicle_files_vehicle_created_idx
 
 alter table public.vehicle_files enable row level security;
 
+drop policy if exists "Vehicle viewers read vehicle files" on public.vehicle_files;
+drop policy if exists "Vehicle managers insert vehicle files" on public.vehicle_files;
+drop policy if exists "Vehicle managers delete vehicle files" on public.vehicle_files;
 create policy "Vehicle viewers read vehicle files" on public.vehicle_files for select to authenticated
   using (public.has_vehicle_logistics_permission('tab.vehicle_logistics.view', true));
 create policy "Vehicle managers insert vehicle files" on public.vehicle_files for insert to authenticated
@@ -25,6 +28,9 @@ insert into storage.buckets (id, name, public)
 values ('vehicle-files', 'vehicle-files', false)
 on conflict (id) do nothing;
 
+drop policy if exists "Vehicle viewers read vehicle documents" on storage.objects;
+drop policy if exists "Vehicle managers upload vehicle documents" on storage.objects;
+drop policy if exists "Vehicle managers delete vehicle documents" on storage.objects;
 create policy "Vehicle viewers read vehicle documents" on storage.objects for select to authenticated
   using (bucket_id = 'vehicle-files' and public.has_vehicle_logistics_permission('tab.vehicle_logistics.view', true));
 create policy "Vehicle managers upload vehicle documents" on storage.objects for insert to authenticated
