@@ -471,7 +471,7 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
           { value: 'today', label: 'Today', icon: Calendar },
           { value: 'tomorrow', label: 'Tomorrow', icon: Calendar },
           { value: 'subscription', label: 'Subscription', icon: Repeat2 },
-        ].map((option) => <Button key={option.value} type="button" size="sm" variant={quickFilter === option.value ? 'default' : 'ghost'} className="flex-1 sm:flex-none" onClick={() => setQuickFilter(option.value)}><option.icon className="mr-2 h-4 w-4" />{option.label}</Button>)}
+        ].map((option) => <Button key={option.value} type="button" size="sm" variant={quickFilter === option.value ? 'default' : 'ghost'} className="min-w-0 flex-1 px-2 sm:flex-none sm:px-3" onClick={() => setQuickFilter(option.value)}><option.icon className="mr-1 h-4 w-4 shrink-0 sm:mr-2" />{option.value === 'subscription' ? <><span className="sm:hidden">Sub</span><span className="hidden sm:inline">Subscription</span></> : option.label}</Button>)}
       </div>
 
       <div className="rounded-md border bg-white overflow-hidden">
