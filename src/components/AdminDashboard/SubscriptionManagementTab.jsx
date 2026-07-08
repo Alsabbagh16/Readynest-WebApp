@@ -77,15 +77,17 @@ const RetentionDots = ({ history, styles, label, describe, onSelect, selectedPur
   );
 };
 
-const ServiceRetentionDots = ({ history, twiceWeekly }) => {
-  const expectedSlots = twiceWeekly ? 8 : 4;
+const ServiceRetentionDots = ({ history, planType, customDays }) => {
+  const daysPerWeek = planType === 'Custom' ? Number(customDays || 0) : planType === 'Twice Weekly' ? 2 : 1;
+  const expectedSlots = Math.max(4, daysPerWeek * 4);
   const paddedHistory = [...(history || [])].slice(0, expectedSlots);
   while (paddedHistory.length < expectedSlots) paddedHistory.push(null);
 
   return (
     <div
-      className="mt-1 grid w-fit grid-cols-4 gap-1.5"
-      aria-label={twiceWeekly ? 'Latest subscription purchase, eight expected jobs' : 'Latest subscription purchase, four expected jobs'}
+      className="mt-1 grid w-fit gap-1.5"
+      style={{ gridTemplateColumns: `repeat(${planType === 'Custom' ? daysPerWeek : 4}, minmax(0, 1fr))` }}
+      aria-label={`Latest subscription purchase, ${expectedSlots} expected jobs`}
     >
       {paddedHistory.map((entry, slotIndex) => (
         entry?.job_ref_id ? (
@@ -285,6 +287,7 @@ const SubscriptionManagementContent = () => {
                 const filteredService = serviceFilters[subscription.client_id];
                 const serviceHistory = filteredService?.service_history || subscription.service_history;
                 const servicePlan = filteredService?.plan_type || subscription.plan_type;
+                const serviceDays = filteredService?.subscription_days_per_week ?? subscription.subscription_days_per_week;
                 const serviceScore = filteredService?.service_score ?? subscription.service_fulfillment_score;
                 return <div key={subscription.client_id} className="grid gap-3 border-b border-slate-100 p-4 last:border-b-0 lg:min-w-[880px] lg:grid-cols-[minmax(170px,1.4fr)_100px_90px_110px_120px_100px_120px] lg:items-center">
                   <div className="min-w-0">
@@ -294,8 +297,7 @@ const SubscriptionManagementContent = () => {
                     <p className="truncate text-xs text-slate-500">{subscription.phone || subscription.latest_subscription_purchase_ref_id || 'No phone'}</p>
                   </div>
                   <div className="text-sm text-slate-700">
-                    <p className="font-medium">{subscription.plan_type}</p>
-                    <p className="text-xs text-slate-400">{Number(subscription.hourly_rate || 0).toFixed(3)} BD/hr</p>
+                    <p className="font-medium">{subscription.plan_type === 'Custom' ? `Custom - ${subscription.subscription_days_per_week} days/week` : subscription.plan_type}</p>
                   </div>
                   <Badge variant="outline" className={`w-fit capitalize ${statusStyles[subscription.status]}`}>
                     {subscription.status}
@@ -316,7 +318,8 @@ const SubscriptionManagementContent = () => {
                     <p className="text-sm font-semibold text-slate-800">{Number(serviceScore || 0).toFixed(0)}%</p>
                     <ServiceRetentionDots
                       history={serviceHistory}
-                      twiceWeekly={servicePlan === 'Twice Weekly'}
+                      planType={servicePlan}
+                      customDays={serviceDays}
                     />
                   </div>
                   <div>

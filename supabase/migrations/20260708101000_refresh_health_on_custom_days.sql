@@ -1,0 +1,5 @@
+drop trigger if exists refresh_health_after_profile_subscription_write on public.profiles;
+create trigger refresh_health_after_profile_subscription_write
+after insert or update of is_subscriber, subscription_plan_type, subscription_days_per_week
+on public.profiles
+for each row execute function public.refresh_health_after_profile_subscription_write();

@@ -293,8 +293,10 @@ const PurchaseServicePaymentInfo = ({ purchase, isEditing, editableFields, onInp
                             <SelectContent>
                                 <SelectItem value="Weekly">Weekly</SelectItem>
                                 <SelectItem value="Twice Weekly">Twice Weekly</SelectItem>
+                                <SelectItem value="Custom">Custom</SelectItem>
                             </SelectContent>
                         </Select>
+                        {editableFields.subscription_plan_type === 'Custom' && <div className="mt-2"><Label htmlFor="subscription_days_per_week" className="text-sm font-medium">Days per Week <span className="text-red-500">*</span></Label><Input id="subscription_days_per_week" name="subscription_days_per_week" type="number" min="3" max="7" step="1" value={editableFields.subscription_days_per_week} onChange={onInputChange} required /></div>}
                     </div>
                 )}
 
@@ -385,7 +387,7 @@ const PurchaseServicePaymentInfo = ({ purchase, isEditing, editableFields, onInp
             <DetailItem label="Payment Type" value={purchase.payment_type || 'N/A'} />
             <DetailItem label="Subscription" value={purchase.is_subscription ? 'Yes' : 'No'} />
             {purchase.is_subscription && (
-                <DetailItem label="Frequency" value={purchase.subscription_plan_type || 'Weekly'} />
+                <DetailItem label="Frequency" value={purchase.subscription_plan_type === 'Custom' ? `Custom - ${purchase.subscription_days_per_week} days/week` : purchase.subscription_plan_type || 'Weekly'} />
             )}
             
             <div className="mt-4 pt-3 border-t border-dashed">
@@ -691,6 +693,7 @@ const AdminPurchaseDetailPage = () => {
     customer_id: null,
     is_subscription: false,
     subscription_plan_type: 'Weekly',
+    subscription_days_per_week: '',
     amount_received: ''
   });
 
@@ -745,6 +748,7 @@ const AdminPurchaseDetailPage = () => {
             coupon_code: data.coupon_code || '',
             is_subscription: data.is_subscription === true,
             subscription_plan_type: data.subscription_plan_type || 'Weekly',
+            subscription_days_per_week: data.subscription_days_per_week || '',
             amount_received: data.amount_received === null || data.amount_received === undefined
                 ? '0'
                 : String(data.amount_received),
@@ -822,6 +826,7 @@ const AdminPurchaseDetailPage = () => {
         const { finalTotal } = calculateTransactionTotals(prev.base_amount, prev.discount_type, prev.discount_value);
         return { ...prev, status: value, amount_received: String(finalTotal) };
       }
+      if (name === 'subscription_plan_type') return { ...prev, subscription_plan_type: value, subscription_days_per_week: value === 'Custom' ? prev.subscription_days_per_week : '' };
       return { ...prev, [name]: value };
     });
   };
@@ -882,6 +887,14 @@ const AdminPurchaseDetailPage = () => {
         });
         setLoading(false);
         return;
+      }
+      if (editableFields.is_subscription && editableFields.subscription_plan_type === 'Custom') {
+        const days = Number(editableFields.subscription_days_per_week);
+        if (!Number.isInteger(days) || days < 3 || days > 7) {
+          toast({ title: "Validation Error", description: "Custom subscriptions require 3 to 7 days per week.", variant: "destructive" });
+          setLoading(false);
+          return;
+        }
       }
       if (editableFields.is_subscription && !editableFields.customer_id && !purchase.user_id) {
         toast({
@@ -949,6 +962,7 @@ const AdminPurchaseDetailPage = () => {
         coupon_code: editableFields.coupon_code ? editableFields.coupon_code.trim() : null,
         is_subscription: editableFields.is_subscription,
         subscription_plan_type: editableFields.subscription_plan_type || 'Weekly',
+        subscription_days_per_week: editableFields.is_subscription && editableFields.subscription_plan_type === 'Custom' ? Number(editableFields.subscription_days_per_week) : null,
         
         user_phone: editableFields.user_phone,
         email: editableFields.email,

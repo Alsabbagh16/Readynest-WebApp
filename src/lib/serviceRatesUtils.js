@@ -67,7 +67,7 @@ export const calculateSubscriptionAmount = (standardAmount, subscriptionConfig) 
 };
 
 // Calculate hourly service amount with subscription support
-export const calculateHourlyAmount = (cleaners, hours, isSubscription, serviceRates, subscriptionPlanType = 'Weekly') => {
+export const calculateHourlyAmount = (cleaners, hours, isSubscription, serviceRates, subscriptionPlanType = 'Weekly', subscriptionDaysPerWeek = null) => {
   if (!serviceRates || !cleaners || !hours) {
     return 0;
   }
@@ -82,12 +82,14 @@ export const calculateHourlyAmount = (cleaners, hours, isSubscription, serviceRa
   // Use new subscription calculation if available
   if (serviceRates.subscriptionCalculation && serviceRates.subscriptionCalculation.enabled) {
     const subscriptionAmount = calculateSubscriptionAmount(standardAmount, serviceRates.subscriptionCalculation);
-    return subscriptionPlanType === 'Twice Weekly' ? subscriptionAmount * 2 : subscriptionAmount;
+    const multiplier = subscriptionPlanType === 'Custom' ? Number(subscriptionDaysPerWeek || 0) : subscriptionPlanType === 'Twice Weekly' ? 2 : 1;
+    return subscriptionAmount * multiplier;
   }
   
   // Fallback to old subscription rate with proper formula
   const multipliedAmount = standardAmount * serviceRates.subscriptionRate;
   const discount = multipliedAmount * (serviceRates.subscriptionDiscount / 100);
   const subscriptionAmount = multipliedAmount - discount;
-  return subscriptionPlanType === 'Twice Weekly' ? subscriptionAmount * 2 : subscriptionAmount;
+  const multiplier = subscriptionPlanType === 'Custom' ? Number(subscriptionDaysPerWeek || 0) : subscriptionPlanType === 'Twice Weekly' ? 2 : 1;
+  return subscriptionAmount * multiplier;
 };

@@ -22,7 +22,8 @@ const CreateCustomerForm = ({ onSuccess, onCancel }) => {
     user_type: 'Personal',
     credits: 0,
     is_subscriber: false,
-    subscription_plan_type: 'Weekly'
+    subscription_plan_type: 'Weekly',
+    subscription_days_per_week: ''
   });
 
   const handleInputChange = (e) => {
@@ -54,6 +55,10 @@ const CreateCustomerForm = ({ onSuccess, onCancel }) => {
     if (!emailRegex.test(formData.email)) errors.push('Please enter a valid email address');
 
     if (formData.phone && formData.phone.replace(/\D/g, '').length < 8) errors.push('Phone number must be at least 8 digits');
+    if (formData.is_subscriber && formData.subscription_plan_type === 'Custom') {
+      const days = Number(formData.subscription_days_per_week);
+      if (!Number.isInteger(days) || days < 3 || days > 7) errors.push('Custom subscriptions require 3 to 7 days per week');
+    }
 
     return errors;
   };
@@ -83,7 +88,8 @@ const CreateCustomerForm = ({ onSuccess, onCancel }) => {
         user_type: formData.user_type,
         credits: parseInt(formData.credits) || 0,
         is_subscriber: formData.is_subscriber,
-        subscription_plan_type: formData.is_subscriber ? formData.subscription_plan_type : null
+        subscription_plan_type: formData.is_subscriber ? formData.subscription_plan_type : null,
+        subscription_days_per_week: formData.is_subscriber && formData.subscription_plan_type === 'Custom' ? Number(formData.subscription_days_per_week) : null
       };
 
       const newCustomer = await createUser(customerData);
@@ -117,7 +123,8 @@ const CreateCustomerForm = ({ onSuccess, onCancel }) => {
       user_type: 'Personal',
       credits: 0,
       is_subscriber: false,
-      subscription_plan_type: 'Weekly'
+      subscription_plan_type: 'Weekly',
+      subscription_days_per_week: ''
     });
   };
 
@@ -178,7 +185,7 @@ const CreateCustomerForm = ({ onSuccess, onCancel }) => {
               <Label htmlFor="create-subscription-plan">Cleaning Frequency</Label>
               <Select
                 value={formData.subscription_plan_type}
-                onValueChange={(value) => setFormData((current) => ({ ...current, subscription_plan_type: value }))}
+                onValueChange={(value) => setFormData((current) => ({ ...current, subscription_plan_type: value, subscription_days_per_week: value === 'Custom' ? current.subscription_days_per_week : '' }))}
               >
                 <SelectTrigger id="create-subscription-plan">
                   <SelectValue placeholder="Select frequency" />
@@ -186,8 +193,10 @@ const CreateCustomerForm = ({ onSuccess, onCancel }) => {
                 <SelectContent>
                   <SelectItem value="Weekly">Weekly</SelectItem>
                   <SelectItem value="Twice Weekly">Twice Weekly</SelectItem>
+                  <SelectItem value="Custom">Custom</SelectItem>
                 </SelectContent>
               </Select>
+              {formData.subscription_plan_type === 'Custom' && <div className="mt-2"><Label htmlFor="create-subscription-days">Days per Week</Label><Input id="create-subscription-days" name="subscription_days_per_week" type="number" min="3" max="7" step="1" value={formData.subscription_days_per_week} onChange={handleInputChange} required /></div>}
             </div>
           )}
         </div>

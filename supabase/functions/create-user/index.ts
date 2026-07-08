@@ -54,6 +54,10 @@ serve(async (request) => {
     if (!userData?.first_name) {
       return json({ error: 'Name is required.' }, 400);
     }
+    if (userData.is_subscriber && userData.subscription_plan_type === 'Custom') {
+      const days = Number(userData.subscription_days_per_week);
+      if (!Number.isInteger(days) || days < 3 || days > 7) return json({ error: 'Custom subscriptions require 3 to 7 days per week.' }, 400);
+    }
 
     const email = userData.email?.trim().toLowerCase() || generatePlaceholderEmail();
     const phone = userData.phone?.trim() || '';
@@ -99,6 +103,7 @@ serve(async (request) => {
       credits: userData.credits || 0,
       is_subscriber: userData.is_subscriber === true,
       subscription_plan_type: userData.is_subscriber ? (userData.subscription_plan_type || 'Weekly') : null,
+      subscription_days_per_week: userData.is_subscriber && userData.subscription_plan_type === 'Custom' ? Number(userData.subscription_days_per_week) : null,
       subscription_status: userData.is_subscriber ? 'unbooked' : null,
       subscription_started_at: userData.is_subscriber ? new Date().toISOString() : null,
     }, { onConflict: 'id' });
@@ -140,6 +145,7 @@ serve(async (request) => {
         credits: userData.credits || 0,
         is_subscriber: userData.is_subscriber === true,
         subscription_plan_type: userData.subscription_plan_type || null,
+        subscription_days_per_week: userData.subscription_plan_type === 'Custom' ? Number(userData.subscription_days_per_week) : null,
         created_at: authData.user.created_at,
         address: createdAddress,
       },

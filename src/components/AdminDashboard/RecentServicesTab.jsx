@@ -40,7 +40,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Trash2,
-  Users
+  Users,
+  Repeat2
 } from "lucide-react";
 import { format } from 'date-fns';
 import { Link } from 'react-router-dom';
@@ -85,12 +86,16 @@ const getDateRange = (filter) => {
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
   
   switch (filter) {
     case 'today':
       return { start: today, end: new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1) };
     case 'yesterday':
       return { start: yesterday, end: new Date(yesterday.getTime() + 24 * 60 * 60 * 1000 - 1) };
+    case 'tomorrow':
+      return { start: tomorrow, end: new Date(tomorrow.getTime() + 24 * 60 * 60 * 1000 - 1) };
     case 'thisWeek': {
       const startOfWeek = new Date(today);
       startOfWeek.setDate(today.getDate() - today.getDay());
@@ -117,6 +122,7 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [quickFilter, setQuickFilter] = useState('all');
   const [dateRangeFilter, setDateRangeFilter] = useState('all'); // preset date ranges
   const [customDateRange, setCustomDateRange] = useState({ start: '', end: '' }); // custom date range
   const [pagination, setPagination] = useState({
@@ -165,7 +171,7 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
         .from('jobs')
         .select(`
             *,
-            purchase:purchases(product_name, purchase_ref_id),
+            purchase:purchases(product_name, purchase_ref_id, is_subscription),
             user:profiles(first_name, last_name, email)
         `)
         .order('preferred_date', { ascending: false });
@@ -309,6 +315,15 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
     (statusFilter === 'Pending' && (job.status === 'Pending' || job.status === 'Pending Assignment')) ||
     (statusFilter !== 'Pending' && job.status === statusFilter);
 
+    let matchesQuickFilter = true;
+    if (quickFilter === 'today' || quickFilter === 'tomorrow') {
+      const todayRange = getDateRange(quickFilter);
+      const jobDate = job.preferred_date ? new Date(job.preferred_date) : null;
+      matchesQuickFilter = Boolean(jobDate && !Number.isNaN(jobDate.getTime()) && jobDate >= todayRange.start && jobDate <= todayRange.end);
+    } else if (quickFilter === 'subscription') {
+      matchesQuickFilter = job.purchase?.is_subscription === true;
+    }
+
     // Date range filtering
     let matchesDateRange = true;
     if (dateRangeFilter !== 'all') {
@@ -338,7 +353,7 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
       }
     }
 
-    return matchesSearch && matchesStatus && matchesDateRange;
+    return matchesSearch && matchesStatus && matchesDateRange && matchesQuickFilter;
   });
 
   // Update pagination based on filtered results
@@ -349,7 +364,7 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
       totalPages: Math.ceil(filteredJobs.length / prev.itemsPerPage),
       currentPage: 1 // Reset to first page when filters change
     }));
-  }, [filteredJobs.length, pagination.itemsPerPage]);
+  }, [filteredJobs.length, pagination.itemsPerPage, quickFilter]);
 
   // Get paginated data from filtered results
   const getPaginatedJobs = () => {
@@ -448,6 +463,15 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
                 </Button>
               )}
         </div>
+      </div>
+
+      <div className="mb-4 flex w-full gap-1 rounded-md border border-slate-200 bg-white p-1 sm:w-fit">
+        {[
+          { value: 'all', label: 'All', icon: Filter },
+          { value: 'today', label: 'Today', icon: Calendar },
+          { value: 'tomorrow', label: 'Tomorrow', icon: Calendar },
+          { value: 'subscription', label: 'Subscription', icon: Repeat2 },
+        ].map((option) => <Button key={option.value} type="button" size="sm" variant={quickFilter === option.value ? 'default' : 'ghost'} className="flex-1 sm:flex-none" onClick={() => setQuickFilter(option.value)}><option.icon className="mr-2 h-4 w-4" />{option.label}</Button>)}
       </div>
 
       <div className="rounded-md border bg-white overflow-hidden">

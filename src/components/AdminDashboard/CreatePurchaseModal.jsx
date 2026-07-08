@@ -56,7 +56,8 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
     cleaners: '',
     hours: '',
     isSubscription: false,
-    subscriptionPlanType: 'Weekly'
+    subscriptionPlanType: 'Weekly',
+    subscriptionDaysPerWeek: ''
   });
 
   const [formData, setFormData] = useState({
@@ -126,12 +127,13 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
           hours,
           hourlyService.isSubscription,
           serviceRates,
-          hourlyService.subscriptionPlanType
+          hourlyService.subscriptionPlanType,
+          hourlyService.subscriptionDaysPerWeek
         );
         setFormData(prev => ({ ...prev, amount: calculatedAmount.toString() }));
       }
     }
-  }, [hourlyService.cleaners, hourlyService.hours, hourlyService.isSubscription, hourlyService.subscriptionPlanType, serviceRates]);
+  }, [hourlyService.cleaners, hourlyService.hours, hourlyService.isSubscription, hourlyService.subscriptionPlanType, hourlyService.subscriptionDaysPerWeek, serviceRates]);
 
   const fetchServiceRatesData = async () => {
     const rates = await fetchServiceRates();
@@ -144,7 +146,8 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
         hourlyService.hours,
         hourlyService.isSubscription,
         rates,
-        hourlyService.subscriptionPlanType
+        hourlyService.subscriptionPlanType,
+        hourlyService.subscriptionDaysPerWeek
       );
       setFormData(prev => ({ ...prev, amount: calculatedAmount.toString() }));
     }
@@ -270,6 +273,7 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
         ...prev,
         [field]: nextValue
       };
+      if (field === 'subscriptionPlanType' && nextValue !== 'Custom') updatedService.subscriptionDaysPerWeek = '';
       
       // Auto-calculate amount when hourly service fields are filled
       if (updatedService.cleaners && updatedService.hours && serviceRates) {
@@ -278,7 +282,8 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
           Number(updatedService.hours),
           updatedService.isSubscription,
           serviceRates,
-          updatedService.subscriptionPlanType
+          updatedService.subscriptionPlanType,
+          updatedService.subscriptionDaysPerWeek
         );
         setFormData(prev => ({ ...prev, amount: calculatedAmount.toString() }));
       }
@@ -316,6 +321,10 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
       }
       if (hourlyService.isSubscription && !hourlyService.subscriptionPlanType) {
         throw new Error("Please select a subscription frequency.");
+      }
+      if (hourlyService.isSubscription && hourlyService.subscriptionPlanType === 'Custom') {
+        const days = Number(hourlyService.subscriptionDaysPerWeek);
+        if (!Number.isInteger(days) || days < 3 || days > 7) throw new Error('Custom subscriptions require 3 to 7 days per week.');
       }
 
       let resolvedCustomerId = formData.user_id || formData.customer_id;
@@ -360,6 +369,9 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
         is_subscription: hourlyService.isSubscription,
         subscription_plan_type: hourlyService.isSubscription
           ? hourlyService.subscriptionPlanType
+          : null,
+        subscription_days_per_week: hourlyService.isSubscription && hourlyService.subscriptionPlanType === 'Custom'
+          ? Number(hourlyService.subscriptionDaysPerWeek)
           : null,
         payment_type: formData.paymentType,
         status: formData.status,
@@ -450,7 +462,8 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
         cleaners: '',
         hours: '',
         isSubscription: false,
-        subscriptionPlanType: 'Weekly'
+        subscriptionPlanType: 'Weekly',
+        subscriptionDaysPerWeek: ''
       });
       setSelectedAddressId(null);
       setCustomerAddresses([]);
@@ -816,7 +829,9 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
                 >
                   <option value="Weekly">Weekly</option>
                   <option value="Twice Weekly">Twice Weekly</option>
+                  <option value="Custom">Custom</option>
                 </select>
+                {hourlyService.subscriptionPlanType === 'Custom' && <div className="mt-2"><Label htmlFor="subscription-days-per-week">Days per Week <span className="text-red-500">*</span></Label><Input id="subscription-days-per-week" type="number" min="3" max="7" step="1" value={hourlyService.subscriptionDaysPerWeek} onChange={(event) => handleHourlyServiceChange('subscriptionDaysPerWeek', event.target.value)} required /></div>}
               </div>
             )}
             
@@ -833,7 +848,8 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
                       hourlyService.hours,
                       hourlyService.isSubscription,
                       serviceRates,
-                      hourlyService.subscriptionPlanType
+                      hourlyService.subscriptionPlanType,
+                      hourlyService.subscriptionDaysPerWeek
                     ).toFixed(3)}
                   </div>
                 )}

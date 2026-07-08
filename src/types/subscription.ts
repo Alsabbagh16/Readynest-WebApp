@@ -19,7 +19,8 @@ export interface ServiceFulfillmentPeriod {
 
 export interface SubscriptionPurchaseService {
   purchase_ref_id: string;
-  plan_type: 'Weekly' | 'Twice Weekly';
+  plan_type: 'Weekly' | 'Twice Weekly' | 'Custom';
+  subscription_days_per_week: number | null;
   expected_jobs: number;
   service_score: number;
   service_history: ServiceFulfillmentPeriod[];
@@ -29,7 +30,8 @@ export interface SubscriptionDashboardRow {
   client_id: string;
   client_name: string;
   phone: string;
-  plan_type: 'Weekly' | 'Twice Weekly';
+  plan_type: 'Weekly' | 'Twice Weekly' | 'Custom';
+  subscription_days_per_week: number | null;
   hourly_rate: number;
   status: SubscriptionStatus;
   last_clean_date: string | null;
@@ -45,7 +47,8 @@ export interface ChurnRiskSubscription {
   client_id: string;
   client_name: string;
   phone: string;
-  plan_type: 'Weekly' | 'Twice Weekly';
+  plan_type: 'Weekly' | 'Twice Weekly' | 'Custom';
+  subscription_days_per_week: number | null;
   status: Extract<SubscriptionStatus, 'unbooked' | 'paused'>;
   last_clean_date: string | null;
   days_since_last_clean: number | null;

@@ -42,6 +42,9 @@ export const createPurchase = async (purchaseData) => {
         subscription_plan_type: purchaseData.is_subscription
             ? (purchaseData.subscription_plan_type || 'Weekly')
             : null,
+        subscription_days_per_week: purchaseData.is_subscription && purchaseData.subscription_plan_type === 'Custom'
+            ? Number(purchaseData.subscription_days_per_week)
+            : null,
         discount_amount: parseFloat(purchaseData.discount_amount || 0),
         original_amount: parseFloat(purchaseData.original_amount || 0) || null,
         coupon_code: purchaseData.coupon_code || null,

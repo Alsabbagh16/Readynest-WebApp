@@ -20,6 +20,7 @@ const EditUserForm = ({ user, cleanerEmployees = [], onSave, onCancel }) => {
     password: '',
     is_subscriber: false,
     subscription_plan_type: 'Weekly',
+    subscription_days_per_week: '',
     preferred_cleaner_id: '',
   });
   const [showPassword, setShowPassword] = useState(false);
@@ -38,6 +39,7 @@ const EditUserForm = ({ user, cleanerEmployees = [], onSave, onCancel }) => {
         password: '',
         is_subscriber: user.is_subscriber === true,
         subscription_plan_type: user.subscription_plan_type || 'Weekly',
+        subscription_days_per_week: user.subscription_days_per_week || '',
         preferred_cleaner_id: user.preferred_cleaner_id || '',
       });
     }
@@ -63,6 +65,10 @@ const EditUserForm = ({ user, cleanerEmployees = [], onSave, onCancel }) => {
         alert("Credits must be a non-negative number.");
         return;
     }
+    if (formData.is_subscriber && formData.subscription_plan_type === 'Custom') {
+        const days = Number(formData.subscription_days_per_week);
+        if (!Number.isInteger(days) || days < 3 || days > 7) { alert('Custom subscriptions require 3 to 7 days per week.'); return; }
+    }
     
     const dataToSave = { 
       id: formData.id,
@@ -75,6 +81,7 @@ const EditUserForm = ({ user, cleanerEmployees = [], onSave, onCancel }) => {
       credits: creditsNum,
       is_subscriber: formData.is_subscriber,
       subscription_plan_type: formData.subscription_plan_type,
+      subscription_days_per_week: formData.is_subscriber && formData.subscription_plan_type === 'Custom' ? Number(formData.subscription_days_per_week) : null,
       preferred_cleaner_id: formData.preferred_cleaner_id || null,
     };
 
@@ -170,7 +177,7 @@ const EditUserForm = ({ user, cleanerEmployees = [], onSave, onCancel }) => {
               <Label htmlFor="edit-subscription-plan">Cleaning Frequency</Label>
               <Select
                 value={formData.subscription_plan_type}
-                onValueChange={(value) => setFormData((current) => ({ ...current, subscription_plan_type: value }))}
+                onValueChange={(value) => setFormData((current) => ({ ...current, subscription_plan_type: value, subscription_days_per_week: value === 'Custom' ? current.subscription_days_per_week : '' }))}
               >
                 <SelectTrigger id="edit-subscription-plan">
                   <SelectValue placeholder="Select frequency" />
@@ -178,8 +185,10 @@ const EditUserForm = ({ user, cleanerEmployees = [], onSave, onCancel }) => {
                 <SelectContent>
                   <SelectItem value="Weekly">Weekly</SelectItem>
                   <SelectItem value="Twice Weekly">Twice Weekly</SelectItem>
+                  <SelectItem value="Custom">Custom</SelectItem>
                 </SelectContent>
               </Select>
+              {formData.subscription_plan_type === 'Custom' && <div className="mt-2"><Label htmlFor="edit-subscription-days">Days per Week</Label><Input id="edit-subscription-days" name="subscription_days_per_week" type="number" min="3" max="7" step="1" value={formData.subscription_days_per_week} onChange={handleChange} required /></div>}
             </div>
           )}
            <div className="relative md:col-span-2">

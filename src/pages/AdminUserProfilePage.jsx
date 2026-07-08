@@ -85,7 +85,11 @@ const UserInfoSection = ({ user, preferredCleaner }) => (
             <div className="flex items-center gap-2 dark:text-slate-300">
                 <strong>Subscriber:</strong>
                 <Badge variant={user.is_subscriber ? 'default' : 'secondary'}>
-                    {user.is_subscriber ? user.subscription_plan_type || 'Subscriber' : 'No'}
+                    {user.is_subscriber
+                        ? user.subscription_plan_type === 'Custom'
+                            ? `Custom - ${user.subscription_days_per_week} days/week`
+                            : user.subscription_plan_type || 'Subscriber'
+                        : 'No'}
                 </Badge>
             </div>
         </div>
