@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, ShoppingCart, Briefcase, LogOut, ListChecks, Settings2, UserCircle, Menu, X, ChevronDown, ChevronRight, LayoutTemplate, Tag, CalendarDays, ShieldCheck, DollarSign, Mail, Package, Repeat2, Truck } from 'lucide-react';
+import { Users, ShoppingCart, Briefcase, LogOut, ListChecks, Settings2, UserCircle, Menu, X, ChevronDown, ChevronRight, LayoutTemplate, Tag, CalendarDays, ShieldCheck, DollarSign, Mail, Package, Repeat2, Truck, LayoutDashboard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { updateJob } from "@/lib/storage/jobStorage";
 import { format } from "date-fns";
@@ -22,6 +22,7 @@ import ReportIssueTab from '@/components/AdminDashboard/ReportIssueTab';
 import InventoryTab from '@/components/AdminDashboard/InventoryTab';
 import SubscriptionManagementTab from '@/components/AdminDashboard/SubscriptionManagementTab';
 import VehicleLogisticsTab from '@/components/AdminDashboard/VehicleLogisticsTab';
+import DashboardOverviewTab from '@/components/AdminDashboard/DashboardOverviewTab';
 import ManageRolesPage from '@/pages/ManageRolesPage';
 import AdminPurchaseDetailPage from '@/pages/AdminPurchaseDetailPage';
 import AdminJobDetailPage from '@/pages/AdminJobDetailPage'; 
@@ -57,7 +58,7 @@ const adminTabGroups = [
     id: 'workspace',
     label: 'Workspace',
     icon: UserCircle,
-    tabIds: ['my-account', 'report-issue'],
+    tabIds: ['dashboard-overview', 'my-account', 'report-issue'],
   },
   {
     id: 'operations',
@@ -100,6 +101,7 @@ const AdminDashboardContent = () => {
   }, [location.pathname]);
 
   const allTabs = [
+    { id: 'dashboard-overview', label: 'Dashboard Overview', icon: LayoutDashboard, path: '/admin-dashboard/dashboard-overview', component: <DashboardOverviewTab />, permission: 'tab.dashboard_overview.view' },
     { id: 'my-account', label: 'My Account', icon: UserCircle, path: '/admin-dashboard/my-account', component: <AdminMyAccountTab />, permission: null }, 
     { id: 'jobs-calendar', label: 'Jobs Calendar', icon: CalendarDays, path: '/admin-dashboard/jobs-calendar', component: <JobsCalendarTab />, permission: 'tab.jobs_list.view' },
     { id: 'jobs', label: 'Jobs List', icon: ListChecks, path: '/admin-dashboard/jobs', component: <RecentServicesTab />, permission: 'tab.jobs_list.view' },
