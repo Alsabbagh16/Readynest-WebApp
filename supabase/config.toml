@@ -35,3 +35,8 @@ entrypoint = "./functions/vehicle-location-ingest/index.ts"
 enabled = true
 verify_jwt = true
 entrypoint = "./functions/vehicle-road-snap/index.ts"
+
+[functions.vehicle-maps-config]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/vehicle-maps-config/index.ts"

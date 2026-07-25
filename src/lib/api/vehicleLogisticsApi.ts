@@ -159,6 +159,16 @@ export const fetchVehicleRoadSnappedRoute = async (
   };
 };
 
+export const fetchGoogleMapsApiKey = async (): Promise<string> => {
+  const { data, error } = await supabase.functions.invoke('vehicle-maps-config', {
+    body: {},
+  });
+  assertNoError(error);
+  if (data?.error) throw new Error(data.error);
+  if (!data?.api_key) throw new Error('Google Maps API key is not configured.');
+  return data.api_key;
+};
+
 export const fetchVehicleServiceLogs = async (vehicleId: string): Promise<VehicleServiceLog[]> => {
   const { data, error } = await supabase
     .from('vehicle_service_logs')

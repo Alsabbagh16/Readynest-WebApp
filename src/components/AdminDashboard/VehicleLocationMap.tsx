@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Battery, Clock3, Loader2, MapPin, Route } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { fetchVehicleRoadSnappedRoute } from '@/lib/api/vehicleLogisticsApi';
+import { fetchGoogleMapsApiKey, fetchVehicleRoadSnappedRoute } from '@/lib/api/vehicleLogisticsApi';
 import type {
   VehicleLatestPosition,
   VehicleRoadSnappedRoute,
@@ -14,18 +14,28 @@ declare global {
   interface Window {
     google?: any;
     __readynestGoogleMapsPromise?: Promise<any>;
+    __readynestGoogleMapsKeyPromise?: Promise<string>;
   }
 }
 
 const GOOGLE_MAPS_SCRIPT_ID = 'readynest-google-maps-script';
-const googleMapsKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
+
+const loadGoogleMapsKey = () => {
+  if (!window.__readynestGoogleMapsKeyPromise) {
+    window.__readynestGoogleMapsKeyPromise = fetchGoogleMapsApiKey();
+  }
+  return window.__readynestGoogleMapsKeyPromise;
+};
 
 const loadGoogleMaps = () => {
-  if (!googleMapsKey) return Promise.reject(new Error('Google Maps browser key is not configured.'));
   if (window.google?.maps) return Promise.resolve(window.google.maps);
   if (window.__readynestGoogleMapsPromise) return window.__readynestGoogleMapsPromise;
 
-  window.__readynestGoogleMapsPromise = new Promise((resolve, reject) => {
+  window.__readynestGoogleMapsPromise = loadGoogleMapsKey().then((googleMapsKey) => new Promise((resolve, reject) => {
+    if (!googleMapsKey) {
+      reject(new Error('Google Maps API key is not configured.'));
+      return;
+    }
     const existing = document.getElementById(GOOGLE_MAPS_SCRIPT_ID) as HTMLScriptElement | null;
     if (existing) {
       existing.addEventListener('load', () => resolve(window.google.maps), { once: true });
@@ -40,7 +50,7 @@ const loadGoogleMaps = () => {
     script.onload = () => resolve(window.google.maps);
     script.onerror = () => reject(new Error('Google Maps script failed to load.'));
     document.head.appendChild(script);
-  });
+  }));
 
   return window.__readynestGoogleMapsPromise;
 };
@@ -164,7 +174,6 @@ export const VehicleLocationMap = ({
   const visualPoints = snappedRoute?.points?.length ? snappedRoute.points : route.points;
   const linePoints = isSparsePinMode ? [] : isRoadSnappedMode ? snappedRoute.points : route.points;
   const visualDistanceKm = snappedRoute ? snappedRoute.distance_km : route.distance_km;
-  const hasGoogleMapKey = Boolean(googleMapsKey);
 
   useEffect(() => {
     let active = true;
@@ -398,10 +407,10 @@ export const VehicleLocationMap = ({
         <p className="mt-3 text-sm font-semibold">No vehicle location received for this range.</p>
         <p className="mt-1 max-w-sm text-xs">Once the Traccar phone app sends GPS points, this card will show the latest pin and travelled path.</p>
       </div> : <>
-        {!hasGoogleMapKey || mapError ? <div className="flex h-[320px] flex-col items-center justify-center bg-slate-50 px-5 text-center text-sm text-rose-600 sm:h-[420px]">
+        {mapError ? <div className="flex h-[320px] flex-col items-center justify-center bg-slate-50 px-5 text-center text-sm text-rose-600 sm:h-[420px]">
           <MapPin className="mb-3 h-8 w-8" />
-          <p className="font-semibold">{mapError || 'Google Maps browser key is not configured.'}</p>
-          <p className="mt-1 text-xs text-slate-500">Set VITE_GOOGLE_MAPS_API_KEY to render the live map.</p>
+          <p className="font-semibold">{mapError}</p>
+          <p className="mt-1 text-xs text-slate-500">The map key is loaded from the production Supabase secret.</p>
         </div> : <div className="relative h-[320px] min-h-[320px] w-full overflow-hidden bg-slate-100 sm:h-[420px] sm:min-h-[420px]">
           <div ref={containerRef} className="absolute inset-0 z-0 h-full w-full" />
           {mapLoading && <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/75 text-sm font-semibold text-slate-600">
