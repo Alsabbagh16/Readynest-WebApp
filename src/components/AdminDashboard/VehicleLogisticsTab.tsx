@@ -177,7 +177,13 @@ const ServiceLogDialog = ({ open, vehicleId, log, drivers, onOpenChange, onSaved
     </DialogContent>
   </Dialog>;
 };
-const PerformanceGrid = ({ metrics, routeViewKey }: { metrics: VehicleTelemetrySummary; routeViewKey: string }) => {
+const PerformanceGrid = ({ metrics, routeViewKey, vehicleId, from, to }: {
+  metrics: VehicleTelemetrySummary;
+  routeViewKey: string;
+  vehicleId: string | null;
+  from: string;
+  to: string;
+}) => {
   const totalJobs = Math.max(metrics.locations.reduce((sum, item) => sum + Number(item.job_count), 0), 1);
   const totalTime = metrics.working_minutes + metrics.waiting_minutes;
   const utilization = totalTime ? (metrics.working_minutes / totalTime) * 100 : 0;
@@ -189,7 +195,23 @@ const PerformanceGrid = ({ metrics, routeViewKey }: { metrics: VehicleTelemetryS
   ];
 
   return <div className="space-y-5">
-    <VehicleLocationMap position={metrics.latest_position} route={metrics.route} viewKey={routeViewKey} />
+    <section className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-base font-bold text-slate-950">Location Tracking</h2>
+          <p className="text-xs text-slate-500">Live Google map, latest vehicle position, and recorded Traccar movement pins.</p>
+        </div>
+        <span className="hidden rounded-sm bg-white px-2 py-1 text-xs font-semibold text-slate-500 shadow-sm sm:inline-flex">Above Top Locations</span>
+      </div>
+      <VehicleLocationMap
+        vehicleId={vehicleId}
+        from={from}
+        to={to}
+        position={metrics.latest_position}
+        route={metrics.route}
+        viewKey={routeViewKey}
+      />
+    </section>
     <Card className="border-0 shadow-sm">
       <CardHeader><CardTitle className="text-base">Top Locations</CardTitle></CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -254,20 +276,20 @@ const VehicleLogisticsTab = () => {
         <p className="pb-2 text-xs text-slate-400">Driver-derived jobs and Traccar telemetry use this range.</p>
       </div>}
       {!dashboard.activeVehicle ? <Card className="border-dashed"><CardContent className="flex min-h-[420px] flex-col items-center justify-center text-center"><CarFront className="h-12 w-12 text-slate-300" /><h2 className="mt-4 font-bold">No vehicles yet</h2><p className="mt-1 text-sm text-slate-500">Add the first vehicle to begin managing fleet logistics.</p>{canManageVehicles && <Button className="mt-5" onClick={() => setVehicleDialog(true)}><Plus className="mr-2 h-4 w-4" />Add Vehicle</Button>}</CardContent></Card> : <div className="space-y-5">
-        <Card className="relative min-h-[270px] overflow-hidden border-0 bg-white shadow-sm">
-          <div className="pointer-events-none absolute inset-y-0 left-[62%] right-0 z-20 hidden items-center justify-end overflow-hidden p-5 lg:flex">
-            <div className="flex h-[135px] w-full items-center justify-end">
-              {dashboard.activeVehicle.image_signed_url ? <img src={dashboard.activeVehicle.image_signed_url} alt={dashboard.activeVehicle.name} className="block max-h-full max-w-full object-contain object-right" /> : <Truck className="h-16 w-16 text-slate-100" />}
+        <Card className="relative min-h-[340px] overflow-hidden border-0 bg-white shadow-sm">
+          <div className="pointer-events-none absolute inset-y-0 left-[72%] right-0 z-20 hidden items-center justify-end overflow-hidden p-5 lg:flex">
+            <div className="flex h-[220px] w-full items-center justify-end">
+              {dashboard.activeVehicle.image_signed_url ? <img src={dashboard.activeVehicle.image_signed_url} alt={dashboard.activeVehicle.name} className="block h-auto max-h-[92px] max-w-[150px] object-contain object-right" /> : <Truck className="h-14 w-14 text-slate-100" />}
             </div>
           </div>
-          <CardContent className="relative z-10 flex min-h-[270px] max-w-full flex-col justify-between p-5 sm:p-7 lg:max-w-[62%]">
+          <CardContent className="relative z-10 flex min-h-[340px] max-w-full flex-col justify-between p-5 sm:p-7 lg:max-w-[72%]">
             <div><div className="flex flex-wrap items-center gap-2"><h2 className="text-2xl font-bold text-slate-950">{dashboard.activeVehicle.name}</h2><Badge variant="outline" className={statusClass[dashboard.activeVehicle.operational_status]}>{dashboard.activeVehicle.operational_status}</Badge>{canManageVehicles && <Button variant="ghost" size="icon" onClick={() => { setEditingVehicle(dashboard.activeVehicle); setVehicleDialog(true); }}><Edit3 className="h-4 w-4" /></Button>}</div><p className="mt-1 text-sm font-medium text-slate-400">{dashboard.activeVehicle.plate_number}</p></div>
             <div className={`mt-7 grid gap-4 bg-transparent ${canViewPerformance ? 'sm:grid-cols-3' : 'sm:grid-cols-1'}`}>
               <div><p className="text-xs font-semibold uppercase text-slate-400">Active Driver</p>{dashboard.activeVehicle.assigned_driver ? <Link to={`/admin-dashboard/employee/${dashboard.activeVehicle.assigned_driver.id}`} className="mt-1 inline-flex items-center font-bold text-blue-600 hover:underline"><User className="mr-1.5 h-4 w-4" />{dashboard.activeVehicle.assigned_driver.full_name || 'Driver'}</Link> : <p className="mt-1 font-bold">Unassigned</p>}</div>
               {canViewPerformance && <><div><p className="text-xs font-semibold uppercase text-slate-400">Kilometers Driven</p><p className="mt-1 text-xl font-bold">{formatNumber(dashboard.metrics.all_time_distance_km)} km</p></div><div><p className="text-xs font-semibold uppercase text-slate-400">Jobs Fulfilled</p><p className="mt-1 text-xl font-bold">{dashboard.metrics.total_jobs_completed}</p></div></>}
             </div>
           </CardContent>
-        </Card>        {canViewPerformance && <><div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500"><span>Traccar: <strong className="capitalize text-slate-700">{dashboard.metrics.device_status || (dashboard.activeVehicle.traccar_device_id ? 'Not synchronized' : 'Not connected')}</strong></span><span>Last sync: {dashboard.metrics.last_synced_at ? formatDate(dashboard.metrics.last_synced_at) : 'Never'}</span></div><PerformanceGrid metrics={dashboard.metrics} routeViewKey={`${dashboard.activeVehicle.id}:${dashboard.range.from}:${dashboard.range.to}`} /></>}
+        </Card>        {canViewPerformance && <><div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500"><span>Traccar: <strong className="capitalize text-slate-700">{dashboard.metrics.device_status || (dashboard.activeVehicle.traccar_device_id ? 'Not synchronized' : 'Not connected')}</strong></span><span>Last sync: {dashboard.metrics.last_synced_at ? formatDate(dashboard.metrics.last_synced_at) : 'Never'}</span></div><PerformanceGrid metrics={dashboard.metrics} routeViewKey={`${dashboard.activeVehicle.id}:${dashboard.range.from}:${dashboard.range.to}`} vehicleId={dashboard.activeVehicle.id} from={dashboard.range.from} to={dashboard.range.to} /></>}
         <Card className="border-0 shadow-sm"><CardHeader className="flex flex-row items-center justify-between"><div><CardTitle className="flex items-center text-base"><Wrench className="mr-2 h-5 w-5 text-blue-600" />Service & Maintenance</CardTitle><p className="mt-1 text-xs text-slate-400">Vehicle-specific maintenance ledger</p></div>{canManageServiceLogs && <Button size="sm" onClick={() => { setEditingLog(null); setServiceDialog(true); }}><Plus className="mr-2 h-4 w-4" />Add Service</Button>}</CardHeader><CardContent>{dashboard.loadingDetails ? <div className="flex h-48 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div> : dashboard.serviceLogs.length ? <><Table><TableHeader><TableRow><TableHead>Service Date</TableHead><TableHead>Description</TableHead><TableHead>Logged By</TableHead><TableHead>Odometer (KM)</TableHead><TableHead>Cost (BD)</TableHead><TableHead>Attachments</TableHead>{canManageServiceLogs && <TableHead className="text-right">Actions</TableHead>}</TableRow></TableHeader><TableBody>{pageLogs.map((log) => <TableRow key={log.id}><TableCell className="font-semibold">{formatDate(log.service_date)}</TableCell><TableCell className="min-w-[240px]">{log.description}</TableCell><TableCell>{log.logged_by ? <Link to={`/admin-dashboard/employee/${log.logged_by.id}`} className="font-semibold text-blue-600 hover:underline">{log.logged_by.full_name || log.logged_by.email}</Link> : <span className="text-slate-400">Not recorded</span>}</TableCell><TableCell>{log.odometer_reading === null ? '-' : formatNumber(Number(log.odometer_reading), 0)}</TableCell><TableCell>{Number(log.cost).toFixed(3)}</TableCell><TableCell>{log.attachments.length ? <div className="flex flex-wrap gap-1">{log.attachments.map((attachment) => <a key={attachment.id} href={attachment.signed_url || '#'} target="_blank" rel="noreferrer" className="inline-flex items-center text-xs font-semibold text-blue-600 hover:underline"><Paperclip className="mr-1 h-3 w-3" />{attachment.original_name}</a>)}</div> : <span className="text-slate-400">None</span>}</TableCell>{canManageServiceLogs && <TableCell className="text-right"><Button variant="ghost" size="icon" onClick={() => { setEditingLog(log); setServiceDialog(true); }}><Edit3 className="h-4 w-4" /></Button><Button variant="ghost" size="icon" className="text-rose-600" onClick={() => removeLog(log)}><Trash2 className="h-4 w-4" /></Button></TableCell>}</TableRow>)}</TableBody></Table>{servicePageCount > 1 && <div className="mt-4 flex items-center justify-end gap-2"><Button size="sm" variant="outline" disabled={servicePage === 1} onClick={() => setServicePage((page) => page - 1)}>Previous</Button><span className="text-xs font-semibold text-slate-500">{servicePage} / {servicePageCount}</span><Button size="sm" variant="outline" disabled={servicePage === servicePageCount} onClick={() => setServicePage((page) => page + 1)}>Next</Button></div>}</> : <div className="flex h-48 flex-col items-center justify-center text-slate-400"><FileText className="h-8 w-8" /><p className="mt-2 text-sm">No service records yet.</p></div>}</CardContent></Card>
         <Card className="border-0 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between gap-3">

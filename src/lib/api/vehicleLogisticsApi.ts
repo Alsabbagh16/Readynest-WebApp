@@ -5,6 +5,7 @@ import type {
   VehicleDriver,
   VehicleFile,
   VehicleFormInput,
+  VehicleRoadSnappedRoute,
   VehicleServiceLog,
   VehicleServiceLogInput,
   VehicleTelemetrySummary,
@@ -130,6 +131,31 @@ export const fetchVehicleMetrics = async (vehicleId: string, from: string, to: s
       ended_at: route.ended_at || null,
       total_points: Number(route.total_points || 0),
     },
+  };
+};
+
+export const fetchVehicleRoadSnappedRoute = async (
+  vehicleId: string,
+  from: string,
+  to: string,
+): Promise<VehicleRoadSnappedRoute> => {
+  const { data, error } = await supabase.functions.invoke('vehicle-road-snap', {
+    body: { vehicle_id: vehicleId, from, to },
+  });
+  assertNoError(error);
+  if (data?.error) throw new Error(data.error);
+  return {
+    points: (data?.points || []).map((point: any) => ({
+      latitude: Number(point.latitude),
+      longitude: Number(point.longitude),
+      recorded_at: point.recorded_at,
+      is_moving: point.is_moving ?? null,
+    })),
+    distance_km: Number(data?.distance_km || 0),
+    warning: data?.warning || null,
+    mode: data?.mode || 'road_snapped',
+    fallback_reason: data?.fallback_reason || null,
+    source: 'google_roads',
   };
 };
 

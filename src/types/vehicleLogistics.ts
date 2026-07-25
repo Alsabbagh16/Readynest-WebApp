@@ -114,6 +114,15 @@ export interface VehicleRoute {
   total_points: number;
 }
 
+export interface VehicleRoadSnappedRoute {
+  points: VehicleRoutePoint[];
+  distance_km: number;
+  warning: string | null;
+  mode: 'road_snapped' | 'sparse_pins' | 'haversine_fallback';
+  fallback_reason?: string | null;
+  source: 'google_roads';
+}
+
 export interface VehicleTelemetrySummary {
   completed_jobs: number;
   total_jobs_completed: number;
