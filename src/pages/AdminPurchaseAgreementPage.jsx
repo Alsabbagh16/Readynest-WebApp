@@ -424,7 +424,7 @@ const AdminPurchaseAgreementPage = () => {
           <CardContent className="p-0">
             <div className="bg-white">
               <AgreementDocument purchase={purchase} signatureImageUrl="" exportMode={false} />
-              <div className="px-5 pb-5 sm:px-8 lg:px-12">
+              <div className="px-5 pb-8 sm:px-8 sm:pb-5 lg:px-12">
                 <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 sm:p-6">
                   <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                     <div>
