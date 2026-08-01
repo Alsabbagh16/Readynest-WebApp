@@ -25,6 +25,7 @@ import VehicleLogisticsTab from '@/components/AdminDashboard/VehicleLogisticsTab
 import DashboardOverviewTab from '@/components/AdminDashboard/DashboardOverviewTab';
 import ManageRolesPage from '@/pages/ManageRolesPage';
 import AdminPurchaseDetailPage from '@/pages/AdminPurchaseDetailPage';
+import AdminPurchaseAgreementPage from '@/pages/AdminPurchaseAgreementPage';
 import AdminJobDetailPage from '@/pages/AdminJobDetailPage'; 
 import AdminCreateJobPage from '@/pages/AdminCreateJobPage'; 
 import { Link, Routes, Route, useLocation, Navigate } from 'react-router-dom';
@@ -214,6 +215,7 @@ const AdminDashboardContent = () => {
     if (pathSegments[2] === 'jobs' && pathSegments[3] === 'day') return 'Daily Schedule'; 
     if (pathSegments[2] === 'employee' && pathSegments[3]) return 'Employee Profile';
     if (pathSegments[2] === 'user' && pathSegments[3]) return 'User Profile';
+    if (pathSegments[2] === 'purchase' && pathSegments[4] === 'agreement') return 'Purchase Agreement';
     if (pathSegments[2] === 'purchase' && pathSegments[3]) return 'Purchase Details';
     if (pathSegments[2] === 'manage-services' && pathSegments[3] === 'create-service') return 'Create New Service';
     if (pathSegments[2] === 'manage-services' && pathSegments[3] === 'edit-service' && pathSegments[4]) return 'Edit Service';
@@ -474,6 +476,11 @@ const AdminDashboardContent = () => {
                   <Route path="purchase/:purchaseRefId" element={
                      <PermissionGate permission="tab.recent_purchases.view" fallback={<PermissionDeniedPage />}>
                         <AdminPurchaseDetailPage />
+                     </PermissionGate>
+                  } />
+                  <Route path="purchase/:purchaseRefId/agreement" element={
+                     <PermissionGate permission="tab.recent_purchases.view" fallback={<PermissionDeniedPage />}>
+                        <AdminPurchaseAgreementPage />
                      </PermissionGate>
                   } />
                   

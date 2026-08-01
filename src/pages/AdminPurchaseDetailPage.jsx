@@ -12,12 +12,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format as formatTz, utcToZonedTime, zonedTimeToUtc } from 'date-fns-tz';
-import { ArrowLeft, Save, UserCircle, ShoppingBag, CalendarDays, DollarSign, MapPin, List, Edit2, Briefcase, Phone, Clock, MessageSquare, Tag, FileText, Calculator, ExternalLink, Flag, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Save, UserCircle, ShoppingBag, CalendarDays, DollarSign, MapPin, List, Edit2, Briefcase, Phone, Clock, MessageSquare, Tag, FileText, Calculator, ExternalLink, Flag, AlertTriangle, Download, Loader2 } from 'lucide-react';
 import InvoiceModal from '@/components/AdminDashboard/InvoiceModal';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import CustomerSelector from '@/components/AdminDashboard/CustomerSelector';
 import { useCustomerAutoFill } from '@/hooks/useCustomerAutoFill';
-import { updatePurchase } from '@/lib/storage/purchaseStorage';
+import { getPurchaseAgreementSignedUrl, updatePurchase } from '@/lib/storage/purchaseStorage';
 import { formatPreferredBookingDateForAdmin, toLocalDatetimeInputString } from '@/lib/dateTimeHelpers';
 
 // --- Helper Functions ---
@@ -112,7 +112,16 @@ const DetailItem = ({ label, value, icon, valueClassName }) => (
     </div>
 );
 
-const PurchaseCustomerInfo = ({ purchase, customerName, isEditing, editableFields, onInputChange, onCustomerSelect, loadingAutoFill }) => (
+const PurchaseCustomerInfo = ({
+  purchase,
+  customerName,
+  isEditing,
+  editableFields,
+  onInputChange,
+  onCustomerSelect,
+  loadingAutoFill,
+  onOpenAgreement,
+}) => (
   <Section title="Customer Contact Information" icon={<UserCircle className="h-5 w-5 text-primary"/>}>
     
     {isEditing && (
@@ -168,6 +177,56 @@ const PurchaseCustomerInfo = ({ purchase, customerName, isEditing, editableField
     )}
     
     {purchase.user_id && <DetailItem label="User ID" value={purchase.user_id} />}
+    {!isEditing && (
+      <div className="pt-3">
+        <Button type="button" variant="outline" size="sm" onClick={onOpenAgreement}>
+          <FileText className="mr-2 h-4 w-4" /> Agreement
+        </Button>
+      </div>
+    )}
+  </Section>
+);
+
+const PurchaseAgreementAttachmentSection = ({
+  purchase,
+  onOpenAgreement,
+  onViewAgreement,
+  onDownloadAgreement,
+  actionLoading,
+}) => (
+  <Section title="Agreement Attachment" icon={<FileText className="h-5 w-5 text-primary" />}>
+    {purchase.agreement_document_path ? (
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="font-semibold text-slate-900">{purchase.agreement_file_name || 'Service Agreement PDF'}</p>
+            <p className="text-sm text-slate-500">
+              Signed on {formatDateSafe(purchase.agreement_signed_at, true, 'N/A')}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={onViewAgreement} disabled={actionLoading}>
+              {actionLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ExternalLink className="mr-2 h-4 w-4" />}
+              View
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={onDownloadAgreement} disabled={actionLoading}>
+              {actionLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+              Download
+            </Button>
+            <Button type="button" size="sm" onClick={onOpenAgreement}>
+              <Edit2 className="mr-2 h-4 w-4" /> Replace
+            </Button>
+          </div>
+        </div>
+      </div>
+    ) : (
+      <div className="flex flex-col gap-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-slate-500">No agreement saved yet.</p>
+        <Button type="button" size="sm" onClick={onOpenAgreement}>
+          <FileText className="mr-2 h-4 w-4" /> Create Agreement
+        </Button>
+      </div>
+    )}
   </Section>
 );
 
@@ -665,6 +724,7 @@ const AdminPurchaseDetailPage = () => {
   
   const [purchase, setPurchase] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [agreementActionLoading, setAgreementActionLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isEditingFlagReason, setIsEditingFlagReason] = useState(false);
   const [flagReasonInput, setFlagReasonInput] = useState('');
@@ -1016,6 +1076,48 @@ const AdminPurchaseDetailPage = () => {
     }
   };
 
+  const handleOpenAgreement = () => {
+    navigate(`/admin-dashboard/purchase/${purchaseRefId}/agreement`);
+  };
+
+  const withAgreementUrl = async (onResolved) => {
+    if (!purchase?.agreement_document_path) {
+      toast({ title: "No Agreement", description: "There is no saved agreement for this purchase yet." });
+      return;
+    }
+
+    setAgreementActionLoading(true);
+    try {
+      const signedUrl = await getPurchaseAgreementSignedUrl(purchase.agreement_document_path);
+      if (!signedUrl) {
+        throw new Error('Could not create a signed agreement URL.');
+      }
+      await onResolved(signedUrl);
+    } catch (error) {
+      console.error('Error resolving purchase agreement URL:', error);
+      toast({ title: "Agreement Error", description: error.message || "Could not open the saved agreement.", variant: "destructive" });
+    } finally {
+      setAgreementActionLoading(false);
+    }
+  };
+
+  const handleViewAgreement = async () => {
+    await withAgreementUrl(async (signedUrl) => {
+      window.open(signedUrl, '_blank', 'noopener,noreferrer');
+    });
+  };
+
+  const handleDownloadAgreement = async () => {
+    await withAgreementUrl(async (signedUrl) => {
+      const anchor = document.createElement('a');
+      anchor.href = signedUrl;
+      anchor.download = purchase?.agreement_file_name || `${purchaseRefId}-service-agreement.pdf`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+    });
+  };
+
   if (loading && !purchase) {
     return <div className="p-6 text-center">Loading...</div>;
   }
@@ -1161,6 +1263,7 @@ const AdminPurchaseDetailPage = () => {
                     onInputChange={handleInputChange} 
                     onCustomerSelect={handleCustomerSelect}
                     loadingAutoFill={loadingAutoFill}
+                    onOpenAgreement={handleOpenAgreement}
                 />
                 
                 {/* Editable Address Section */}
@@ -1252,7 +1355,19 @@ const AdminPurchaseDetailPage = () => {
             </div>
           ) : (
             <>
-                <PurchaseCustomerInfo purchase={purchase} customerName={customerName} isEditing={false} />
+                <PurchaseCustomerInfo
+                    purchase={purchase}
+                    customerName={customerName}
+                    isEditing={false}
+                    onOpenAgreement={handleOpenAgreement}
+                />
+                <PurchaseAgreementAttachmentSection
+                    purchase={purchase}
+                    onOpenAgreement={handleOpenAgreement}
+                    onViewAgreement={handleViewAgreement}
+                    onDownloadAgreement={handleDownloadAgreement}
+                    actionLoading={agreementActionLoading}
+                />
                 <PurchaseAddressInfo purchase={purchase} />
                 <PurchaseServicePaymentInfoWithJobs purchase={purchase} />
             </>

@@ -1,6 +1,9 @@
 
 import { supabase } from '@/lib/supabase';
 
+const PURCHASE_AGREEMENTS_BUCKET = 'purchase-agreements';
+const PURCHASE_AGREEMENT_URL_TTL_SECONDS = 300;
+
 // Helper to validate and clean UUIDs
 const cleanUuid = (id) => {
     if (!id || typeof id !== 'string') return null;
@@ -131,4 +134,45 @@ export const getPurchaseByRef = async (refId) => {
         throw error;
     }
     return data;
+};
+
+export const uploadPurchaseAgreementPdf = async (purchaseRefId, pdfBlob) => {
+    if (!purchaseRefId || !pdfBlob) {
+        throw new Error('Purchase reference and agreement PDF are required.');
+    }
+
+    const storagePath = `${purchaseRefId}/latest/agreement.pdf`;
+
+    const { error } = await supabase.storage
+        .from(PURCHASE_AGREEMENTS_BUCKET)
+        .upload(storagePath, pdfBlob, {
+            contentType: 'application/pdf',
+            cacheControl: '3600',
+            upsert: true,
+        });
+
+    if (error) {
+        console.error('Error uploading purchase agreement PDF:', error);
+        throw error;
+    }
+
+    return {
+        storagePath,
+        fileName: `${purchaseRefId}-service-agreement.pdf`,
+    };
+};
+
+export const getPurchaseAgreementSignedUrl = async (storagePath) => {
+    if (!storagePath) return null;
+
+    const { data, error } = await supabase.storage
+        .from(PURCHASE_AGREEMENTS_BUCKET)
+        .createSignedUrl(storagePath, PURCHASE_AGREEMENT_URL_TTL_SECONDS);
+
+    if (error) {
+        console.error('Error creating purchase agreement signed URL:', error);
+        throw error;
+    }
+
+    return data?.signedUrl || null;
 };
