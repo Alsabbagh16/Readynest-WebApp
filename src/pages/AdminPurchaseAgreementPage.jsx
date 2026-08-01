@@ -406,7 +406,7 @@ const AdminPurchaseAgreementPage = () => {
   }
 
   return (
-    <div className="min-h-[calc(100vh-8rem)] rounded-3xl bg-slate-100 p-3 sm:p-6">
+    <div className="min-h-[calc(100vh-8rem)] rounded-3xl bg-slate-100 p-3 pb-8 sm:p-6 sm:pb-10">
       <div className="mx-auto max-w-5xl space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Button asChild variant="outline" size="sm">
