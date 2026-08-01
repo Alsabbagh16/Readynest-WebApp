@@ -35,6 +35,78 @@ const PLACEHOLDER_AGREEMENT = [
   'Additional cleaning services and approved add-ons offered by Ready Nest',
 ];
 
+const AgreementDocument = ({ purchase, signatureCanvasRef, exportMode = false }) => (
+  <div
+    className={`bg-white text-slate-900 ${
+      exportMode
+        ? 'w-[794px] min-h-[1123px] p-10'
+        : 'p-5 sm:p-8 lg:p-12'
+    }`}
+  >
+    <header className={`border-b border-slate-200 ${exportMode ? 'pb-4' : 'pb-6'}`}>
+      <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+        <div>
+          <p className={`font-semibold uppercase text-primary ${exportMode ? 'text-[10px] tracking-[0.24em]' : 'text-xs tracking-[0.3em]'}`}>
+            ReadyNest
+          </p>
+          <h1 className={`mt-2 font-bold tracking-tight text-slate-950 ${exportMode ? 'text-[28px]' : 'text-3xl sm:text-4xl'}`}>
+            Service Agreement
+          </h1>
+          <p className={`mt-3 max-w-2xl text-slate-600 ${exportMode ? 'text-[12px] leading-5' : 'text-sm leading-6'}`}>
+            This document records customer consent for the purchased service and confirms the details agreed with ReadyNest.
+          </p>
+        </div>
+        <div className={`rounded-2xl border border-slate-200 bg-slate-50 text-slate-700 ${exportMode ? 'px-3 py-2 text-[11px] leading-4' : 'px-4 py-3 text-sm'}`}>
+          <p className="font-semibold text-slate-900">{COMPANY_NAME}</p>
+          <p>{COMPANY_CR}</p>
+          <p>{COMPANY_ADDRESS}</p>
+        </div>
+      </div>
+    </header>
+
+    <section className={`grid gap-4 border-b border-slate-200 text-sm text-slate-700 md:grid-cols-2 ${exportMode ? 'py-4 text-[11px] leading-4' : 'py-6'}`}>
+      <div className="space-y-1">
+        <p><span className="font-semibold text-slate-900">Purchase Ref:</span> {purchase.purchase_ref_id}</p>
+        <p><span className="font-semibold text-slate-900">Customer:</span> {purchase.name || 'Guest'}</p>
+        <p><span className="font-semibold text-slate-900">Email:</span> {purchase.email || 'N/A'}</p>
+        <p><span className="font-semibold text-slate-900">Mobile:</span> {purchase.user_phone || purchase.profiles?.phone || 'N/A'}</p>
+      </div>
+      <div className="space-y-1">
+        <p><span className="font-semibold text-slate-900">Service:</span> {purchase.product_name || 'Custom Purchase'}</p>
+        <p><span className="font-semibold text-slate-900">Preferred Date:</span> {formatPreferredBookingDateForAdmin(purchase.preferred_booking_date)}</p>
+        <p><span className="font-semibold text-slate-900">Service Address:</span> {purchase.address?.city || purchase.address?.street || 'N/A'}</p>
+        <p><span className="font-semibold text-slate-900">Generated:</span> {new Date().toLocaleString()}</p>
+      </div>
+    </section>
+
+    <section className={`text-slate-700 ${exportMode ? 'space-y-2 py-4 text-[11px] leading-5' : 'space-y-4 py-6 text-[15px] leading-8'}`}>
+      {PLACEHOLDER_AGREEMENT.map((paragraph, index) => (
+        <p key={index}>{paragraph}</p>
+      ))}
+    </section>
+
+    {exportMode && (
+      <section className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+          <div>
+            <p className="text-base font-semibold text-slate-900">I Consent</p>
+            <p className="text-[11px] text-slate-500">
+              Please sign below to confirm acceptance of this service agreement.
+            </p>
+          </div>
+        </div>
+        <div className="h-28 w-full overflow-hidden rounded-2xl border border-dashed border-slate-300 bg-white shadow-inner">
+          <img
+            src={signatureCanvasRef.current?.toDataURL('image/png') || ''}
+            alt="Signature"
+            className="h-full w-full object-contain"
+          />
+        </div>
+      </section>
+    )}
+  </div>
+);
+
 const getPointerPosition = (event, canvas) => {
   const rect = canvas.getBoundingClientRect();
   const nativeEvent = event.nativeEvent || event;
@@ -162,7 +234,7 @@ const AdminPurchaseAgreementPage = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [hasSignature, setHasSignature] = useState(false);
-  const documentRef = useRef(null);
+  const exportDocumentRef = useRef(null);
   const signatureCanvasRef = useRef(null);
 
   const fetchPurchase = useCallback(async () => {
@@ -198,11 +270,11 @@ const AdminPurchaseAgreementPage = () => {
   };
 
   const generateAgreementPdfBlob = async () => {
-    if (!documentRef.current) {
+    if (!exportDocumentRef.current) {
       throw new Error('Agreement document is not ready for export.');
     }
 
-    const canvas = await html2canvas(documentRef.current, {
+    const canvas = await html2canvas(exportDocumentRef.current, {
       scale: 2,
       backgroundColor: '#ffffff',
       useCORS: true,
@@ -212,31 +284,8 @@ const AdminPurchaseAgreementPage = () => {
     const pdf = new jsPDF('p', 'mm', 'a4');
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
-    const margin = 8;
-    const usableWidth = pageWidth - (margin * 2);
-    const usableHeight = pageHeight - (margin * 2);
-    const imageWidth = canvas.width;
-    const imageHeight = canvas.height;
-    const ratio = usableWidth / imageWidth;
-    const scaledHeight = imageHeight * ratio;
     const imageData = canvas.toDataURL('image/png', 1.0);
-
-    if (scaledHeight <= usableHeight) {
-      pdf.addImage(imageData, 'PNG', margin, margin, usableWidth, scaledHeight);
-    } else {
-      let remainingHeight = scaledHeight;
-      let position = 0;
-
-      pdf.addImage(imageData, 'PNG', margin, margin + position, usableWidth, scaledHeight);
-      remainingHeight -= usableHeight;
-
-      while (remainingHeight > 0) {
-        position -= usableHeight;
-        pdf.addPage();
-        pdf.addImage(imageData, 'PNG', margin, margin + position, usableWidth, scaledHeight);
-        remainingHeight -= usableHeight;
-      }
-    }
+    pdf.addImage(imageData, 'PNG', 0, 0, pageWidth, pageHeight);
 
     return pdf.output('blob');
   };
@@ -298,61 +347,26 @@ const AdminPurchaseAgreementPage = () => {
 
         <Card className="overflow-hidden border-slate-200 shadow-xl">
           <CardContent className="p-0">
-            <div ref={documentRef} className="bg-white p-5 sm:p-8 lg:p-12">
-              <header className="border-b border-slate-200 pb-6">
-                <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.3em] text-primary">ReadyNest</p>
-                    <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">Service Agreement</h1>
-                    <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-                      This document records customer consent for the purchased service and confirms the details agreed with ReadyNest.
-                    </p>
+            <div className="bg-white">
+              <AgreementDocument purchase={purchase} signatureCanvasRef={signatureCanvasRef} exportMode={false} />
+              <div className="px-5 pb-5 sm:px-8 lg:px-12">
+                <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 sm:p-6">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-lg font-semibold text-slate-900">I Consent</p>
+                      <p className="text-sm text-slate-500">Please sign below to confirm acceptance of this service agreement.</p>
+                    </div>
+                    <Button type="button" variant="ghost" size="sm" onClick={clearSignature}>
+                      <Eraser className="mr-2 h-4 w-4" /> Clear
+                    </Button>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-                    <p className="font-semibold text-slate-900">{COMPANY_NAME}</p>
-                    <p>{COMPANY_CR}</p>
-                    <p>{COMPANY_ADDRESS}</p>
+                  <SignatureCanvas canvasRef={signatureCanvasRef} onSigned={setHasSignature} />
+                  <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
+                    <Check className={`h-4 w-4 ${hasSignature ? 'text-green-600' : 'text-slate-300'}`} />
+                    {hasSignature ? 'Signature captured and ready to save.' : 'Use your finger or stylus to sign.'}
                   </div>
                 </div>
-              </header>
-
-              <section className="grid gap-4 border-b border-slate-200 py-6 text-sm text-slate-700 md:grid-cols-2">
-                <div className="space-y-1">
-                  <p><span className="font-semibold text-slate-900">Purchase Ref:</span> {purchase.purchase_ref_id}</p>
-                  <p><span className="font-semibold text-slate-900">Customer:</span> {purchase.name || 'Guest'}</p>
-                  <p><span className="font-semibold text-slate-900">Email:</span> {purchase.email || 'N/A'}</p>
-                  <p><span className="font-semibold text-slate-900">Mobile:</span> {purchase.user_phone || purchase.profiles?.phone || 'N/A'}</p>
-                </div>
-                <div className="space-y-1">
-                  <p><span className="font-semibold text-slate-900">Service:</span> {purchase.product_name || 'Custom Purchase'}</p>
-                  <p><span className="font-semibold text-slate-900">Preferred Date:</span> {formatPreferredBookingDateForAdmin(purchase.preferred_booking_date)}</p>
-                  <p><span className="font-semibold text-slate-900">Service Address:</span> {purchase.address?.city || purchase.address?.street || 'N/A'}</p>
-                  <p><span className="font-semibold text-slate-900">Generated:</span> {new Date().toLocaleString()}</p>
-                </div>
-              </section>
-
-              <section className="space-y-4 py-6 text-[15px] leading-8 text-slate-700">
-                {PLACEHOLDER_AGREEMENT.map((paragraph, index) => (
-                  <p key={index}>{paragraph}</p>
-                ))}
-              </section>
-
-              <section className="rounded-3xl border border-slate-200 bg-slate-50 p-4 sm:p-6">
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <p className="text-lg font-semibold text-slate-900">I Consent</p>
-                    <p className="text-sm text-slate-500">Please sign below to confirm acceptance of this service agreement.</p>
-                  </div>
-                  <Button type="button" variant="ghost" size="sm" onClick={clearSignature}>
-                    <Eraser className="mr-2 h-4 w-4" /> Clear
-                  </Button>
-                </div>
-                <SignatureCanvas canvasRef={signatureCanvasRef} onSigned={setHasSignature} />
-                <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
-                  <Check className={`h-4 w-4 ${hasSignature ? 'text-green-600' : 'text-slate-300'}`} />
-                  {hasSignature ? 'Signature captured and ready to save.' : 'Use your finger or stylus to sign.'}
-                </div>
-              </section>
+              </div>
             </div>
 
             <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:justify-end sm:px-8 lg:px-12">
@@ -366,6 +380,11 @@ const AdminPurchaseAgreementPage = () => {
             </div>
           </CardContent>
         </Card>
+      </div>
+      <div className="pointer-events-none fixed -left-[9999px] top-0 opacity-0">
+        <div ref={exportDocumentRef}>
+          <AgreementDocument purchase={purchase} signatureCanvasRef={signatureCanvasRef} exportMode={true} />
+        </div>
       </div>
     </div>
   );

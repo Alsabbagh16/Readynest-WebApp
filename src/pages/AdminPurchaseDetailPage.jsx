@@ -120,7 +120,6 @@ const PurchaseCustomerInfo = ({
   onInputChange,
   onCustomerSelect,
   loadingAutoFill,
-  onOpenAgreement,
 }) => (
   <Section title="Customer Contact Information" icon={<UserCircle className="h-5 w-5 text-primary"/>}>
     
@@ -177,13 +176,6 @@ const PurchaseCustomerInfo = ({
     )}
     
     {purchase.user_id && <DetailItem label="User ID" value={purchase.user_id} />}
-    {!isEditing && (
-      <div className="pt-3">
-        <Button type="button" variant="outline" size="sm" onClick={onOpenAgreement}>
-          <FileText className="mr-2 h-4 w-4" /> Agreement
-        </Button>
-      </div>
-    )}
   </Section>
 );
 
@@ -1263,7 +1255,6 @@ const AdminPurchaseDetailPage = () => {
                     onInputChange={handleInputChange} 
                     onCustomerSelect={handleCustomerSelect}
                     loadingAutoFill={loadingAutoFill}
-                    onOpenAgreement={handleOpenAgreement}
                 />
                 
                 {/* Editable Address Section */}
@@ -1359,7 +1350,6 @@ const AdminPurchaseDetailPage = () => {
                     purchase={purchase}
                     customerName={customerName}
                     isEditing={false}
-                    onOpenAgreement={handleOpenAgreement}
                 />
                 <PurchaseAgreementAttachmentSection
                     purchase={purchase}
