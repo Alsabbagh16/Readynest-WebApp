@@ -35,11 +35,76 @@ const PLACEHOLDER_AGREEMENT = [
   'Additional cleaning services and approved add-ons offered by Ready Nest',
 ];
 
-const AgreementDocument = ({ purchase, signatureCanvasRef, exportMode = false }) => (
+const EXPORT_PAGE_WIDTH_PX = 794;
+const EXPORT_PAGE_HEIGHT_PX = 1123;
+
+const getTrimmedSignatureDataUrl = (canvas) => {
+  if (!canvas) return '';
+
+  const context = canvas.getContext('2d');
+  const { width, height } = canvas;
+  const imageData = context.getImageData(0, 0, width, height).data;
+
+  let minX = width;
+  let minY = height;
+  let maxX = 0;
+  let maxY = 0;
+  let hasInk = false;
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const index = (y * width + x) * 4;
+      const alpha = imageData[index + 3];
+      const red = imageData[index];
+      const green = imageData[index + 1];
+      const blue = imageData[index + 2];
+      const isInkPixel = alpha > 0 && !(red > 245 && green > 245 && blue > 245);
+
+      if (isInkPixel) {
+        hasInk = true;
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+      }
+    }
+  }
+
+  if (!hasInk) return '';
+
+  const padding = 24;
+  const cropX = Math.max(minX - padding, 0);
+  const cropY = Math.max(minY - padding, 0);
+  const cropWidth = Math.min(maxX - minX + (padding * 2), width - cropX);
+  const cropHeight = Math.min(maxY - minY + (padding * 2), height - cropY);
+  const trimmedCanvas = document.createElement('canvas');
+  trimmedCanvas.width = cropWidth;
+  trimmedCanvas.height = cropHeight;
+  const trimmedContext = trimmedCanvas.getContext('2d');
+
+  trimmedContext.fillStyle = '#ffffff';
+  trimmedContext.fillRect(0, 0, cropWidth, cropHeight);
+  trimmedContext.drawImage(
+    canvas,
+    cropX,
+    cropY,
+    cropWidth,
+    cropHeight,
+    0,
+    0,
+    cropWidth,
+    cropHeight
+  );
+
+  return trimmedCanvas.toDataURL('image/png');
+};
+
+const AgreementDocument = ({ purchase, signatureImageUrl, exportMode = false }) => (
   <div
+    style={exportMode ? { width: `${EXPORT_PAGE_WIDTH_PX}px`, height: `${EXPORT_PAGE_HEIGHT_PX}px` } : undefined}
     className={`bg-white text-slate-900 ${
       exportMode
-        ? 'w-[794px] min-h-[1123px] p-10'
+        ? 'overflow-hidden px-10 py-8'
         : 'p-5 sm:p-8 lg:p-12'
     }`}
   >
@@ -79,28 +144,30 @@ const AgreementDocument = ({ purchase, signatureCanvasRef, exportMode = false })
       </div>
     </section>
 
-    <section className={`text-slate-700 ${exportMode ? 'space-y-2 py-4 text-[11px] leading-5' : 'space-y-4 py-6 text-[15px] leading-8'}`}>
+    <section className={`text-slate-700 ${exportMode ? 'space-y-1.5 py-4 text-[10.5px] leading-[1.35rem]' : 'space-y-4 py-6 text-[15px] leading-8'}`}>
       {PLACEHOLDER_AGREEMENT.map((paragraph, index) => (
         <p key={index}>{paragraph}</p>
       ))}
     </section>
 
     {exportMode && (
-      <section className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+      <section className="rounded-3xl border border-slate-200 bg-slate-50 p-3.5">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[11px]">
           <div>
-            <p className="text-base font-semibold text-slate-900">I Consent</p>
+            <p className="text-[15px] font-semibold text-slate-900">I Consent</p>
             <p className="text-[11px] text-slate-500">
               Please sign below to confirm acceptance of this service agreement.
             </p>
           </div>
         </div>
-        <div className="h-28 w-full overflow-hidden rounded-2xl border border-dashed border-slate-300 bg-white shadow-inner">
-          <img
-            src={signatureCanvasRef.current?.toDataURL('image/png') || ''}
-            alt="Signature"
-            className="h-full w-full object-contain"
-          />
+        <div className="flex h-24 w-full items-center justify-center overflow-hidden rounded-2xl border border-dashed border-slate-300 bg-white px-3 py-2 shadow-inner">
+          {signatureImageUrl ? (
+            <img
+              src={signatureImageUrl}
+              alt="Signature"
+              className="max-h-full max-w-full object-contain"
+            />
+          ) : null}
         </div>
       </section>
     )}
@@ -234,6 +301,7 @@ const AdminPurchaseAgreementPage = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [hasSignature, setHasSignature] = useState(false);
+  const [signatureImageUrl, setSignatureImageUrl] = useState('');
   const exportDocumentRef = useRef(null);
   const signatureCanvasRef = useRef(null);
 
@@ -267,6 +335,7 @@ const AdminPurchaseAgreementPage = () => {
     context.fillStyle = '#ffffff';
     context.fillRect(0, 0, canvas.clientWidth, canvas.clientHeight);
     setHasSignature(false);
+    setSignatureImageUrl('');
   };
 
   const generateAgreementPdfBlob = async () => {
@@ -298,6 +367,12 @@ const AdminPurchaseAgreementPage = () => {
 
     setSaving(true);
     try {
+      const trimmedSignature = getTrimmedSignatureDataUrl(signatureCanvasRef.current);
+      if (!trimmedSignature) {
+        throw new Error('Could not read the signature. Please sign again.');
+      }
+      setSignatureImageUrl(trimmedSignature);
+      await new Promise((resolve) => requestAnimationFrame(() => resolve()));
       const pdfBlob = await generateAgreementPdfBlob();
       const uploadResult = await uploadPurchaseAgreementPdf(purchaseRefId, pdfBlob);
       const signedAt = new Date().toISOString();
@@ -348,7 +423,7 @@ const AdminPurchaseAgreementPage = () => {
         <Card className="overflow-hidden border-slate-200 shadow-xl">
           <CardContent className="p-0">
             <div className="bg-white">
-              <AgreementDocument purchase={purchase} signatureCanvasRef={signatureCanvasRef} exportMode={false} />
+              <AgreementDocument purchase={purchase} signatureImageUrl="" exportMode={false} />
               <div className="px-5 pb-5 sm:px-8 lg:px-12">
                 <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 sm:p-6">
                   <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -383,7 +458,7 @@ const AdminPurchaseAgreementPage = () => {
       </div>
       <div className="pointer-events-none fixed -left-[9999px] top-0 opacity-0">
         <div ref={exportDocumentRef}>
-          <AgreementDocument purchase={purchase} signatureCanvasRef={signatureCanvasRef} exportMode={true} />
+          <AgreementDocument purchase={purchase} signatureImageUrl={signatureImageUrl} exportMode={true} />
         </div>
       </div>
     </div>
