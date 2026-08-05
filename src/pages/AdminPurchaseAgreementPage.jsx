@@ -13,7 +13,7 @@ import {
   uploadPurchaseAgreementPdf,
 } from '@/lib/storage/purchaseStorage';
 
-const COMPANY_NAME = 'ReadyNest';
+const COMPANY_NAME = 'ReadyNest Cleaning & Maintenance Services W.L.L.';
 const COMPANY_CR = 'CR: 183715-1';
 const COMPANY_ADDRESS = 'Block 213, Road 51, Building 564, Flat 21, Muharraq, Bahrain';
 
@@ -26,13 +26,8 @@ const PLACEHOLDER_AGREEMENT = [
   'Where pricing is based on the estimated time required to complete the requested cleaning, the stated hours are used solely as a pricing and scheduling metric and do not constitute the hiring, leasing, or rental of cleaning personnel.',
   'Ready Nest is solely responsible for assigning the appropriate number of cleaning staff, determining the cleaning methods, and managing the execution of the requested cleaning service in accordance with the selected package.',
   'The scope of the service includes, but is not limited to:',
-  'Interior residential cleaning',
-  'Exterior residential cleaning',
-  'Apartment and villa cleaning',
-  'Vacation rental (Airbnb) turnover cleaning',
-  'Move-in and move-out cleaning',
-  'Scheduled recurring cleaning services',
-  'Additional cleaning services and approved add-ons offered by Ready Nest',
+  'Interior residential cleaning, Exterior residential cleaning, Apartment and villa cleaning, Vacation rental (Airbnb) turnover cleaning, Move-in and move-out cleaning',
+  'Scheduled recurring cleaning services, Additional cleaning services and approved add-ons offered by Ready Nest',
 ];
 
 const EXPORT_PAGE_WIDTH_PX = 794;
