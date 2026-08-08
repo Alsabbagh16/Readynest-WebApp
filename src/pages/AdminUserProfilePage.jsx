@@ -12,6 +12,7 @@ import {
     deleteUserDocumentFile
 } from '@/lib/storage/userStorage';
 import { getPurchasesByUserId } from '@/lib/storage/bookingStorage';
+import { getPurchaseAgreementSignedUrl } from '@/lib/storage/purchaseStorage';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -19,7 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, User, Mail, Calendar, CreditCard, Edit, MapPin, FileText, UploadCloud, Save, ShieldAlert, Phone, ShoppingCart, Trash2, Download, PlusCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, User, Mail, Calendar, CreditCard, Edit, MapPin, FileText, UploadCloud, Save, ShieldAlert, Phone, ShoppingCart, Trash2, Download, PlusCircle, ChevronLeft, ChevronRight, ExternalLink, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from "@/components/ui/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -286,6 +287,103 @@ const PurchaseHistorySection = ({ purchaseHistory }) => {
                     )}
                 </div>
             ) : <p className="text-sm text-gray-500 dark:text-slate-400">No purchase history found for this user.</p>}
+        </section>
+    );
+};
+
+const AgreementsSection = ({ purchaseHistory }) => {
+    const { toast } = useToast();
+    const [openingRef, setOpeningRef] = useState(null);
+
+    const signedAgreements = purchaseHistory.filter((purchase) => purchase.agreement_document_path);
+
+    const openAgreement = async (purchase, shouldDownload = false) => {
+        setOpeningRef(`${purchase.purchase_ref_id}:${shouldDownload ? 'download' : 'view'}`);
+        try {
+            const signedUrl = await getPurchaseAgreementSignedUrl(purchase.agreement_document_path);
+            if (!signedUrl) {
+                throw new Error('Could not create a signed agreement link.');
+            }
+
+            if (shouldDownload) {
+                const anchor = document.createElement('a');
+                anchor.href = signedUrl;
+                anchor.download = purchase.agreement_file_name || `${purchase.purchase_ref_id}-service-agreement.pdf`;
+                document.body.appendChild(anchor);
+                anchor.click();
+                document.body.removeChild(anchor);
+            } else {
+                window.open(signedUrl, '_blank', 'noopener,noreferrer');
+            }
+        } catch (error) {
+            console.error('Error opening user agreement:', error);
+            toast({
+                title: "Agreement Error",
+                description: error.message || "Could not open the signed agreement.",
+                variant: "destructive"
+            });
+        } finally {
+            setOpeningRef(null);
+        }
+    };
+
+    return (
+        <section>
+            <h3 className="font-semibold text-lg border-b pb-2 mb-3 flex items-center dark:text-slate-100 dark:border-slate-700">
+                <FileText className="mr-2 h-5 w-5 text-primary" /> Agreements
+            </h3>
+            {signedAgreements.length > 0 ? (
+                <div className="grid gap-3">
+                    {signedAgreements.map((purchase) => {
+                        const viewKey = `${purchase.purchase_ref_id}:view`;
+                        const downloadKey = `${purchase.purchase_ref_id}:download`;
+
+                        return (
+                            <div key={purchase.purchase_ref_id || purchase.id} className="flex flex-col gap-3 rounded-md border bg-gray-50/50 p-3 dark:border-slate-700 dark:bg-slate-800/30 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="min-w-0">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <p className="font-medium dark:text-slate-200">
+                                            {purchase.agreement_file_name || 'Service Agreement PDF'}
+                                        </p>
+                                        <Badge variant="success">Signed</Badge>
+                                    </div>
+                                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground dark:text-slate-400">
+                                        <Link to={`/admin-dashboard/purchase/${purchase.purchase_ref_id}`} className="font-mono text-primary hover:underline">
+                                            {purchase.purchase_ref_id}
+                                        </Link>
+                                        <span>{purchase.product_name || 'Custom Purchase'}</span>
+                                        <span>Signed {formatDateSafe(purchase.agreement_signed_at)}</span>
+                                    </div>
+                                </div>
+                                <div className="flex shrink-0 items-center gap-2">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => openAgreement(purchase)}
+                                        disabled={Boolean(openingRef)}
+                                    >
+                                        {openingRef === viewKey ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ExternalLink className="mr-2 h-4 w-4" />}
+                                        View
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => openAgreement(purchase, true)}
+                                        disabled={Boolean(openingRef)}
+                                    >
+                                        {openingRef === downloadKey ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                                        Download
+                                    </Button>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            ) : (
+                <p className="text-sm text-gray-500 dark:text-slate-400">No signed agreements found for this user.</p>
+            )}
         </section>
     );
 };
@@ -635,6 +733,7 @@ const AdminUserProfilePage = () => {
                         onSaveAddress={handleSaveAddress}
                     />
                     <AdminNotesSection notes={notes} setNotes={setNotes} handleSaveNotes={handleSaveNotes} createdByAdmin={user.createdByAdmin} />
+                    <AgreementsSection purchaseHistory={purchaseHistory} />
                     <PurchaseHistorySection purchaseHistory={purchaseHistory} />
                     <UserDocumentsManager 
                         userId={user.id}
