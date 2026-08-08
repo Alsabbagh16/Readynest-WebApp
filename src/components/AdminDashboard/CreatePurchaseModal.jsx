@@ -34,7 +34,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 
-const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
+const CreatePurchaseModal = ({ isOpen, onClose, onSuccess, initialCustomer = null }) => {
   const [loading, setLoading] = useState(false);
   const [products, setProducts] = useState([]);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -114,6 +114,22 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess }) => {
       setRecoveryMessage('');
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !initialCustomer?.id) return;
+
+    const initialName = initialCustomer.name
+      || `${initialCustomer.first_name || ''} ${initialCustomer.last_name || ''}`.trim();
+
+    setFormData((prev) => ({
+      ...prev,
+      name: initialName || prev.name,
+      email: initialCustomer.email || prev.email,
+      phone: initialCustomer.phone || prev.phone,
+      customer_id: initialCustomer.id,
+      user_id: initialCustomer.id,
+    }));
+  }, [isOpen, initialCustomer]);
 
   // Recalculate amount when hourly service fields change
   useEffect(() => {

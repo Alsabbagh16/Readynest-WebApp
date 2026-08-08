@@ -27,6 +27,8 @@ import EditUserForm from '@/components/AdminDashboard/EditUserForm';
 import AddressForm from '@/components/Dashboard/AddressForm';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { getEmployees } from '@/lib/storage/employeeStorage';
+import PermissionGate from '@/components/PermissionGate';
+import CreatePurchaseModal from '@/components/AdminDashboard/CreatePurchaseModal';
 
 const formatDateSafe = (dateString) => {
     try {
@@ -474,6 +476,7 @@ const AdminUserProfilePage = () => {
     const [notes, setNotes] = useState('');
     const [loading, setLoading] = useState(true);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+    const [isCreatePurchaseOpen, setIsCreatePurchaseOpen] = useState(false);
     const { adminProfile } = useAdminAuth();
 
     const canEditUser = adminProfile && (adminProfile.role === 'admin' || adminProfile.role === 'superadmin');
@@ -578,31 +581,38 @@ const AdminUserProfilePage = () => {
     
     return (
         <div className="p-6 space-y-6 dark:text-slate-300">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <Button variant="outline" size="sm" onClick={() => navigate('/admin-dashboard/accounts')} className="dark:border-slate-600 dark:hover:bg-slate-700">
                     <ArrowLeft className="mr-2 h-4 w-4" /> Back to Accounts List
                 </Button>
-                {canEditUser && (
-                    <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-                        <DialogTrigger asChild>
-                            <Button variant="outline" size="sm" className="dark:border-slate-600 dark:hover:bg-slate-700">
-                                <Edit className="mr-2 h-4 w-4" /> Edit User
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent className="sm:max-w-lg dark:bg-slate-800 dark:border-slate-700">
-                            <DialogHeader>
-                                <DialogTitle className="dark:text-white">Edit User</DialogTitle>
-                                <DialogDescription className="dark:text-slate-400">Update the details for {user.email}.</DialogDescription>
-                            </DialogHeader>
-                            <EditUserForm
-                                user={user}
-                                cleanerEmployees={cleanerEmployees}
-                                onSave={handleSaveUser}
-                                onCancel={() => setIsEditDialogOpen(false)}
-                            />
-                        </DialogContent>
-                    </Dialog>
-                )}
+                <div className="flex flex-wrap items-center gap-2">
+                    <PermissionGate permission="purchases.create">
+                        <Button size="sm" onClick={() => setIsCreatePurchaseOpen(true)}>
+                            <ShoppingCart className="mr-2 h-4 w-4" /> Create Purchase
+                        </Button>
+                    </PermissionGate>
+                    {canEditUser && (
+                        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+                            <DialogTrigger asChild>
+                                <Button variant="outline" size="sm" className="dark:border-slate-600 dark:hover:bg-slate-700">
+                                    <Edit className="mr-2 h-4 w-4" /> Edit User
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="sm:max-w-lg dark:bg-slate-800 dark:border-slate-700">
+                                <DialogHeader>
+                                    <DialogTitle className="dark:text-white">Edit User</DialogTitle>
+                                    <DialogDescription className="dark:text-slate-400">Update the details for {user.email}.</DialogDescription>
+                                </DialogHeader>
+                                <EditUserForm
+                                    user={user}
+                                    cleanerEmployees={cleanerEmployees}
+                                    onSave={handleSaveUser}
+                                    onCancel={() => setIsEditDialogOpen(false)}
+                                />
+                            </DialogContent>
+                        </Dialog>
+                    )}
+                </div>
             </div>
 
             {!canEditUser && (
@@ -634,6 +644,12 @@ const AdminUserProfilePage = () => {
                     />
                 </CardContent>
             </Card>
+            <CreatePurchaseModal
+                isOpen={isCreatePurchaseOpen}
+                onClose={() => setIsCreatePurchaseOpen(false)}
+                onSuccess={fetchData}
+                initialCustomer={user}
+            />
         </div>
     );
 };
