@@ -72,6 +72,10 @@ const Testimonials = () => {
         const data = await fetchGoogleBusinessReviews();
         if (!isMounted) return;
 
+        if (import.meta.env.DEV) {
+          console.log('Google reviews response', data);
+        }
+
         if (Array.isArray(data?.reviews) && data.reviews.length > 0) {
           setDisplayTestimonials(data.reviews);
           setCurrentIndex(0);
