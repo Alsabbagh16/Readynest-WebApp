@@ -13,7 +13,7 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
   headers: {
     ...corsHeaders,
     'Content-Type': 'application/json',
-    'Cache-Control': 'public, max-age=900',
+    'Cache-Control': 'no-store',
   },
 });
 
@@ -93,6 +93,58 @@ const fallbackPayload = (reason: string, cached: Record<string, unknown> | null 
   diagnostic: details,
 });
 
+const fetchLegacyPlaceDetails = async (googlePlacesKey: string, placeId: string) => {
+  const legacyUrl = new URL('https://maps.googleapis.com/maps/api/place/details/json');
+  legacyUrl.searchParams.set('place_id', placeId);
+  legacyUrl.searchParams.set('fields', 'rating,user_ratings_total,url,reviews');
+  legacyUrl.searchParams.set('key', googlePlacesKey);
+
+  const legacyResponse = await fetch(legacyUrl.toString());
+  const legacyBody = await legacyResponse.json().catch(() => ({}));
+  const legacyStatus = String(legacyBody.status || '').toUpperCase();
+
+  if (!legacyResponse.ok || legacyStatus !== 'OK') {
+    throw new Error(extractGoogleError(legacyResponse.status, legacyBody));
+  }
+
+  const legacyResult = legacyBody.result || {};
+  const legacyReviews = Array.isArray(legacyResult.reviews)
+    ? legacyResult.reviews.map(normalizeLegacyReview).filter((review) => review.content)
+    : [];
+
+  return {
+    reviews: legacyReviews,
+    rating: typeof legacyResult.rating === 'number' ? legacyResult.rating : null,
+    user_rating_count: Number.isInteger(legacyResult.user_ratings_total) ? legacyResult.user_ratings_total : null,
+    google_maps_uri: legacyResult.url || null,
+  };
+};
+
+const upsertReviewsCache = async (
+  supabase: ReturnType<typeof createClient>,
+  placeId: string,
+  payload: {
+    reviews: unknown[];
+    rating: number | null;
+    user_rating_count: number | null;
+    google_maps_uri: string | null;
+  },
+) => {
+  const { error } = await supabase
+    .from('google_reviews_cache')
+    .upsert({
+      place_id: placeId,
+      reviews: payload.reviews,
+      rating: payload.rating,
+      user_rating_count: payload.user_rating_count,
+      google_maps_uri: payload.google_maps_uri,
+      fetched_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'place_id' });
+
+  if (error) console.error('Google reviews cache write failed:', error);
+};
+
 Deno.serve(async (request: Request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (!['GET', 'POST'].includes(request.method)) return json({ error: 'Method not allowed.' }, 405);
@@ -125,7 +177,12 @@ Deno.serve(async (request: Request) => {
   };
 
   const cached = await getCached();
-  if (cached?.fetched_at && Date.now() - new Date(cached.fetched_at).getTime() < CACHE_TTL_MS) {
+  const cachedReviews = Array.isArray(cached?.reviews) ? cached.reviews : [];
+  if (
+    cached?.fetched_at
+    && Date.now() - new Date(cached.fetched_at).getTime() < CACHE_TTL_MS
+    && cachedReviews.length > 0
+  ) {
     return json({
       reviews: cached.reviews || [],
       rating: cached.rating || null,
@@ -155,84 +212,43 @@ Deno.serve(async (request: Request) => {
       const newApiError = extractGoogleError(response.status, body);
       console.error('Google Places reviews request failed:', response.status, body);
 
-      const legacyUrl = new URL('https://maps.googleapis.com/maps/api/place/details/json');
-      legacyUrl.searchParams.set('place_id', placeId);
-      legacyUrl.searchParams.set('fields', 'rating,user_ratings_total,url,reviews');
-      legacyUrl.searchParams.set('key', googlePlacesKey);
-
-      const legacyResponse = await fetch(legacyUrl.toString());
-      const legacyBody = await legacyResponse.json().catch(() => ({}));
-      const legacyStatus = String(legacyBody.status || '').toUpperCase();
-
-      if (!legacyResponse.ok || legacyStatus !== 'OK') {
-        const legacyError = extractGoogleError(legacyResponse.status, legacyBody);
-        console.error('Legacy Google Places reviews request failed:', legacyResponse.status, legacyBody);
+      try {
+        const legacyPayload = await fetchLegacyPlaceDetails(googlePlacesKey, placeId);
+        await upsertReviewsCache(supabase, placeId, legacyPayload);
+        return json({ ...legacyPayload, source: 'google_legacy', stale: false });
+      } catch (legacyError) {
+        console.error('Legacy Google Places reviews request failed:', legacyError);
         return json(fallbackPayload('Google reviews could not be refreshed.', cached, `${newApiError} | ${legacyError}`));
       }
-
-      const legacyResult = legacyBody.result || {};
-      const legacyReviews = Array.isArray(legacyResult.reviews)
-        ? legacyResult.reviews.map(normalizeLegacyReview).filter((review) => review.content)
-        : [];
-
-      const legacyPayload = {
-        place_id: placeId,
-        reviews: legacyReviews,
-        rating: typeof legacyResult.rating === 'number' ? legacyResult.rating : null,
-        user_rating_count: Number.isInteger(legacyResult.user_ratings_total) ? legacyResult.user_ratings_total : null,
-        google_maps_uri: legacyResult.url || null,
-        fetched_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-
-      const { error: legacyUpsertError } = await supabase
-        .from('google_reviews_cache')
-        .upsert(legacyPayload, { onConflict: 'place_id' });
-
-      if (legacyUpsertError) {
-        console.error('Legacy Google reviews cache write failed:', legacyUpsertError);
-      }
-
-      return json({
-        reviews: legacyReviews,
-        rating: legacyPayload.rating,
-        user_rating_count: legacyPayload.user_rating_count,
-        google_maps_uri: legacyPayload.google_maps_uri,
-        source: 'google_legacy',
-        stale: false,
-      });
     }
 
     const reviews = Array.isArray(body.reviews)
       ? body.reviews.map(normalizeReview).filter((review) => review.content)
       : [];
 
-    const payload = {
-      place_id: placeId,
+    let payload = {
       reviews,
       rating: typeof body.rating === 'number' ? body.rating : null,
       user_rating_count: Number.isInteger(body.userRatingCount) ? body.userRatingCount : null,
       google_maps_uri: body.googleMapsUri || null,
-      fetched_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
     };
+    let source = 'google';
 
-    const { error: upsertError } = await supabase
-      .from('google_reviews_cache')
-      .upsert(payload, { onConflict: 'place_id' });
-
-    if (upsertError) {
-      console.error('Google reviews cache write failed:', upsertError);
+    if (payload.reviews.length === 0 && Number(payload.user_rating_count || 0) > 0) {
+      try {
+        const legacyPayload = await fetchLegacyPlaceDetails(googlePlacesKey, placeId);
+        if (legacyPayload.reviews.length > 0) {
+          payload = legacyPayload;
+          source = 'google_legacy';
+        }
+      } catch (legacyError) {
+        console.error('Legacy Google Places empty-review fallback failed:', legacyError);
+      }
     }
 
-    return json({
-      reviews,
-      rating: payload.rating,
-      user_rating_count: payload.user_rating_count,
-      google_maps_uri: payload.google_maps_uri,
-      source: 'google',
-      stale: false,
-    });
+    await upsertReviewsCache(supabase, placeId, payload);
+
+    return json({ ...payload, source, stale: false });
   } catch (error) {
     console.error('Google Business reviews function failed:', error);
     return json(fallbackPayload('Google reviews could not be loaded.', cached, error instanceof Error ? error.message : null));
