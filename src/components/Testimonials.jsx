@@ -27,26 +27,6 @@ const ReviewAvatar = ({ testimonial }) => {
   );
 };
 
-const buildGoogleRatingSummary = (data) => {
-  const rating = Number(data?.rating || 0);
-  const count = Number(data?.user_rating_count || 0);
-
-  if (!rating || !count) return [];
-
-  const plural = count === 1 ? 'review' : 'reviews';
-  return [{
-    id: 'google-rating-summary',
-    name: 'ReadyNest on Google',
-    avatar: 'G',
-    role: 'Google Business Profile',
-    content: `Rated ${rating.toFixed(1)} out of 5 on Google based on ${count} ${plural}.`,
-    rating: Math.round(rating),
-    service: 'Google Rating',
-    review_url: data?.google_maps_uri || null,
-    source: 'google',
-  }];
-};
-
 const Testimonials = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isAutoRotating, setIsAutoRotating] = useState(true);
@@ -95,17 +75,10 @@ const Testimonials = () => {
         if (Array.isArray(data?.reviews) && data.reviews.length > 0) {
           setDisplayTestimonials(data.reviews);
           setCurrentIndex(0);
-        } else {
-          const ratingSummary = buildGoogleRatingSummary(data);
-          if (ratingSummary.length > 0) {
-            setDisplayTestimonials(ratingSummary);
-            setCurrentIndex(0);
-            return;
-          }
-
-          if (data?.warning || data?.diagnostic) {
-            console.warn('Google reviews fallback:', data.warning, data.diagnostic);
-          }
+        } else if (data?.warning || data?.diagnostic) {
+          console.warn('Google reviews fallback:', data.warning, data.diagnostic);
+        } else if (Number(data?.user_rating_count || 0) > 0) {
+          console.warn('Google reviews unavailable: Google returned rating data but no written review text for this Place ID.');
         }
       } catch (error) {
         console.error('Unable to load Google reviews:', error);

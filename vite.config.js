@@ -105,32 +105,38 @@ const originalFetch = window.fetch;
 
 window.fetch = function(...args) {
 	const url = args[0] instanceof Request ? args[0].url : args[0];
+	const urlString = typeof url === 'string' ? url : String(url || '');
 
 	// Skip WebSocket URLs
-	if (url.startsWith('ws:') || url.startsWith('wss:')) {
+	if (urlString.startsWith('ws:') || urlString.startsWith('wss:')) {
 		return originalFetch.apply(this, args);
 	}
+
+	const shouldSkipFetchLog = (requestUrl) => {
+		if (!requestUrl) return true;
+		return /googletagmanager\\.com|google-analytics\\.com|analytics\\.google\\.com|region1\\.google-analytics\\.com/i.test(requestUrl);
+	};
 
 	return originalFetch.apply(this, args)
 		.then(async response => {
 			const contentType = response.headers.get('Content-Type') || '';
+			const requestUrl = response.url || urlString;
 
 			// Exclude HTML document responses
 			const isDocumentResponse =
 				contentType.includes('text/html') ||
 				contentType.includes('application/xhtml+xml');
 
-			if (!response.ok && !isDocumentResponse) {
+			if (!response.ok && !isDocumentResponse && !shouldSkipFetchLog(requestUrl)) {
 					const responseClone = response.clone();
 					const errorFromRes = await responseClone.text();
-					const requestUrl = response.url;
 					console.error(\`Fetch error from \${requestUrl}: \${errorFromRes}\`);
 			}
 
 			return response;
 		})
 		.catch(error => {
-			if (!url.match(/\.html?$/i)) {
+			if (!urlString.match(/\.html?$/i) && !shouldSkipFetchLog(urlString)) {
 				console.error(error);
 			}
 
