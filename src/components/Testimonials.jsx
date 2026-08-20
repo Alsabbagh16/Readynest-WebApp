@@ -2,12 +2,57 @@ import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { testimonials } from "@/lib/services";
 import { Star } from "lucide-react";
+import { fetchGoogleBusinessReviews } from "@/lib/api/googleReviewsApi";
+
+const getInitials = (name = '') => {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return parts.slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || 'G';
+};
+
+const ReviewAvatar = ({ testimonial }) => {
+  if (testimonial.avatar && /^https?:\/\//i.test(testimonial.avatar)) {
+    return (
+      <img
+        alt={`${testimonial.name} avatar`}
+        className="w-12 h-12 rounded-full object-cover"
+        src={testimonial.avatar}
+      />
+    );
+  }
+
+  return (
+    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+      {testimonial.avatar || getInitials(testimonial.name)}
+    </div>
+  );
+};
+
+const buildGoogleRatingSummary = (data) => {
+  const rating = Number(data?.rating || 0);
+  const count = Number(data?.user_rating_count || 0);
+
+  if (!rating || !count) return [];
+
+  const plural = count === 1 ? 'review' : 'reviews';
+  return [{
+    id: 'google-rating-summary',
+    name: 'ReadyNest on Google',
+    avatar: 'G',
+    role: 'Google Business Profile',
+    content: `Rated ${rating.toFixed(1)} out of 5 on Google based on ${count} ${plural}.`,
+    rating: Math.round(rating),
+    service: 'Google Rating',
+    review_url: data?.google_maps_uri || null,
+    source: 'google',
+  }];
+};
 
 const Testimonials = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isAutoRotating, setIsAutoRotating] = useState(true);
   const [touchStart, setTouchStart] = useState(0);
   const [touchEnd, setTouchEnd] = useState(0);
+  const [displayTestimonials, setDisplayTestimonials] = useState(testimonials);
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -30,14 +75,49 @@ const Testimonials = () => {
 
   // Auto-rotation for mobile
   useEffect(() => {
-    if (!isAutoRotating) return;
+    if (!isAutoRotating || displayTestimonials.length === 0) return;
     
     const interval = setInterval(() => {
-      setCurrentIndex((prevIndex) => (prevIndex + 1) % testimonials.length);
+      setCurrentIndex((prevIndex) => (prevIndex + 1) % displayTestimonials.length);
     }, 3000); // Rotate every 3 seconds for faster sliding
 
     return () => clearInterval(interval);
-  }, [isAutoRotating]);
+  }, [isAutoRotating, displayTestimonials.length]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadGoogleReviews = async () => {
+      try {
+        const data = await fetchGoogleBusinessReviews();
+        if (!isMounted) return;
+
+        if (Array.isArray(data?.reviews) && data.reviews.length > 0) {
+          setDisplayTestimonials(data.reviews);
+          setCurrentIndex(0);
+        } else {
+          const ratingSummary = buildGoogleRatingSummary(data);
+          if (ratingSummary.length > 0) {
+            setDisplayTestimonials(ratingSummary);
+            setCurrentIndex(0);
+            return;
+          }
+
+          if (data?.warning || data?.diagnostic) {
+            console.warn('Google reviews fallback:', data.warning, data.diagnostic);
+          }
+        }
+      } catch (error) {
+        console.error('Unable to load Google reviews:', error);
+      }
+    };
+
+    loadGoogleReviews();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Touch handlers for swipe functionality
   const handleTouchStart = (e) => {
@@ -64,11 +144,11 @@ const Testimonials = () => {
 
     if (isLeftSwipe) {
       // Swipe left - go to next testimonial
-      setCurrentIndex((prevIndex) => (prevIndex + 1) % testimonials.length);
+      setCurrentIndex((prevIndex) => (prevIndex + 1) % displayTestimonials.length);
     } else if (isRightSwipe) {
       // Swipe right - go to previous testimonial
       setCurrentIndex((prevIndex) => 
-        prevIndex === 0 ? testimonials.length - 1 : prevIndex - 1
+        prevIndex === 0 ? displayTestimonials.length - 1 : prevIndex - 1
       );
     }
   };
@@ -105,7 +185,7 @@ const Testimonials = () => {
               onTouchMove={handleTouchMove}
               onTouchEnd={handleTouchEnd}
             >
-              {testimonials.map((testimonial) => (
+              {displayTestimonials.map((testimonial) => (
                 <div
                   key={testimonial.id}
                   className="w-full flex-shrink-0 px-2"
@@ -120,7 +200,7 @@ const Testimonials = () => {
                   >
                     <div className="flex items-center mb-4">
                       <div className="mr-4">
-                         <img  alt={`${testimonial.name} avatar`} className="w-12 h-12 rounded-full object-cover" src={testimonial.avatar} />
+                        <ReviewAvatar testimonial={testimonial} />
                       </div>
                       <div>
                         <h4 className="font-bold text-sm md:text-base">{testimonial.name}</h4>
@@ -145,7 +225,7 @@ const Testimonials = () => {
           
           {/* Navigation Dots */}
           <div className="flex justify-center mt-6 space-x-2">
-            {testimonials.map((_, index) => (
+            {displayTestimonials.map((_, index) => (
               <button
                 key={index}
                 onClick={() => handleDotClick(index)}
@@ -168,7 +248,7 @@ const Testimonials = () => {
           whileInView="visible"
           viewport={{ once: true, amount: 0.2 }}
         >
-          {testimonials.map((testimonial) => (
+          {displayTestimonials.map((testimonial) => (
             <motion.div
               key={testimonial.id}
               className="testimonial-card bg-background rounded-xl overflow-hidden shadow-lg p-6 border border-gray-100 flex flex-col"
@@ -176,7 +256,7 @@ const Testimonials = () => {
             >
               <div className="flex items-center mb-4">
                 <div className="mr-4">
-                   <img  alt={`${testimonial.name} avatar`} className="w-12 h-12 rounded-full object-cover" src={testimonial.avatar} />
+                  <ReviewAvatar testimonial={testimonial} />
                 </div>
                 <div>
                   <h4 className="font-bold text-sm md:text-base">{testimonial.name}</h4>

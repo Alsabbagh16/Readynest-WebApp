@@ -40,3 +40,8 @@ entrypoint = "./functions/vehicle-road-snap/index.ts"
 enabled = true
 verify_jwt = true
 entrypoint = "./functions/vehicle-maps-config/index.ts"
+
+[functions.google-business-reviews]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/google-business-reviews/index.ts"
