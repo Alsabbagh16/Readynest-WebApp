@@ -5,10 +5,29 @@
 		
 		<meta name="generator" content="Hostinger Horizons" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png" />
+		<link rel="icon" href="/favicon.ico" sizes="any" />
+		<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+		<link rel="manifest" href="/site.webmanifest" />
+		<script>
+			if (location.protocol === 'http:' && !/^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])$/.test(location.hostname)) {
+				location.replace('https://' + location.host + location.pathname + location.search + location.hash);
+			}
+		</script>
+		<!-- Google tag (gtag.js) -->
+		<script async src="https://www.googletagmanager.com/gtag/js?id=G-RWQK15ELTG"></script>
+		<script>
+			window.dataLayer = window.dataLayer || [];
+			function gtag(){dataLayer.push(arguments);}
+			gtag('js', new Date());
+
+			gtag('config', 'G-RWQK15ELTG');
+		</script>
 		<title>Ready Nest - Cleaning & Maintenance</title>
 		<meta name="description" content="Professional home cleaning services with flexible subscription packages and one-time cleaning options. Book your cleaning service today!">
-		<script type="module" crossorigin src="/assets/index-78b64b49.js"></script>
-		<link rel="stylesheet" href="/assets/index-7467fd55.css">
+		<script type="module" crossorigin src="/assets/index-a03e1754.js"></script>
+		<link rel="stylesheet" href="/assets/index-885b429e.css">
 		<script type="module">
 window.onerror = (message, source, lineno, colno, errorObj) => {
 	const errorDetails = errorObj ? JSON.stringify({
@@ -103,32 +122,38 @@ const originalFetch = window.fetch;
 
 window.fetch = function(...args) {
 	const url = args[0] instanceof Request ? args[0].url : args[0];
+	const urlString = typeof url === 'string' ? url : String(url || '');
 
 	// Skip WebSocket URLs
-	if (url.startsWith('ws:') || url.startsWith('wss:')) {
+	if (urlString.startsWith('ws:') || urlString.startsWith('wss:')) {
 		return originalFetch.apply(this, args);
 	}
+
+	const shouldSkipFetchLog = (requestUrl) => {
+		if (!requestUrl) return true;
+		return /googletagmanager\.com|google-analytics\.com|analytics\.google\.com|region1\.google-analytics\.com/i.test(requestUrl);
+	};
 
 	return originalFetch.apply(this, args)
 		.then(async response => {
 			const contentType = response.headers.get('Content-Type') || '';
+			const requestUrl = response.url || urlString;
 
 			// Exclude HTML document responses
 			const isDocumentResponse =
 				contentType.includes('text/html') ||
 				contentType.includes('application/xhtml+xml');
 
-			if (!response.ok && !isDocumentResponse) {
+			if (!response.ok && !isDocumentResponse && !shouldSkipFetchLog(requestUrl)) {
 					const responseClone = response.clone();
 					const errorFromRes = await responseClone.text();
-					const requestUrl = response.url;
 					console.error(`Fetch error from ${requestUrl}: ${errorFromRes}`);
 			}
 
 			return response;
 		})
 		.catch(error => {
-			if (!url.match(/.html?$/i)) {
+			if (!urlString.match(/.html?$/i) && !shouldSkipFetchLog(urlString)) {
 				console.error(error);
 			}
 
