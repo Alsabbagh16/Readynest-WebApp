@@ -24,6 +24,8 @@ const REQUIRED_PERMISSIONS = [
   { key: 'tab.services_products.view', description: 'View Services & Products tab', module: 'products' },
   { key: 'tab.coupons.view', description: 'View Coupons tab', module: 'coupons' },
   { key: 'tab.customize_website.view', description: 'View Website Customization tab', module: 'settings' },
+  { key: 'tab.blog_management.view', description: 'View Blog Management', module: 'settings' },
+  { key: 'blogs.manage', description: 'Create, edit, and delete blog posts', module: 'settings' },
   { key: 'tab.inventory.view', description: 'View Inventory tab', module: 'inventory' },
   { key: 'tab.vehicle_logistics.view', description: 'View the Vehicle Logistics dashboard', module: 'Vehicle Logistics' },
   { key: 'vehicle_logistics.performance.view', description: 'View vehicle telemetry and performance analytics', module: 'Vehicle Logistics' },

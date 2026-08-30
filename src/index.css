@@ -213,3 +213,45 @@
 .animate-shine {
   animation: shine 3s ease-in-out infinite;
 }
+
+/* Blog rich-text editing and rendering */
+.ProseMirror p,
+.blog-content p {
+  margin: 0.85rem 0;
+  line-height: 1.8;
+}
+
+.ProseMirror h2,
+.blog-content h2 {
+  margin: 1.75rem 0 0.75rem;
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.ProseMirror h3,
+.blog-content h3 {
+  margin: 1.4rem 0 0.6rem;
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.ProseMirror ul,
+.blog-content ul {
+  margin: 0.85rem 0;
+  list-style: disc;
+  padding-left: 1.5rem;
+}
+
+.ProseMirror ol,
+.blog-content ol {
+  margin: 0.85rem 0;
+  list-style: decimal;
+  padding-left: 1.5rem;
+}
+
+.ProseMirror a,
+.blog-content a {
+  color: hsl(var(--primary));
+  text-decoration: underline;
+}

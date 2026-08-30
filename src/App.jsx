@@ -39,6 +39,8 @@ import ForgotPasswordPage from "@/pages/ForgotPasswordPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import PartTimeCareersPage from "@/pages/PartTimeCareersPage";
 import CareersPage from "@/pages/CareersPage";
+import BlogsPage from "@/pages/BlogsPage";
+import BlogDetailPage from "@/pages/BlogDetailPage";
 
 const CenteredLoader = ({ text = "Loading..." }) => (
   <div className="flex justify-center items-center h-screen w-full">
@@ -195,6 +197,8 @@ function App() {
           <Route path="terms-of-service" element={<TermsOfServicePage />} />
           <Route path="cancellation-policy" element={<CancellationPolicyPage />} />
           <Route path="about-us" element={<AboutUsPage />} />
+          <Route path="blogs" element={<BlogsPage />} />
+          <Route path="blogs/:blogSlug" element={<BlogDetailPage />} />
           
           <Route
             path="account"

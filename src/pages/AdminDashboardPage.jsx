@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, ShoppingCart, Briefcase, LogOut, ListChecks, Settings2, UserCircle, Menu, X, ChevronDown, ChevronRight, LayoutTemplate, Tag, CalendarDays, ShieldCheck, DollarSign, Mail, Package, Repeat2, Truck, LayoutDashboard } from 'lucide-react';
+import { Users, ShoppingCart, Briefcase, LogOut, ListChecks, Settings2, UserCircle, Menu, X, ChevronDown, ChevronRight, LayoutTemplate, Tag, CalendarDays, ShieldCheck, DollarSign, Mail, Package, Repeat2, Truck, LayoutDashboard, Newspaper } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { updateJob } from "@/lib/storage/jobStorage";
 import { format } from "date-fns";
@@ -23,6 +23,7 @@ import InventoryTab from '@/components/AdminDashboard/InventoryTab';
 import SubscriptionManagementTab from '@/components/AdminDashboard/SubscriptionManagementTab';
 import VehicleLogisticsTab from '@/components/AdminDashboard/VehicleLogisticsTab';
 import DashboardOverviewTab from '@/components/AdminDashboard/DashboardOverviewTab';
+import BlogManagementTab from '@/components/AdminDashboard/BlogManagementTab';
 import ManageRolesPage from '@/pages/ManageRolesPage';
 import AdminPurchaseDetailPage from '@/pages/AdminPurchaseDetailPage';
 import AdminPurchaseAgreementPage from '@/pages/AdminPurchaseAgreementPage';
@@ -83,7 +84,7 @@ const adminTabGroups = [
     id: 'administration',
     label: 'Administration',
     icon: Settings2,
-    tabIds: ['customize-website', 'manage-roles'],
+    tabIds: ['customize-website', 'blog-management', 'manage-roles'],
   },
 ];
 
@@ -117,6 +118,7 @@ const AdminDashboardContent = () => {
     { id: 'inventory', label: 'Inventory', icon: Package, path: '/admin-dashboard/inventory', component: <InventoryTab />, permission: 'tab.inventory.view' },
     { id: 'report-issue', label: 'Report Issue', icon: Mail, path: '/admin-dashboard/report-issue', component: <ReportIssueTab />, permission: null },
     { id: 'customize-website', label: 'Customize Website', icon: LayoutTemplate, path: '/admin-dashboard/customize-website', component: <CustomizeWebsiteTab />, permission: 'tab.customize_website.view' },
+    { id: 'blog-management', label: 'Blog Management', icon: Newspaper, path: '/admin-dashboard/blog-management', component: <BlogManagementTab />, permission: 'tab.blog_management.view' },
     { id: 'manage-roles', label: 'Manage Roles', icon: ShieldCheck, path: '/admin-dashboard/manage-roles', component: <ManageRolesPage />, permission: 'tab.manage_roles.view' },
   ];
 

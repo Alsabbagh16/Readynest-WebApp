@@ -4,6 +4,7 @@ import OurValues from "@/components/OurValues";
 import ProductCards from "@/components/ProductCards";
 import Testimonials from "@/components/Testimonials";
 import FAQ from "@/components/FAQ";
+import RecentBlogs from "@/components/RecentBlogs";
 
 const HomePage = () => {
   return (
@@ -14,6 +15,7 @@ const HomePage = () => {
         <ProductCards />
         <Testimonials />
         <FAQ />
+        <RecentBlogs />
       </main>
     </div>
   );
