@@ -41,6 +41,8 @@ import PartTimeCareersPage from "@/pages/PartTimeCareersPage";
 import CareersPage from "@/pages/CareersPage";
 import BlogsPage from "@/pages/BlogsPage";
 import BlogDetailPage from "@/pages/BlogDetailPage";
+import AreasPage from "@/pages/AreasPage";
+import AreaDetailPage from "@/pages/AreaDetailPage";
 
 const CenteredLoader = ({ text = "Loading..." }) => (
   <div className="flex justify-center items-center h-screen w-full">
@@ -185,6 +187,8 @@ function App() {
           <Route path="book-product/:productId" element={<ProductBookingPage />} />
           <Route path="quote" element={<QuotePage />} />
           <Route path="contact" element={<ContactPage />} />
+          <Route path="areas" element={<AreasPage />} />
+          <Route path="areas/:locationSlug" element={<AreaDetailPage />} />
           <Route path="careers" element={<CareersPage />} />
           <Route path="Careers/PartTime" element={<PartTimeCareersPage />} />
           <Route path="parttime" element={<PartTimeCareersPage />} />

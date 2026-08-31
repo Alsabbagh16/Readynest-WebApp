@@ -1,6 +1,7 @@
 
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { Helmet } from 'react-helmet';
 
 import { Users, Hourglass, Plus, Minus, AlertCircle, ArrowLeft, Loader2 } from 'lucide-react';
 
@@ -827,6 +828,18 @@ const HourlyBookingPage = () => {
   return (
 
     <div className="min-h-screen bg-background pb-24 md:pb-12" dir={isRtl ? 'rtl' : 'ltr'}>
+
+      <Helmet>
+        <title>Hourly Cleaning Bahrain | Manama, Riffa &amp; Muharraq | Ready Nest</title>
+        <meta
+          name="description"
+          content="Book hourly cleaning services in Bahrain with Ready Nest. Professional home cleaning in Manama, Riffa, Muharraq, Hidd, Amwaj, Juffair and surrounding areas."
+        />
+        <meta
+          name="keywords"
+          content="hourly cleaning Bahrain, hourly cleaners Bahrain, home cleaning Bahrain, house cleaning Bahrain, cleaning services Manama, cleaning services Riffa, cleaning services Muharraq, cleaners Juffair, cleaners Hidd, cleaning Amwaj, cleaning Diyar Al Muharraq, cleaning Busaiteen, cleaning Arad, cleaning Qalali, cleaning Hamad Town, cleaning Salman Town, professional cleaners Bahrain"
+        />
+      </Helmet>
 
       {/* {currentStep === 1 && <HourlyBookingHeroSection />} */}
 

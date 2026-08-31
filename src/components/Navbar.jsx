@@ -13,7 +13,8 @@ import {
   Briefcase,
   LifeBuoy,
   UserCircle,
-  Mail
+  Mail,
+  MapPin
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
@@ -68,6 +69,7 @@ const Navbar = () => {
   const navLinks = [
     { name: "Home", href: "/", icon: <Home className="w-4 h-4 mr-2" />, hideOnAccount: true },
     { name: "Services", href: "/#our-values", icon: <Briefcase className="w-4 h-4 mr-2" />, hideOnAccount: true },
+    { name: "Areas", href: "/areas", icon: <MapPin className="w-4 h-4 mr-2" />, hideOnAccount: true },
     { name: "Book Now", href: "/hourlybooking", icon: <Calendar className="w-4 h-4 mr-2" />, hideOnAccount: true },
     { name: "Contact", href: "/contact", icon: <User className="w-4 h-4 mr-2" />, hideOnAccount: true },
   ];
