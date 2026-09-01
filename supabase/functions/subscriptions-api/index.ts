@@ -47,6 +47,55 @@ Deno.serve(async (request: Request) => {
       return json({ data });
     }
 
+    if (request.method === 'GET' && route === '/subscriptions/follow-up-queue') {
+      const { data, error } = await supabase.rpc('get_subscription_follow_up_queue');
+      if (error) throw error;
+      return json({ data });
+    }
+
+    if (request.method === 'POST' && route === '/subscriptions/pause') {
+      const body = await request.json();
+      if (!body.client_id) return json({ error: 'client_id is required.' }, 400);
+      const { data, error } = await supabase.rpc('pause_subscription', { p_client_id: body.client_id });
+      if (error) throw error;
+      return json({ data });
+    }
+
+    if (request.method === 'POST' && route === '/subscriptions/resume') {
+      const body = await request.json();
+      if (!body.client_id) return json({ error: 'client_id is required.' }, 400);
+      const { data, error } = await supabase.rpc('resume_subscription', { p_client_id: body.client_id });
+      if (error) throw error;
+      return json({ data });
+    }
+
+    if (request.method === 'POST' && route === '/subscriptions/follow-up-queue/add') {
+      const body = await request.json();
+      if (!body.client_id) return json({ error: 'client_id is required.' }, 400);
+      const { error } = await supabase.rpc('add_subscription_to_follow_up_queue', { p_client_id: body.client_id });
+      if (error) throw error;
+      return json({ data: null });
+    }
+
+    if (request.method === 'POST' && route === '/subscriptions/follow-up-queue/remove') {
+      const body = await request.json();
+      if (!body.client_id) return json({ error: 'client_id is required.' }, 400);
+      const { error } = await supabase.rpc('remove_subscription_from_follow_up_queue', { p_client_id: body.client_id });
+      if (error) throw error;
+      return json({ data: null });
+    }
+
+    if (request.method === 'POST' && route === '/subscriptions/follow-up-queue/note') {
+      const body = await request.json();
+      if (!body.client_id) return json({ error: 'client_id is required.' }, 400);
+      const { data, error } = await supabase.rpc('update_subscription_follow_up_note', {
+        p_client_id: body.client_id,
+        p_note: body.note || '',
+      });
+      if (error) throw error;
+      return json({ data });
+    }
+
     if (request.method === 'POST' && route === '/subscriptions/follow-up') {
       const body = await request.json();
       if (!body.client_id) return json({ error: 'client_id is required.' }, 400);

@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import type {
-  ChurnRiskSubscription,
+  FollowUpQueueSubscription,
   FollowUpPayload,
   SubscriptionDashboardRow,
   SubscriptionPurchaseService,
@@ -33,9 +33,9 @@ export const subscriptionApi = {
   },
 
   // GET /api/subscriptions/churn-risk
-  async getChurnRisk(): Promise<ChurnRiskSubscription[]> {
-    const { data, error } = await supabase.rpc('get_subscription_churn_risk');
-    return unwrap<ChurnRiskSubscription[]>(data || [], error);
+  async getFollowUpQueue(): Promise<FollowUpQueueSubscription[]> {
+    const { data, error } = await supabase.rpc('get_subscription_follow_up_queue');
+    return unwrap<FollowUpQueueSubscription[]>(data || [], error);
   },
 
   async getPurchaseService(purchaseRefId: string): Promise<SubscriptionPurchaseService> {
@@ -63,5 +63,33 @@ export const subscriptionApi = {
       p_client_id: clientId,
     });
     return unwrap<SubscriptionStatus>(data, error);
+  },
+
+  async pauseSubscription(clientId: string): Promise<SubscriptionStatus> {
+    const { data, error } = await supabase.rpc('pause_subscription', { p_client_id: clientId });
+    return unwrap<SubscriptionStatus>(data, error);
+  },
+
+  async resumeSubscription(clientId: string): Promise<SubscriptionStatus> {
+    const { data, error } = await supabase.rpc('resume_subscription', { p_client_id: clientId });
+    return unwrap<SubscriptionStatus>(data, error);
+  },
+
+  async addToFollowUpQueue(clientId: string): Promise<void> {
+    const { error } = await supabase.rpc('add_subscription_to_follow_up_queue', { p_client_id: clientId });
+    unwrap<null>(null, error);
+  },
+
+  async removeFromFollowUpQueue(clientId: string): Promise<void> {
+    const { error } = await supabase.rpc('remove_subscription_from_follow_up_queue', { p_client_id: clientId });
+    unwrap<null>(null, error);
+  },
+
+  async updateFollowUpNote(clientId: string, note: string): Promise<string | null> {
+    const { data, error } = await supabase.rpc('update_subscription_follow_up_note', {
+      p_client_id: clientId,
+      p_note: note,
+    });
+    return unwrap<string | null>(data, error);
   },
 };

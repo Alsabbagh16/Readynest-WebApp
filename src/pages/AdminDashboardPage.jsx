@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, ShoppingCart, Briefcase, LogOut, ListChecks, Settings2, UserCircle, Menu, X, ChevronDown, ChevronRight, LayoutTemplate, Tag, CalendarDays, ShieldCheck, DollarSign, Mail, Package, Repeat2, Truck, LayoutDashboard, Newspaper } from 'lucide-react';
+import { Users, ShoppingCart, Briefcase, LogOut, ListChecks, Settings2, UserCircle, Menu, X, ChevronDown, ChevronRight, LayoutTemplate, Tag, CalendarDays, ShieldCheck, DollarSign, Mail, Package, Repeat2, Truck, LayoutDashboard, Newspaper, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { updateJob } from "@/lib/storage/jobStorage";
 import { format } from "date-fns";
@@ -93,6 +93,7 @@ const AdminDashboardContent = () => {
   const { hasPerm, isSuperadmin, hasUiRoles } = usePermissionContext();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isDesktopNavCollapsed, setIsDesktopNavCollapsed] = useState(() => localStorage.getItem('readynest-admin-nav-collapsed') === 'true');
   const { toast } = useToast();
 
   const [activeJobModal, setActiveJobModal] = useState(null);
@@ -101,6 +102,10 @@ const AdminDashboardContent = () => {
   useEffect(() => {
     setIsMobileMenuOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    localStorage.setItem('readynest-admin-nav-collapsed', String(isDesktopNavCollapsed));
+  }, [isDesktopNavCollapsed]);
 
   const allTabs = [
     { id: 'dashboard-overview', label: 'Dashboard Overview', icon: LayoutDashboard, path: '/admin-dashboard/dashboard-overview', component: <DashboardOverviewTab />, permission: 'tab.dashboard_overview.view' },
@@ -301,19 +306,26 @@ const AdminDashboardContent = () => {
 
       <div className={`
         fixed inset-y-0 left-0 z-50 w-72 bg-gray-900 text-white flex flex-col transition-transform duration-300 ease-in-out shadow-2xl
-        md:relative md:translate-x-0 md:w-64 md:shadow-none
+        md:relative md:translate-x-0 md:shadow-none ${isDesktopNavCollapsed ? 'md:w-20' : 'md:w-64'}
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
-        <div className="p-6 border-b border-gray-800 flex items-center justify-between">
-          <div>
-            <Link to="/" className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
-              <div className="h-8 w-8 bg-primary rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">R</span>
-              </div>
-              ReadyNest
+        <div className={`border-b border-gray-800 flex items-center justify-between ${isDesktopNavCollapsed ? 'p-6 md:flex-col md:gap-3 md:px-3 md:py-4' : 'p-6'}`}>
+          <div className={`min-w-0 ${isDesktopNavCollapsed ? 'md:hidden' : ''}`}>
+            <Link to="/" className={`text-xl font-bold text-white tracking-tight flex items-center gap-2 ${isDesktopNavCollapsed ? 'md:hidden' : ''}`}>
+              <img src="/favicon.svg" alt="ReadyNest" className="h-9 w-9 shrink-0 object-contain" />
+              <span className={isDesktopNavCollapsed ? 'md:hidden' : ''}>ReadyNest</span>
             </Link>
-            <p className="text-xs text-gray-400 mt-1.5 font-medium ml-1">Admin Panel • {adminProfile?.role}</p>
+            <p className={`text-xs text-gray-400 mt-1.5 font-medium ml-1 ${isDesktopNavCollapsed ? 'md:hidden' : ''}`}>Admin Panel • {adminProfile?.role}</p>
           </div>
+          <button
+            type="button"
+            onClick={() => setIsDesktopNavCollapsed((collapsed) => !collapsed)}
+            className="hidden rounded-md p-2 text-gray-400 transition-colors hover:bg-gray-800 hover:text-white md:block"
+            aria-label={isDesktopNavCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+            title={isDesktopNavCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+          >
+            {isDesktopNavCollapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
+          </button>
           <button 
             onClick={() => setIsMobileMenuOpen(false)} 
             className="md:hidden text-gray-400 hover:text-white p-1 hover:bg-gray-800 rounded-md transition-colors"
@@ -322,7 +334,7 @@ const AdminDashboardContent = () => {
           </button>
         </div>
 
-        <nav className="flex-1 space-y-2 overflow-y-auto p-4">
+        <nav className={`scrollbar-hidden flex-1 space-y-2 overflow-x-hidden overflow-y-auto p-4 ${isDesktopNavCollapsed ? 'md:hidden' : ''}`}>
           {visibleTabGroups.map((group) => {
             const isExpanded = Boolean(expandedGroups[group.id]);
             const containsActiveTab = group.tabs.some((tab) => tab.id === activeTabId);
@@ -382,25 +394,50 @@ const AdminDashboardContent = () => {
           })}
         </nav>
 
-        <div className="p-4 border-t border-gray-800 bg-gray-900/50">
-           <div className="flex items-center gap-3 mb-4 px-2">
+        {isDesktopNavCollapsed && (
+          <nav className="scrollbar-hidden hidden flex-1 flex-col items-center gap-2 overflow-x-hidden overflow-y-auto px-3 py-4 md:flex" aria-label="Collapsed admin navigation">
+            {visibleTabs.map((tab) => {
+              const isActive = activeTabId === tab.id;
+              return (
+                <Link
+                  key={tab.id}
+                  to={tab.path}
+                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg transition-colors ${
+                    isActive
+                      ? 'bg-primary text-white shadow-sm shadow-primary/20'
+                      : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                  }`}
+                  aria-label={tab.label}
+                  title={tab.label}
+                >
+                  <tab.icon className="h-5 w-5" />
+                </Link>
+              );
+            })}
+          </nav>
+        )}
+
+        <div className={`border-t border-gray-800 bg-gray-900/50 ${isDesktopNavCollapsed ? 'p-4 md:p-3' : 'p-4'}`}>
+           <div className={`flex items-center gap-3 mb-4 px-2 ${isDesktopNavCollapsed ? 'md:justify-center md:px-0' : ''}`}>
               <div className="h-9 w-9 rounded-full bg-gray-800 flex items-center justify-center border border-gray-700">
                 <span className="text-sm font-semibold text-gray-300">
                   {adminUser?.email?.charAt(0).toUpperCase()}
                 </span>
               </div>
-              <div className="flex-1 min-h-[40px] min-w-0">
+              <div className={`flex-1 min-h-[40px] min-w-0 ${isDesktopNavCollapsed ? 'md:hidden' : ''}`}>
                 <p className="text-sm font-medium text-white truncate">Administrator</p>
                 <p className="text-xs text-gray-500 truncate">{adminUser?.email}</p>
               </div>
            </div>
            <Button
               variant='ghost'
-              className="w-full justify-start text-red-400 hover:bg-red-500/10 hover:text-red-300 h-10 px-3"
+              className={`w-full justify-start text-red-400 hover:bg-red-500/10 hover:text-red-300 h-10 px-3 ${isDesktopNavCollapsed ? 'md:justify-center' : ''}`}
               onClick={adminLogout}
+              aria-label="Sign Out"
+              title={isDesktopNavCollapsed ? 'Sign Out' : undefined}
             >
-              <LogOut className="mr-3 h-4 w-4" />
-              Sign Out
+              <LogOut className={`mr-3 h-4 w-4 ${isDesktopNavCollapsed ? 'md:mr-0' : ''}`} />
+              <span className={isDesktopNavCollapsed ? 'md:hidden' : ''}>Sign Out</span>
             </Button>
         </div>
       </div>
@@ -427,7 +464,7 @@ const AdminDashboardContent = () => {
              initial={{ opacity: 0, y: 10 }}
              animate={{ opacity: 1, y: 0 }}
              transition={{ duration: 0.3 }}
-             className="max-w-7xl mx-auto"
+             className={activeTabId === 'subscription-management' ? 'mx-auto w-full max-w-[1440px]' : 'max-w-7xl mx-auto'}
             >
               <Routes>
                   {visibleTabs.map(tab => {

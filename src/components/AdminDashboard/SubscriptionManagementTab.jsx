@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { Link } from 'react-router-dom';
 import {
@@ -7,9 +7,15 @@ import {
   CalendarPlus,
   CreditCard,
   MessageCircle,
+  MoreHorizontal,
+  Pause,
+  Play,
   RefreshCw,
   Repeat2,
+  Save,
+  UserPlus,
   Users,
+  X,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -17,6 +23,14 @@ import { useToast } from '@/components/ui/use-toast';
 import SubscriptionDashboardErrorBoundary from '@/components/SubscriptionDashboardErrorBoundary';
 import { useSubscriptionDashboard } from '@/hooks/useSubscriptionDashboard';
 import { subscriptionApi } from '@/lib/api/subscriptionApi';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 const statusStyles = {
   active: 'border-emerald-200 bg-emerald-50 text-emerald-700',
@@ -27,9 +41,18 @@ const statusStyles = {
 
 const paymentStyles = {
   paid: 'bg-emerald-500',
+  partial: 'bg-amber-400',
   pending: 'bg-amber-400',
   failed: 'bg-red-500',
   missed: 'bg-red-500',
+};
+
+const paymentLabels = {
+  paid: 'Paid',
+  partial: 'Partially paid',
+  pending: 'Pending',
+  failed: 'Failed',
+  missed: 'Missed',
 };
 
 const serviceStyles = {
@@ -119,13 +142,75 @@ const MetricCard = ({ label, value, icon: Icon, alert = false }) => (
   </div>
 );
 
+const FollowUpQueueCard = ({ subscription, updating, onFollowUp, onSchedule, onRemove, onSaveNote }) => {
+  const [note, setNote] = useState(subscription.note || '');
+
+  useEffect(() => {
+    setNote(subscription.note || '');
+  }, [subscription.client_id, subscription.note]);
+
+  return (
+    <div className="relative rounded-lg border border-slate-200 p-3 pt-4">
+      <button
+        type="button"
+        className="absolute right-1.5 top-1.5 rounded-full p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
+        onClick={() => onRemove(subscription)}
+        disabled={updating}
+        aria-label={`Remove ${subscription.client_name || 'subscriber'} from follow-up queue`}
+        title="Remove from queue"
+      >
+        <X className="h-3.5 w-3.5" />
+      </button>
+      <div className="flex items-start justify-between gap-2 pr-6">
+        <div className="min-w-0">
+          <Link to={`/admin-dashboard/user/${subscription.client_id}`} className="block truncate text-sm font-semibold text-blue-700 hover:underline">
+            {subscription.client_name || 'Unnamed Client'}
+          </Link>
+          <p className="mt-0.5 text-xs text-slate-500">
+            {subscription.days_since_last_clean == null ? 'No completed clean' : `${subscription.days_since_last_clean} days since last clean`}
+          </p>
+        </div>
+        <Badge variant="outline" className={`shrink-0 capitalize ${statusStyles[subscription.status]}`}>
+          {subscription.status}
+        </Badge>
+      </div>
+      <div className="mt-3">
+        <label htmlFor={`follow-up-note-${subscription.client_id}`} className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Follow-up note</label>
+        <textarea
+          id={`follow-up-note-${subscription.client_id}`}
+          value={note}
+          onChange={(event) => setNote(event.target.value)}
+          maxLength={2000}
+          rows={2}
+          placeholder="Add a note for the next follow-up..."
+          className="mt-1 w-full resize-y rounded-md border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+        />
+        <div className="mt-1 flex items-center justify-between gap-2">
+          <span className="text-[10px] text-slate-400">{note.length}/2000</span>
+          <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => onSaveNote(subscription, note)} disabled={updating || note === (subscription.note || '')}>
+            <Save className="mr-1 h-3 w-3" /> Save Note
+          </Button>
+        </div>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <Button size="sm" variant="outline" onClick={() => onFollowUp(subscription)} disabled={updating}>
+          <MessageCircle className="mr-1.5 h-3.5 w-3.5" /> Follow-Up
+        </Button>
+        <Button size="sm" onClick={() => onSchedule(subscription)} disabled={updating}>
+          <CalendarPlus className="mr-1.5 h-3.5 w-3.5" /> Schedule
+        </Button>
+      </div>
+    </div>
+  );
+};
+
 const SubscriptionManagementContent = () => {
   const { toast } = useToast();
   const [serviceFilters, setServiceFilters] = useState({});
   const [serviceFilterLoading, setServiceFilterLoading] = useState(null);
   const {
     filteredSubscriptions,
-    churnRisk,
+    followUpQueue,
     summary,
     statusFilter,
     setStatusFilter,
@@ -135,6 +220,11 @@ const SubscriptionManagementContent = () => {
     refresh,
     markScheduled,
     followUp,
+    pauseSubscription,
+    resumeSubscription,
+    addToFollowUpQueue,
+    removeFromFollowUpQueue,
+    updateFollowUpNote,
   } = useSubscriptionDashboard();
 
   const handlePaymentFilter = async (subscription, paymentPeriod) => {
@@ -208,6 +298,51 @@ const SubscriptionManagementContent = () => {
     }
   };
 
+  const handlePauseToggle = async (subscription) => {
+    const shouldResume = subscription.manually_paused;
+    try {
+      if (shouldResume) await resumeSubscription(subscription.client_id);
+      else await pauseSubscription(subscription.client_id);
+      toast({
+        title: shouldResume ? 'Subscription Resumed' : 'Subscription Paused',
+        description: `${subscription.client_name} has been ${shouldResume ? 'returned to Active' : 'moved to Paused'}.`,
+      });
+    } catch (requestError) {
+      toast({
+        title: shouldResume ? 'Unable to Resume' : 'Unable to Pause',
+        description: requestError.message || 'The subscription status was restored.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleAddToQueue = async (subscription) => {
+    try {
+      await addToFollowUpQueue(subscription.client_id);
+      toast({ title: 'Added to Follow-Up Queue', description: `${subscription.client_name} is ready for follow-up.` });
+    } catch (requestError) {
+      toast({ title: 'Unable to Add to Queue', description: requestError.message || 'Please try again.', variant: 'destructive' });
+    }
+  };
+
+  const handleRemoveFromQueue = async (subscription) => {
+    try {
+      await removeFromFollowUpQueue(subscription.client_id);
+      toast({ title: 'Removed from Follow-Up Queue', description: `${subscription.client_name} will remain removed until manually re-added.` });
+    } catch (requestError) {
+      toast({ title: 'Unable to Remove', description: requestError.message || 'The queue card was restored.', variant: 'destructive' });
+    }
+  };
+
+  const handleSaveNote = async (subscription, note) => {
+    try {
+      await updateFollowUpNote(subscription.client_id, note);
+      toast({ title: 'Follow-Up Note Saved', description: `The note for ${subscription.client_name} was updated.` });
+    } catch (requestError) {
+      toast({ title: 'Unable to Save Note', description: requestError.message || 'The previous note was restored.', variant: 'destructive' });
+    }
+  };
+
   if (loading) {
     return (
       <div className="space-y-4 p-5">
@@ -251,7 +386,7 @@ const SubscriptionManagementContent = () => {
         <MetricCard label="Churn Risk" value={summary.churnRiskCount} icon={AlertTriangle} alert />
       </section>
 
-      <div className="grid min-w-0 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid min-w-0 2xl:grid-cols-[minmax(0,1fr)_320px]">
         <section className="min-w-0 p-5">
           <div className="mb-4 flex max-w-full overflow-x-auto rounded-lg border border-slate-200 bg-white p-1">
             {[
@@ -280,8 +415,8 @@ const SubscriptionManagementContent = () => {
             </div>
           ) : (
             <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-              <div className="hidden min-w-[880px] grid-cols-[minmax(170px,1.4fr)_100px_90px_110px_120px_100px_120px] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-500 lg:grid">
-                <span>Client</span><span>Plan</span><span>Status</span><span>Payments</span><span>Service</span><span>Last Clean</span><span>Next Clean</span>
+              <div className="hidden min-w-[940px] grid-cols-[minmax(170px,1.4fr)_100px_90px_110px_120px_100px_120px_44px] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-500 lg:grid">
+                <span>Client</span><span>Plan</span><span>Status</span><span>Payments</span><span>Service</span><span>Last Clean</span><span>Next Clean</span><span className="sr-only">Actions</span>
               </div>
               {filteredSubscriptions.map((subscription) => {
                 const filteredService = serviceFilters[subscription.client_id];
@@ -289,7 +424,8 @@ const SubscriptionManagementContent = () => {
                 const servicePlan = filteredService?.plan_type || subscription.plan_type;
                 const serviceDays = filteredService?.subscription_days_per_week ?? subscription.subscription_days_per_week;
                 const serviceScore = filteredService?.service_score ?? subscription.service_fulfillment_score;
-                return <div key={subscription.client_id} className="grid gap-3 border-b border-slate-100 p-4 last:border-b-0 lg:min-w-[880px] lg:grid-cols-[minmax(170px,1.4fr)_100px_90px_110px_120px_100px_120px] lg:items-center">
+                const isInFollowUpQueue = followUpQueue.some((entry) => entry.client_id === subscription.client_id);
+                return <div key={subscription.client_id} className="grid gap-3 border-b border-slate-100 p-4 last:border-b-0 lg:min-w-[940px] lg:grid-cols-[minmax(170px,1.4fr)_100px_90px_110px_120px_100px_120px_44px] lg:items-center">
                   <div className="min-w-0">
                     <Link to={`/admin-dashboard/user/${subscription.client_id}`} className="block truncate text-sm font-semibold text-blue-700 hover:underline">
                       {subscription.client_name || 'Unnamed Client'}
@@ -308,7 +444,7 @@ const SubscriptionManagementContent = () => {
                       history={subscription.payment_history}
                       styles={paymentStyles}
                       label="Four-month payment retention"
-                      describe={(entry) => `${entry.period_start}: ${entry.status}`}
+                      describe={(entry) => paymentLabels[entry.status] || entry.status}
                       onSelect={(entry) => handlePaymentFilter(subscription, entry)}
                       selectedPurchaseRef={filteredService?.purchase_ref_id}
                     />
@@ -330,47 +466,54 @@ const SubscriptionManagementContent = () => {
                     <p className="mb-1 text-[10px] font-semibold uppercase text-slate-400 lg:hidden">Next Clean</p>
                     <p className="text-xs font-semibold text-slate-700">{getNextClean(serviceHistory)}</p>
                   </div>
+                  <div className="flex justify-end">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" disabled={updatingId === subscription.client_id} aria-label={`Actions for ${subscription.client_name}`}>
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-56">
+                        <DropdownMenuLabel>Subscription Actions</DropdownMenuLabel>
+                        <DropdownMenuItem onSelect={() => handlePauseToggle(subscription)}>
+                          {subscription.manually_paused ? <Play className="mr-2 h-4 w-4" /> : <Pause className="mr-2 h-4 w-4" />}
+                          {subscription.manually_paused ? 'Resume Subscription' : 'Pause Subscription'}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem disabled={isInFollowUpQueue} onSelect={() => handleAddToQueue(subscription)}>
+                          <UserPlus className="mr-2 h-4 w-4" />
+                          {isInFollowUpQueue ? 'Already in Follow-Up Queue' : 'Add to Follow-Up Queue'}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </div>;
               })}
             </div>
           )}
         </section>
 
-        <aside className="border-t border-slate-200 bg-white p-5 xl:border-l xl:border-t-0">
+        <aside className="border-t border-slate-200 bg-white p-5 2xl:border-l 2xl:border-t-0">
           <div className="mb-4 flex items-center gap-2">
             <Repeat2 className="h-4 w-4 text-blue-600" />
             <h3 className="text-sm font-bold text-slate-900">Follow-Up Queue</h3>
           </div>
-          {churnRisk.length === 0 ? (
+          {followUpQueue.length === 0 ? (
             <div className="rounded-lg border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500">
               No clients currently at risk.
             </div>
           ) : (
             <div className="space-y-3">
-              {churnRisk.map((subscription) => (
-                <div key={subscription.client_id} className="rounded-lg border border-slate-200 p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <Link to={`/admin-dashboard/user/${subscription.client_id}`} className="block truncate text-sm font-semibold text-blue-700 hover:underline">
-                        {subscription.client_name || 'Unnamed Client'}
-                      </Link>
-                      <p className="mt-0.5 text-xs text-slate-500">
-                        {subscription.days_since_last_clean == null ? 'No completed clean' : `${subscription.days_since_last_clean} days since last clean`}
-                      </p>
-                    </div>
-                    <Badge variant="outline" className={`shrink-0 capitalize ${statusStyles[subscription.status]}`}>
-                      {subscription.status}
-                    </Badge>
-                  </div>
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    <Button size="sm" variant="outline" onClick={() => handleFollowUp(subscription)} disabled={updatingId === subscription.client_id}>
-                      <MessageCircle className="mr-1.5 h-3.5 w-3.5" /> Follow-Up
-                    </Button>
-                    <Button size="sm" onClick={() => handleSchedule(subscription)} disabled={updatingId === subscription.client_id}>
-                      <CalendarPlus className="mr-1.5 h-3.5 w-3.5" /> Schedule
-                    </Button>
-                  </div>
-                </div>
+              {followUpQueue.map((subscription) => (
+                <FollowUpQueueCard
+                  key={subscription.client_id}
+                  subscription={subscription}
+                  updating={updatingId === subscription.client_id}
+                  onFollowUp={handleFollowUp}
+                  onSchedule={handleSchedule}
+                  onRemove={handleRemoveFromQueue}
+                  onSaveNote={handleSaveNote}
+                />
               ))}
             </div>
           )}

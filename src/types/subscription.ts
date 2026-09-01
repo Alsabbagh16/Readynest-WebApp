@@ -1,6 +1,6 @@
 export type SubscriptionStatus = 'active' | 'unbooked' | 'paused' | 'expiring';
 export type SubscriptionStatusFilter = 'all' | SubscriptionStatus;
-export type PaymentRetentionStatus = 'paid' | 'pending' | 'failed' | 'missed';
+export type PaymentRetentionStatus = 'paid' | 'partial' | 'pending' | 'failed' | 'missed';
 export type ServiceFulfillmentStatus = 'completed' | 'partial' | 'missed' | 'empty';
 
 export interface PaymentRetentionPeriod {
@@ -34,6 +34,7 @@ export interface SubscriptionDashboardRow {
   subscription_days_per_week: number | null;
   hourly_rate: number;
   status: SubscriptionStatus;
+  manually_paused: boolean;
   last_clean_date: string | null;
   subscription_started_at: string;
   latest_subscription_purchase_ref_id: string | null;
@@ -43,16 +44,21 @@ export interface SubscriptionDashboardRow {
   service_history: ServiceFulfillmentPeriod[];
 }
 
-export interface ChurnRiskSubscription {
+export interface FollowUpQueueSubscription {
   client_id: string;
   client_name: string;
   phone: string;
   plan_type: 'Weekly' | 'Twice Weekly' | 'Custom';
   subscription_days_per_week: number | null;
-  status: Extract<SubscriptionStatus, 'unbooked' | 'paused'>;
+  status: SubscriptionStatus;
   last_clean_date: string | null;
   days_since_last_clean: number | null;
+  note: string | null;
+  source: 'automatic' | 'manual' | 'manual_pause';
+  queued_at: string;
 }
+
+export type ChurnRiskSubscription = FollowUpQueueSubscription;
 
 export interface SubscriptionDashboardSummary {
   activeSubscriptions: number;
