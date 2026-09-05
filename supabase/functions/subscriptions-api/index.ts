@@ -69,31 +69,29 @@ Deno.serve(async (request: Request) => {
       return json({ data });
     }
 
-    if (request.method === 'POST' && route === '/subscriptions/follow-up-queue/add') {
+    if (request.method === 'POST' && route === '/subscriptions/follow-up-cards') {
       const body = await request.json();
-      if (!body.client_id) return json({ error: 'client_id is required.' }, 400);
-      const { error } = await supabase.rpc('add_subscription_to_follow_up_queue', { p_client_id: body.client_id });
+      if (!body.client_id || !body.note) return json({ error: 'client_id and note are required.' }, 400);
+      const { data, error } = await supabase.rpc('create_follow_up_card', { p_client_id: body.client_id, p_note: body.note, p_importance: body.importance || 'medium', p_reminder_date: body.reminder_date || null });
+      if (error) throw error;
+      return json({ data }, 201);
+    }
+
+    if (request.method === 'POST' && route === '/subscriptions/follow-up-cards/update') {
+      const body = await request.json();
+      if (!body.card_id || !body.note || !body.importance) return json({ error: 'card_id, note, and importance are required.' }, 400);
+      const { error } = await supabase.rpc('update_follow_up_card', { p_card_id: body.card_id, p_note: body.note, p_importance: body.importance, p_reminder_date: body.reminder_date || null });
       if (error) throw error;
       return json({ data: null });
     }
 
-    if (request.method === 'POST' && route === '/subscriptions/follow-up-queue/remove') {
+    if (request.method === 'POST' && ['/subscriptions/follow-up-cards/complete', '/subscriptions/follow-up-cards/reopen', '/subscriptions/follow-up-cards/remove'].includes(route)) {
       const body = await request.json();
-      if (!body.client_id) return json({ error: 'client_id is required.' }, 400);
-      const { error } = await supabase.rpc('remove_subscription_from_follow_up_queue', { p_client_id: body.client_id });
+      if (!body.card_id) return json({ error: 'card_id is required.' }, 400);
+      const functionName = route.endsWith('/complete') ? 'complete_follow_up_card' : route.endsWith('/reopen') ? 'reopen_follow_up_card' : 'dismiss_follow_up_card';
+      const { error } = await supabase.rpc(functionName, { p_card_id: body.card_id });
       if (error) throw error;
       return json({ data: null });
-    }
-
-    if (request.method === 'POST' && route === '/subscriptions/follow-up-queue/note') {
-      const body = await request.json();
-      if (!body.client_id) return json({ error: 'client_id is required.' }, 400);
-      const { data, error } = await supabase.rpc('update_subscription_follow_up_note', {
-        p_client_id: body.client_id,
-        p_note: body.note || '',
-      });
-      if (error) throw error;
-      return json({ data });
     }
 
     if (request.method === 'POST' && route === '/subscriptions/follow-up') {

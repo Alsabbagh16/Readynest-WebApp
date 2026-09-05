@@ -1,18 +1,21 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { format } from 'date-fns';
 import { Link } from 'react-router-dom';
 import {
   AlertTriangle,
   CalendarCheck,
-  CalendarPlus,
+  CalendarClock,
+  Check,
+  ChevronLeft,
+  ChevronRight,
   CreditCard,
-  MessageCircle,
   MoreHorizontal,
   Pause,
   Play,
   RefreshCw,
-  Repeat2,
-  Save,
+  Pencil,
+  Plus,
+  RotateCcw,
   UserPlus,
   Users,
   X,
@@ -23,6 +26,10 @@ import { useToast } from '@/components/ui/use-toast';
 import SubscriptionDashboardErrorBoundary from '@/components/SubscriptionDashboardErrorBoundary';
 import { useSubscriptionDashboard } from '@/hooks/useSubscriptionDashboard';
 import { subscriptionApi } from '@/lib/api/subscriptionApi';
+import CustomerSelector from '@/components/AdminDashboard/CustomerSelector';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -49,7 +56,7 @@ const paymentStyles = {
 
 const paymentLabels = {
   paid: 'Paid',
-  partial: 'Partially paid',
+  partial: 'Partially Paid',
   pending: 'Pending',
   failed: 'Failed',
   missed: 'Missed',
@@ -142,65 +149,54 @@ const MetricCard = ({ label, value, icon: Icon, alert = false }) => (
   </div>
 );
 
-const FollowUpQueueCard = ({ subscription, updating, onFollowUp, onSchedule, onRemove, onSaveNote }) => {
-  const [note, setNote] = useState(subscription.note || '');
+const importanceStyles = {
+  high: 'border-red-200 bg-red-50 text-red-700',
+  medium: 'border-amber-200 bg-amber-50 text-amber-700',
+  low: 'border-blue-200 bg-blue-50 text-blue-700',
+};
 
-  useEffect(() => {
-    setNote(subscription.note || '');
-  }, [subscription.client_id, subscription.note]);
+const FollowUpCard = ({ card, updating, onEdit, onComplete, onReopen, onRemove }) => {
+  const reminderDate = card.reminder_date ? new Date(`${card.reminder_date}T00:00:00`) : null;
+  const reminderOverdue = reminderDate && reminderDate < new Date(new Date().setHours(0, 0, 0, 0));
 
   return (
-    <div className="relative rounded-lg border border-slate-200 p-3 pt-4">
+    <article className="relative flex min-h-[220px] flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      {card.state === 'open' && (
       <button
         type="button"
         className="absolute right-1.5 top-1.5 rounded-full p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
-        onClick={() => onRemove(subscription)}
+        onClick={() => onRemove(card)}
         disabled={updating}
-        aria-label={`Remove ${subscription.client_name || 'subscriber'} from follow-up queue`}
-        title="Remove from queue"
+        aria-label={`Remove follow-up card for ${card.client_name || 'user'}`}
+        title="Remove card"
       >
         <X className="h-3.5 w-3.5" />
-      </button>
+      </button>)}
       <div className="flex items-start justify-between gap-2 pr-6">
         <div className="min-w-0">
-          <Link to={`/admin-dashboard/user/${subscription.client_id}`} className="block truncate text-sm font-semibold text-blue-700 hover:underline">
-            {subscription.client_name || 'Unnamed Client'}
+          <Link to={`/admin-dashboard/user/${card.client_id}`} className="block truncate text-sm font-semibold text-blue-700 hover:underline">
+            {card.client_name || 'Unnamed User'}
           </Link>
-          <p className="mt-0.5 text-xs text-slate-500">
-            {subscription.days_since_last_clean == null ? 'No completed clean' : `${subscription.days_since_last_clean} days since last clean`}
-          </p>
+          <p className="mt-0.5 truncate text-xs text-slate-500">{card.email || card.phone || 'Registered user'}</p>
         </div>
-        <Badge variant="outline" className={`shrink-0 capitalize ${statusStyles[subscription.status]}`}>
-          {subscription.status}
+        <Badge variant="outline" className={`shrink-0 capitalize ${importanceStyles[card.importance]}`}>
+          {card.importance}
         </Badge>
       </div>
-      <div className="mt-3">
-        <label htmlFor={`follow-up-note-${subscription.client_id}`} className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Follow-up note</label>
-        <textarea
-          id={`follow-up-note-${subscription.client_id}`}
-          value={note}
-          onChange={(event) => setNote(event.target.value)}
-          maxLength={2000}
-          rows={2}
-          placeholder="Add a note for the next follow-up..."
-          className="mt-1 w-full resize-y rounded-md border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-        />
-        <div className="mt-1 flex items-center justify-between gap-2">
-          <span className="text-[10px] text-slate-400">{note.length}/2000</span>
-          <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => onSaveNote(subscription, note)} disabled={updating || note === (subscription.note || '')}>
-            <Save className="mr-1 h-3 w-3" /> Save Note
-          </Button>
-        </div>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {card.is_subscriber && card.subscription_status && <Badge variant="outline" className={`capitalize ${statusStyles[card.subscription_status]}`}>{card.subscription_status} subscriber</Badge>}
+        {card.source === 'automatic' && <Badge variant="secondary">Automatic</Badge>}
+        {reminderDate && <Badge variant="outline" className={reminderOverdue ? 'border-red-200 bg-red-50 text-red-700' : 'border-violet-200 bg-violet-50 text-violet-700'}><CalendarClock className="mr-1 h-3 w-3" /> {reminderOverdue ? 'Overdue · ' : 'Reminder · '}{format(reminderDate, 'MMM d, yyyy')}</Badge>}
       </div>
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <Button size="sm" variant="outline" onClick={() => onFollowUp(subscription)} disabled={updating}>
-          <MessageCircle className="mr-1.5 h-3.5 w-3.5" /> Follow-Up
-        </Button>
-        <Button size="sm" onClick={() => onSchedule(subscription)} disabled={updating}>
-          <CalendarPlus className="mr-1.5 h-3.5 w-3.5" /> Schedule
-        </Button>
+      <p className="mt-3 flex-1 whitespace-pre-wrap text-sm text-slate-700">{card.note}</p>
+      <p className="mt-3 text-xs text-slate-400">Created {formatDate(card.created_at)}{card.completed_at ? ` · Completed ${formatDate(card.completed_at)}` : ''}</p>
+      <div className="mt-3 flex gap-2">
+        {card.state === 'open' ? <>
+          <Button size="sm" variant="outline" onClick={() => onEdit(card)} disabled={updating}><Pencil className="mr-1.5 h-3.5 w-3.5" /> Edit</Button>
+          <Button size="sm" onClick={() => onComplete(card)} disabled={updating}><Check className="mr-1.5 h-3.5 w-3.5" /> Complete</Button>
+        </> : <Button size="sm" variant="outline" onClick={() => onReopen(card)} disabled={updating}><RotateCcw className="mr-1.5 h-3.5 w-3.5" /> Reopen</Button>}
       </div>
-    </div>
+    </article>
   );
 };
 
@@ -208,6 +204,14 @@ const SubscriptionManagementContent = () => {
   const { toast } = useToast();
   const [serviceFilters, setServiceFilters] = useState({});
   const [serviceFilterLoading, setServiceFilterLoading] = useState(null);
+  const [followUpTab, setFollowUpTab] = useState('open');
+  const [followUpPage, setFollowUpPage] = useState(1);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingCard, setEditingCard] = useState(null);
+  const [selectedCustomerId, setSelectedCustomerId] = useState(null);
+  const [memo, setMemo] = useState('');
+  const [importance, setImportance] = useState('medium');
+  const [reminderDate, setReminderDate] = useState('');
   const {
     filteredSubscriptions,
     followUpQueue,
@@ -218,13 +222,13 @@ const SubscriptionManagementContent = () => {
     error,
     updatingId,
     refresh,
-    markScheduled,
-    followUp,
     pauseSubscription,
     resumeSubscription,
-    addToFollowUpQueue,
-    removeFromFollowUpQueue,
-    updateFollowUpNote,
+    createFollowUpCard,
+    updateFollowUpCard,
+    completeFollowUpCard,
+    reopenFollowUpCard,
+    dismissFollowUpCard,
   } = useSubscriptionDashboard();
 
   const handlePaymentFilter = async (subscription, paymentPeriod) => {
@@ -266,38 +270,6 @@ const SubscriptionManagementContent = () => {
     return nextJob ? format(new Date(nextJob.preferred_date), 'MMM d, h:mm a') : 'Not scheduled';
   };
 
-  const handleSchedule = async (subscription) => {
-    try {
-      await markScheduled(subscription.client_id);
-      toast({ title: 'Subscription Activated', description: `${subscription.client_name} is marked as scheduled.` });
-    } catch (requestError) {
-      toast({
-        title: 'Unable to Schedule',
-        description: requestError.message || 'The subscription status was restored.',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const handleFollowUp = async (subscription) => {
-    try {
-      const payload = await followUp(subscription.client_id);
-      if (!payload.clean_phone) throw new Error('This client does not have a registered phone number.');
-      window.open(
-        `https://wa.me/${payload.clean_phone}?text=${encodeURIComponent(payload.whatsapp_message)}`,
-        '_blank',
-        'noopener,noreferrer'
-      );
-      toast({ title: 'Follow-Up Logged', description: `WhatsApp follow-up prepared for ${payload.client_name}.` });
-    } catch (requestError) {
-      toast({
-        title: 'Unable to Follow Up',
-        description: requestError.message || 'Please try again.',
-        variant: 'destructive',
-      });
-    }
-  };
-
   const handlePauseToggle = async (subscription) => {
     const shouldResume = subscription.manually_paused;
     try {
@@ -316,32 +288,51 @@ const SubscriptionManagementContent = () => {
     }
   };
 
-  const handleAddToQueue = async (subscription) => {
+  const openCreateDialog = (subscription = null) => {
+    setEditingCard(null);
+    setSelectedCustomerId(subscription?.client_id || null);
+    setMemo('');
+    setImportance('medium');
+    setReminderDate('');
+    setDialogOpen(true);
+  };
+
+  const openEditDialog = (card) => {
+    setEditingCard(card);
+    setSelectedCustomerId(card.client_id);
+    setMemo(card.note || '');
+    setImportance(card.importance);
+    setReminderDate(card.reminder_date || '');
+    setDialogOpen(true);
+  };
+
+  const handleSaveCard = async () => {
+    if (!selectedCustomerId || (!editingCard && !memo.trim())) return;
     try {
-      await addToFollowUpQueue(subscription.client_id);
-      toast({ title: 'Added to Follow-Up Queue', description: `${subscription.client_name} is ready for follow-up.` });
+      if (editingCard) await updateFollowUpCard(editingCard.id, memo.trim(), importance, reminderDate || null);
+      else await createFollowUpCard(selectedCustomerId, memo.trim(), importance, reminderDate || null);
+      toast({ title: editingCard ? 'Follow-Up Updated' : 'Follow-Up Created' });
+      setDialogOpen(false);
+      setFollowUpTab('open');
+      setFollowUpPage(1);
     } catch (requestError) {
-      toast({ title: 'Unable to Add to Queue', description: requestError.message || 'Please try again.', variant: 'destructive' });
+      toast({ title: 'Unable to Save Follow-Up', description: requestError.message || 'Please try again.', variant: 'destructive' });
     }
   };
 
-  const handleRemoveFromQueue = async (subscription) => {
+  const handleCardMutation = async (action, card, successTitle) => {
     try {
-      await removeFromFollowUpQueue(subscription.client_id);
-      toast({ title: 'Removed from Follow-Up Queue', description: `${subscription.client_name} will remain removed until manually re-added.` });
+      await action(card.id);
+      toast({ title: successTitle, description: `${card.client_name || 'The user'}'s follow-up card was updated.` });
+      setFollowUpPage(1);
     } catch (requestError) {
-      toast({ title: 'Unable to Remove', description: requestError.message || 'The queue card was restored.', variant: 'destructive' });
+      toast({ title: 'Unable to Update Follow-Up', description: requestError.message || 'Please try again.', variant: 'destructive' });
     }
   };
 
-  const handleSaveNote = async (subscription, note) => {
-    try {
-      await updateFollowUpNote(subscription.client_id, note);
-      toast({ title: 'Follow-Up Note Saved', description: `The note for ${subscription.client_name} was updated.` });
-    } catch (requestError) {
-      toast({ title: 'Unable to Save Note', description: requestError.message || 'The previous note was restored.', variant: 'destructive' });
-    }
-  };
+  const visibleFollowUps = followUpQueue.filter((card) => card.state === followUpTab);
+  const followUpPageCount = Math.max(1, Math.ceil(visibleFollowUps.length / 16));
+  const pagedFollowUps = visibleFollowUps.slice((followUpPage - 1) * 16, followUpPage * 16);
 
   if (loading) {
     return (
@@ -386,7 +377,7 @@ const SubscriptionManagementContent = () => {
         <MetricCard label="Churn Risk" value={summary.churnRiskCount} icon={AlertTriangle} alert />
       </section>
 
-      <div className="grid min-w-0 2xl:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="min-w-0">
         <section className="min-w-0 p-5">
           <div className="mb-4 flex max-w-full overflow-x-auto rounded-lg border border-slate-200 bg-white p-1">
             {[
@@ -424,7 +415,6 @@ const SubscriptionManagementContent = () => {
                 const servicePlan = filteredService?.plan_type || subscription.plan_type;
                 const serviceDays = filteredService?.subscription_days_per_week ?? subscription.subscription_days_per_week;
                 const serviceScore = filteredService?.service_score ?? subscription.service_fulfillment_score;
-                const isInFollowUpQueue = followUpQueue.some((entry) => entry.client_id === subscription.client_id);
                 return <div key={subscription.client_id} className="grid gap-3 border-b border-slate-100 p-4 last:border-b-0 lg:min-w-[940px] lg:grid-cols-[minmax(170px,1.4fr)_100px_90px_110px_120px_100px_120px_44px] lg:items-center">
                   <div className="min-w-0">
                     <Link to={`/admin-dashboard/user/${subscription.client_id}`} className="block truncate text-sm font-semibold text-blue-700 hover:underline">
@@ -480,9 +470,9 @@ const SubscriptionManagementContent = () => {
                           {subscription.manually_paused ? 'Resume Subscription' : 'Pause Subscription'}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem disabled={isInFollowUpQueue} onSelect={() => handleAddToQueue(subscription)}>
+                        <DropdownMenuItem onSelect={() => openCreateDialog(subscription)}>
                           <UserPlus className="mr-2 h-4 w-4" />
-                          {isInFollowUpQueue ? 'Already in Follow-Up Queue' : 'Add to Follow-Up Queue'}
+                          Add Follow-Up Card
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -493,32 +483,48 @@ const SubscriptionManagementContent = () => {
           )}
         </section>
 
-        <aside className="border-t border-slate-200 bg-white p-5 2xl:border-l 2xl:border-t-0">
-          <div className="mb-4 flex items-center gap-2">
-            <Repeat2 className="h-4 w-4 text-blue-600" />
-            <h3 className="text-sm font-bold text-slate-900">Follow-Up Queue</h3>
-          </div>
-          {followUpQueue.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500">
-              No clients currently at risk.
+        <section className="border-t border-slate-200 bg-white p-5">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-bold text-slate-900">Follow Up</h3>
+              <p className="mt-0.5 text-xs text-slate-500">Memos and reminders for registered users</p>
             </div>
+            <Button size="sm" onClick={() => openCreateDialog()}><Plus className="mr-2 h-4 w-4" /> Add Follow-Up</Button>
+          </div>
+          <div className="mb-5 flex w-fit rounded-lg border border-slate-200 bg-slate-50 p-1">
+            {['open', 'completed'].map((tab) => (
+              <button key={tab} type="button" onClick={() => { setFollowUpTab(tab); setFollowUpPage(1); }} className={`rounded-md px-4 py-2 text-xs font-semibold capitalize ${followUpTab === tab ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-white'}`}>
+                {tab} ({followUpQueue.filter((card) => card.state === tab).length})
+              </button>
+            ))}
+          </div>
+          {pagedFollowUps.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-slate-300 p-10 text-center text-sm text-slate-500">No {followUpTab} follow-up cards.</div>
           ) : (
-            <div className="space-y-3">
-              {followUpQueue.map((subscription) => (
-                <FollowUpQueueCard
-                  key={subscription.client_id}
-                  subscription={subscription}
-                  updating={updatingId === subscription.client_id}
-                  onFollowUp={handleFollowUp}
-                  onSchedule={handleSchedule}
-                  onRemove={handleRemoveFromQueue}
-                  onSaveNote={handleSaveNote}
-                />
-              ))}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {pagedFollowUps.map((card) => <FollowUpCard key={card.id} card={card} updating={updatingId === card.id} onEdit={openEditDialog} onComplete={(item) => handleCardMutation(completeFollowUpCard, item, 'Follow-Up Completed')} onReopen={(item) => handleCardMutation(reopenFollowUpCard, item, 'Follow-Up Reopened')} onRemove={(item) => handleCardMutation(dismissFollowUpCard, item, 'Follow-Up Removed')} />)}
             </div>
           )}
-        </aside>
+          {followUpPageCount > 1 && <nav className="mt-5 flex flex-wrap items-center justify-center gap-1" aria-label="Follow-up pagination">
+            <Button variant="outline" size="icon" className="h-8 w-8" disabled={followUpPage === 1} onClick={() => setFollowUpPage((page) => page - 1)} aria-label="Previous page"><ChevronLeft className="h-4 w-4" /></Button>
+            {Array.from({ length: followUpPageCount }, (_, index) => index + 1).map((page) => <Button key={page} variant={page === followUpPage ? 'default' : 'outline'} size="sm" className="h-8 min-w-8 px-2" onClick={() => setFollowUpPage(page)}>{page}</Button>)}
+            <Button variant="outline" size="icon" className="h-8 w-8" disabled={followUpPage === followUpPageCount} onClick={() => setFollowUpPage((page) => page + 1)} aria-label="Next page"><ChevronRight className="h-4 w-4" /></Button>
+          </nav>}
+        </section>
       </div>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader><DialogTitle>{editingCard ? 'Edit Follow-Up' : 'Create Follow-Up'}</DialogTitle><DialogDescription>{editingCard ? 'Update this memo and its importance.' : 'Create a memo for any registered ReadyNest user.'}</DialogDescription></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2"><Label>User</Label>{editingCard ? <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm">{editingCard.client_name || editingCard.email || 'Registered user'}</div> : <CustomerSelector selectedCustomerId={selectedCustomerId} onCustomerSelect={setSelectedCustomerId} allowAllCustomers />}</div>
+            <div className="space-y-2"><Label htmlFor="follow-up-memo">Memo</Label><textarea id="follow-up-memo" value={memo} onChange={(event) => setMemo(event.target.value)} maxLength={2000} rows={5} placeholder="What needs to be followed up?" className="w-full resize-y rounded-md border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100" /><p className="text-right text-xs text-slate-400">{memo.length}/2000</p></div>
+            <div className="space-y-2"><Label>Importance</Label><Select value={importance} onValueChange={setImportance}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="high">High</SelectItem><SelectItem value="medium">Medium</SelectItem><SelectItem value="low">Low</SelectItem></SelectContent></Select></div>
+            <div className="space-y-2"><Label htmlFor="follow-up-reminder">Reminder date <span className="font-normal text-slate-400">(optional)</span></Label><input id="follow-up-reminder" type="date" value={reminderDate} onChange={(event) => setReminderDate(event.target.value)} className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100" /><p className="text-xs text-slate-500">Cards with reminders are prioritized by the nearest date.</p></div>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button><Button onClick={handleSaveCard} disabled={!selectedCustomerId || (!editingCard && !memo.trim()) || updatingId === (editingCard?.id || selectedCustomerId)}>{editingCard ? 'Save Changes' : 'Create Card'}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

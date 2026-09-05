@@ -44,21 +44,29 @@ export interface SubscriptionDashboardRow {
   service_history: ServiceFulfillmentPeriod[];
 }
 
-export interface FollowUpQueueSubscription {
+export type FollowUpImportance = 'high' | 'medium' | 'low';
+export type FollowUpCardState = 'open' | 'completed';
+
+export interface FollowUpCard {
+  id: string;
   client_id: string;
   client_name: string;
+  email: string | null;
   phone: string;
-  plan_type: 'Weekly' | 'Twice Weekly' | 'Custom';
-  subscription_days_per_week: number | null;
-  status: SubscriptionStatus;
-  last_clean_date: string | null;
-  days_since_last_clean: number | null;
+  is_subscriber: boolean;
+  subscription_status: SubscriptionStatus | null;
   note: string | null;
+  importance: FollowUpImportance;
+  reminder_date: string | null;
+  state: FollowUpCardState;
   source: 'automatic' | 'manual' | 'manual_pause';
-  queued_at: string;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+  reopened_at: string | null;
 }
 
-export type ChurnRiskSubscription = FollowUpQueueSubscription;
+export type FollowUpQueueSubscription = FollowUpCard;
 
 export interface SubscriptionDashboardSummary {
   activeSubscriptions: number;

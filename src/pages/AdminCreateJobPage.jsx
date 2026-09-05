@@ -388,18 +388,19 @@ const AdminCreateJobPage = () => {
     if (purchaseData) {
       console.log("Populating form with purchase data:", purchaseData);
       setFormData(prev => {
+        const userPhone = purchaseData.user_phone || purchaseData.profiles?.phone || '';
         const newFormData = {
             ...prev,
             purchase_ref_id: purchaseData.purchase_ref_id || null,
             user_id: purchaseData.user_id || null,
             user_name: purchaseData.name || (purchaseData.profiles ? `${purchaseData.profiles.first_name || ''} ${purchaseData.profiles.last_name || ''}`.trim() : ''),
             user_email: purchaseData.email || '',
-            user_phone: purchaseData.user_phone || (purchaseData.profiles?.phone) || '', 
+            user_phone: userPhone,
             user_address: {
                 street: purchaseData.address?.street || '',
                 city: purchaseData.address?.city || '',
                 zip: purchaseData.address?.zip || purchaseData.address?.zip_code || '',
-                phone: purchaseData.address?.phone || '',
+                phone: purchaseData.address?.phone || userPhone,
                 alt_phone: purchaseData.address?.alt_phone || '',
             },
             addons: purchaseData.selected_addons || [],
@@ -440,7 +441,13 @@ const AdminCreateJobPage = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => ({
+      ...prev,
+      [name]: value,
+      ...(name === 'user_phone' && (!prev.user_address.phone || prev.user_address.phone === prev.user_phone)
+        ? { user_address: { ...prev.user_address, phone: value } }
+        : {}),
+    }));
   };
   
   const handleAddressChange = (e) => {
@@ -506,7 +513,8 @@ const AdminCreateJobPage = () => {
     setIsSubmitting(true);
 
     const parsedHours = Number(formData.hours_needed);
-    if (!formData.preferred_date || !formData.user_name || !formData.user_email || !formData.user_address.street || !formData.user_address.city || !formData.user_address.zip || !formData.user_address.phone) {
+    const addressPhone = formData.user_address.phone?.trim() || formData.user_phone?.trim() || '';
+    if (!formData.preferred_date || !formData.user_name || !formData.user_email || !formData.user_address.street || !formData.user_address.city || !formData.user_address.zip || !addressPhone) {
         toast({ title: "Missing Required Fields", description: "Please fill in all required fields (*).", variant: "destructive"});
         setIsSubmitting(false);
         return;
@@ -539,6 +547,7 @@ const AdminCreateJobPage = () => {
 
       const jobPayload = {
         ...formData,
+        user_address: { ...formData.user_address, phone: addressPhone },
         purchase_ref_id: finalPurchaseId,
         preferred_date: formattedDateForStorage,
         hours_needed: parsedHours,
@@ -583,7 +592,7 @@ const AdminCreateJobPage = () => {
       sendJobCreatedNotification({
         jobRefId: formData.job_ref_id,
         customerName: formData.user_name,
-        customerPhone: formData.user_address.phone,
+        customerPhone: addressPhone,
         scheduledDate: formData.preferred_date,
         address: fullAddress
       }).catch(err => console.error('WhatsApp job notification failed:', err));

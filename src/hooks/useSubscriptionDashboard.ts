@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { subscriptionApi } from '@/lib/api/subscriptionApi';
 import type {
-  FollowUpQueueSubscription,
+  FollowUpCard,
+  FollowUpImportance,
   FollowUpPayload,
   SubscriptionDashboardRow,
   SubscriptionDashboardSummary,
@@ -10,7 +11,7 @@ import type {
 
 export const useSubscriptionDashboard = () => {
   const [subscriptions, setSubscriptions] = useState<SubscriptionDashboardRow[]>([]);
-  const [followUpQueue, setFollowUpQueue] = useState<FollowUpQueueSubscription[]>([]);
+  const [followUpQueue, setFollowUpQueue] = useState<FollowUpCard[]>([]);
   const [statusFilter, setStatusFilter] = useState<SubscriptionStatusFilter>('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -49,26 +50,28 @@ export const useSubscriptionDashboard = () => {
       activeSubscriptions: subscriptions.filter((row) => row.status === 'active').length,
       paymentRetentionRate: average('payment_retention_score'),
       serviceFulfillmentRate: average('service_fulfillment_score'),
-      churnRiskCount: followUpQueue.length,
+      churnRiskCount: followUpQueue.filter((card) => card.state === 'open').length,
     };
-  }, [followUpQueue.length, subscriptions]);
+  }, [followUpQueue, subscriptions]);
+
+  const refreshFollowUpCards = useCallback(async () => {
+    setFollowUpQueue(await subscriptionApi.getFollowUpQueue());
+  }, []);
 
   const markScheduled = useCallback(async (clientId: string) => {
     const previousSubscriptions = subscriptions;
-    const previousQueue = followUpQueue;
     setUpdatingId(clientId);
     setSubscriptions((rows) => rows.map((row) => row.client_id === clientId ? { ...row, status: 'active', manually_paused: false } : row));
-    setFollowUpQueue((rows) => rows.filter((row) => row.client_id !== clientId));
     try {
       await subscriptionApi.activateSubscription(clientId);
+      await refreshFollowUpCards();
     } catch (requestError) {
       setSubscriptions(previousSubscriptions);
-      setFollowUpQueue(previousQueue);
       throw requestError;
     } finally {
       setUpdatingId(null);
     }
-  }, [followUpQueue, subscriptions]);
+  }, [refreshFollowUpCards, subscriptions]);
 
   const pauseSubscription = useCallback(async (clientId: string) => {
     const previousSubscriptions = subscriptions;
@@ -92,83 +95,70 @@ export const useSubscriptionDashboard = () => {
 
   const resumeSubscription = useCallback(async (clientId: string) => {
     const previousSubscriptions = subscriptions;
-    const previousQueue = followUpQueue;
     setUpdatingId(clientId);
     setSubscriptions((rows) => rows.map((row) => row.client_id === clientId
       ? { ...row, status: 'active', manually_paused: false }
       : row));
-    setFollowUpQueue((rows) => rows.filter((row) => row.client_id !== clientId));
     try {
       await subscriptionApi.resumeSubscription(clientId);
+      await refreshFollowUpCards();
     } catch (requestError) {
       setSubscriptions(previousSubscriptions);
-      setFollowUpQueue(previousQueue);
       throw requestError;
     } finally {
       setUpdatingId(null);
     }
-  }, [followUpQueue, subscriptions]);
+  }, [refreshFollowUpCards, subscriptions]);
 
-  const addToFollowUpQueue = useCallback(async (clientId: string) => {
-    const previousQueue = followUpQueue;
-    const subscription = subscriptions.find((row) => row.client_id === clientId);
+  const createFollowUpCard = useCallback(async (clientId: string, note: string, importance: FollowUpImportance, reminderDate: string | null) => {
     setUpdatingId(clientId);
-    if (subscription && !followUpQueue.some((row) => row.client_id === clientId)) {
-      const lastClean = subscription.last_clean_date ? new Date(subscription.last_clean_date) : null;
-      const daysSinceLastClean = lastClean && !Number.isNaN(lastClean.getTime())
-        ? Math.floor((Date.now() - lastClean.getTime()) / 86400000)
-        : null;
-      setFollowUpQueue((rows) => [{
-        client_id: subscription.client_id,
-        client_name: subscription.client_name,
-        phone: subscription.phone,
-        plan_type: subscription.plan_type,
-        subscription_days_per_week: subscription.subscription_days_per_week,
-        status: subscription.status,
-        last_clean_date: subscription.last_clean_date,
-        days_since_last_clean: daysSinceLastClean,
-        note: null,
-        source: 'manual',
-        queued_at: new Date().toISOString(),
-      }, ...rows]);
-    }
     try {
-      await subscriptionApi.addToFollowUpQueue(clientId);
-    } catch (requestError) {
-      setFollowUpQueue(previousQueue);
-      throw requestError;
+      await subscriptionApi.createFollowUpCard(clientId, note, importance, reminderDate);
+      await refreshFollowUpCards();
     } finally {
       setUpdatingId(null);
     }
-  }, [followUpQueue, subscriptions]);
+  }, [refreshFollowUpCards]);
 
-  const removeFromFollowUpQueue = useCallback(async (clientId: string) => {
-    const previousQueue = followUpQueue;
-    setUpdatingId(clientId);
-    setFollowUpQueue((rows) => rows.filter((row) => row.client_id !== clientId));
+  const updateFollowUpCard = useCallback(async (cardId: string, note: string, importance: FollowUpImportance, reminderDate: string | null) => {
+    setUpdatingId(cardId);
     try {
-      await subscriptionApi.removeFromFollowUpQueue(clientId);
-    } catch (requestError) {
-      setFollowUpQueue(previousQueue);
-      throw requestError;
+      await subscriptionApi.updateFollowUpCard(cardId, note, importance, reminderDate);
+      await refreshFollowUpCards();
     } finally {
       setUpdatingId(null);
     }
-  }, [followUpQueue]);
+  }, [refreshFollowUpCards]);
 
-  const updateFollowUpNote = useCallback(async (clientId: string, note: string) => {
-    const previousQueue = followUpQueue;
-    setUpdatingId(clientId);
-    setFollowUpQueue((rows) => rows.map((row) => row.client_id === clientId ? { ...row, note: note.trim() || null } : row));
+  const completeFollowUpCard = useCallback(async (cardId: string) => {
+    setUpdatingId(cardId);
     try {
-      return await subscriptionApi.updateFollowUpNote(clientId, note);
-    } catch (requestError) {
-      setFollowUpQueue(previousQueue);
-      throw requestError;
+      await subscriptionApi.completeFollowUpCard(cardId);
+      await refreshFollowUpCards();
     } finally {
       setUpdatingId(null);
     }
-  }, [followUpQueue]);
+  }, [refreshFollowUpCards]);
+
+  const reopenFollowUpCard = useCallback(async (cardId: string) => {
+    setUpdatingId(cardId);
+    try {
+      await subscriptionApi.reopenFollowUpCard(cardId);
+      await refreshFollowUpCards();
+    } finally {
+      setUpdatingId(null);
+    }
+  }, [refreshFollowUpCards]);
+
+  const dismissFollowUpCard = useCallback(async (cardId: string) => {
+    setUpdatingId(cardId);
+    try {
+      await subscriptionApi.dismissFollowUpCard(cardId);
+      setFollowUpQueue((cards) => cards.filter((card) => card.id !== cardId));
+    } finally {
+      setUpdatingId(null);
+    }
+  }, []);
 
   const followUp = useCallback(async (clientId: string): Promise<FollowUpPayload> => {
     setUpdatingId(clientId);
@@ -194,8 +184,10 @@ export const useSubscriptionDashboard = () => {
     followUp,
     pauseSubscription,
     resumeSubscription,
-    addToFollowUpQueue,
-    removeFromFollowUpQueue,
-    updateFollowUpNote,
+    createFollowUpCard,
+    updateFollowUpCard,
+    completeFollowUpCard,
+    reopenFollowUpCard,
+    dismissFollowUpCard,
   };
 };

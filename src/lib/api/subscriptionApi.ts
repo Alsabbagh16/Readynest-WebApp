@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import type {
-  FollowUpQueueSubscription,
+  FollowUpCard,
+  FollowUpImportance,
   FollowUpPayload,
   SubscriptionDashboardRow,
   SubscriptionPurchaseService,
@@ -33,9 +34,9 @@ export const subscriptionApi = {
   },
 
   // GET /api/subscriptions/churn-risk
-  async getFollowUpQueue(): Promise<FollowUpQueueSubscription[]> {
+  async getFollowUpQueue(): Promise<FollowUpCard[]> {
     const { data, error } = await supabase.rpc('get_subscription_follow_up_queue');
-    return unwrap<FollowUpQueueSubscription[]>(data || [], error);
+    return unwrap<FollowUpCard[]>(data || [], error);
   },
 
   async getPurchaseService(purchaseRefId: string): Promise<SubscriptionPurchaseService> {
@@ -75,21 +76,38 @@ export const subscriptionApi = {
     return unwrap<SubscriptionStatus>(data, error);
   },
 
-  async addToFollowUpQueue(clientId: string): Promise<void> {
-    const { error } = await supabase.rpc('add_subscription_to_follow_up_queue', { p_client_id: clientId });
-    unwrap<null>(null, error);
-  },
-
-  async removeFromFollowUpQueue(clientId: string): Promise<void> {
-    const { error } = await supabase.rpc('remove_subscription_from_follow_up_queue', { p_client_id: clientId });
-    unwrap<null>(null, error);
-  },
-
-  async updateFollowUpNote(clientId: string, note: string): Promise<string | null> {
-    const { data, error } = await supabase.rpc('update_subscription_follow_up_note', {
+  async createFollowUpCard(clientId: string, note: string, importance: FollowUpImportance, reminderDate: string | null): Promise<string> {
+    const { data, error } = await supabase.rpc('create_follow_up_card', {
       p_client_id: clientId,
       p_note: note,
+      p_importance: importance,
+      p_reminder_date: reminderDate,
     });
-    return unwrap<string | null>(data, error);
+    return unwrap<string>(data, error);
+  },
+
+  async updateFollowUpCard(cardId: string, note: string, importance: FollowUpImportance, reminderDate: string | null): Promise<void> {
+    const { error } = await supabase.rpc('update_follow_up_card', {
+      p_card_id: cardId,
+      p_note: note,
+      p_importance: importance,
+      p_reminder_date: reminderDate,
+    });
+    unwrap<null>(null, error);
+  },
+
+  async completeFollowUpCard(cardId: string): Promise<void> {
+    const { error } = await supabase.rpc('complete_follow_up_card', { p_card_id: cardId });
+    unwrap<null>(null, error);
+  },
+
+  async reopenFollowUpCard(cardId: string): Promise<void> {
+    const { error } = await supabase.rpc('reopen_follow_up_card', { p_card_id: cardId });
+    unwrap<null>(null, error);
+  },
+
+  async dismissFollowUpCard(cardId: string): Promise<void> {
+    const { error } = await supabase.rpc('dismiss_follow_up_card', { p_card_id: cardId });
+    unwrap<null>(null, error);
   },
 };

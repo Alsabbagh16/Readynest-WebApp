@@ -35,7 +35,8 @@ const getSearchTerms = (searchQuery) => searchQuery
 const CustomerSelector = ({
   selectedCustomerId,
   onCustomerSelect,
-  className
+  className,
+  allowAllCustomers = false,
 }) => {
   const [open, setOpen] = useState(false);
   const [profiles, setProfiles] = useState([]);
@@ -45,7 +46,7 @@ const CustomerSelector = ({
   const { adminUser } = useAdminAuth();
   const { hasPerm, isSuperadmin } = usePermissionContext();
 
-  const canViewAllCustomers = isSuperadmin || hasPerm('purchases.view_all');
+  const canViewAllCustomers = allowAllCustomers || isSuperadmin || hasPerm('purchases.view_all');
 
   useEffect(() => {
     const fetchInitialProfiles = async () => {
