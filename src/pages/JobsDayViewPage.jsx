@@ -77,6 +77,12 @@ const getStatusStyles = (status) => {
       badge: 'border-red-200 bg-red-100 text-red-700',
     };
   }
+  if (normalizedStatus.includes('hold')) {
+    return {
+      card: 'border-l-orange-500 bg-amber-50 text-orange-900',
+      badge: 'border-orange-200 bg-amber-100 text-orange-800',
+    };
+  }
   if (normalizedStatus.includes('pending')) {
     return {
       card: 'border-l-amber-500 bg-amber-50 text-amber-900',

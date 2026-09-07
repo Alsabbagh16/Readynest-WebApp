@@ -59,7 +59,8 @@ const getStatusBadgeVariant = (status) => {
         case 'completed': return 'success';
         case 'pending assignment': case 'scheduled': return 'default';
         case 'assigned': case 'in progress': return 'outline';
-        case 'cancelled': case 'on hold': case 'failed': return 'destructive';
+        case 'cancelled': case 'failed': return 'destructive';
+        case 'on hold': return 'outline';
         default: return 'secondary';
     }
 };
@@ -1110,7 +1111,7 @@ const AdminJobDetailPage = () => {
               </CardTitle>
               <CardDescription className="dark:text-slate-400">Created on: {formatDateSafe(job.created_at, true)}</CardDescription>
             </div>
-            <Badge variant={getStatusBadgeVariant(currentStatus)} className="text-sm px-3 py-1 capitalize">{currentStatus}</Badge>
+            <Badge variant={getStatusBadgeVariant(currentStatus)} className={`text-sm px-3 py-1 capitalize ${currentStatus?.toLowerCase() === 'on hold' ? 'border-orange-200 bg-amber-100 text-orange-800' : ''}`}>{currentStatus}</Badge>
           </div>
         </CardHeader>
 

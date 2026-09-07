@@ -38,6 +38,7 @@ const getStatusClasses = (status) => {
   if (normalizedStatus.includes('complete')) return 'border-l-slate-400 bg-slate-50 text-slate-700';
   if (normalizedStatus.includes('progress') || normalizedStatus.includes('active')) return 'border-l-emerald-500 bg-emerald-50 text-emerald-800';
   if (normalizedStatus.includes('cancel')) return 'border-l-red-500 bg-red-50 text-red-800';
+  if (normalizedStatus.includes('hold')) return 'border-l-orange-500 bg-amber-50 text-orange-900';
   if (normalizedStatus.includes('pending')) return 'border-l-amber-500 bg-amber-50 text-amber-800';
   return 'border-l-sky-500 bg-sky-50 text-sky-800';
 };
@@ -47,6 +48,7 @@ const getStatusDotClassName = (status) => {
   if (normalizedStatus.includes('complete')) return 'bg-slate-400';
   if (normalizedStatus.includes('progress') || normalizedStatus.includes('active')) return 'bg-emerald-500';
   if (normalizedStatus.includes('cancel')) return 'bg-red-500';
+  if (normalizedStatus.includes('hold')) return 'bg-orange-500';
   if (normalizedStatus.includes('pending')) return 'bg-amber-500';
   return 'bg-sky-500';
 };
@@ -328,6 +330,7 @@ const JobsCalendarTab = () => {
             {[
               ['Scheduled', 'bg-sky-100 text-sky-700 border-sky-200'],
               ['In Progress', 'bg-emerald-100 text-emerald-700 border-emerald-200'],
+              ['On Hold', 'bg-amber-100 text-orange-800 border-orange-200'],
               ['Pending', 'bg-amber-100 text-amber-700 border-amber-200'],
               ['Completed', 'bg-slate-100 text-slate-700 border-slate-200'],
             ].map(([label, className]) => (
