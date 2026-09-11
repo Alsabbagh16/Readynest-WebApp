@@ -67,7 +67,7 @@ const Footer = () => {
 
         <div className="border-t border-gray-800 pt-8">
           <p className="text-center text-gray-500 text-xs md:text-sm">
-            &copy; {new Date().getFullYear()} ReadyNest. All rights reserved.
+            &copy; {new Date().getFullYear()} READY NEST CLEANING AND MAINTENANCE W.L.L. All rights reserved.
           </p>
         </div>
       </div>
