@@ -26,6 +26,7 @@ import { ArrowLeft, Check, ChevronDown, Edit3, ShieldAlert, Trash2, Download, Me
 import { format } from 'date-fns';
 import { useToast } from "@/components/ui/use-toast";
 import EmployeeDialog from '@/components/AdminDashboard/EmployeeDialog';
+import EmployeeReportsCard from '@/components/AdminDashboard/EmployeeReportsCard';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 
 const formatDateSafe = (dateString) => {
@@ -1661,6 +1662,7 @@ const AdminEmployeeProfilePage = ({ employeeId = null, selfService = false }) =>
                     setRangeEndDate={setPerformanceRangeEndDate}
                     setRangeStartDate={setPerformanceRangeStartDate}
                 />
+                <EmployeeReportsCard employee={employee} adminProfile={adminProfile} canManage={Boolean(!selfService && canManageEmployees)} />
                 {!selfService && employee.is_part_timer && <EarningsCard
                     payouts={payoutRows}
                     totalEarned={totalEarned}

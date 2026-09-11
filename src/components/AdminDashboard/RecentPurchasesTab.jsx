@@ -206,6 +206,12 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
           coupon_code,
           discount_amount,
           final_amount_due_on_arrival,
+          purchase_partial_payments (
+            id,
+            amount,
+            payment_date,
+            created_at
+          ),
           profiles!purchases_user_id_fkey ( phone, first_name, last_name ) 
         `)
         .order('created_at', { ascending: false });
@@ -660,11 +666,33 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
       return;
     }
 
-    const headers = exportColumnConfig.map(col => col.header);
+    const maximumPaymentCount = filteredPurchases.reduce((maximum, purchase) => Math.max(maximum, purchase.purchase_partial_payments?.length || 0), 0);
+    const paymentColumns = Array.from({ length: maximumPaymentCount }, (_, index) => ([
+      {
+        header: `Partial Payment ${index + 1}`,
+        csvFn: (purchase) => {
+          const payments = [...(purchase.purchase_partial_payments || [])].sort((left, right) => left.payment_date.localeCompare(right.payment_date) || left.created_at.localeCompare(right.created_at));
+          return payments[index] ? Number(payments[index].amount || 0).toFixed(3) : '';
+        },
+      },
+      {
+        header: `Payment Date ${index + 1}`,
+        csvFn: (purchase) => {
+          const payments = [...(purchase.purchase_partial_payments || [])].sort((left, right) => left.payment_date.localeCompare(right.payment_date) || left.created_at.localeCompare(right.created_at));
+          return payments[index]?.payment_date || '';
+        },
+      },
+    ])).flat();
+    const activeExportColumns = [
+      ...exportColumnConfig.slice(0, -1),
+      ...paymentColumns,
+      exportColumnConfig[exportColumnConfig.length - 1],
+    ];
+    const headers = activeExportColumns.map(col => col.header);
     const csvRows = [headers.join(",")];
 
     filteredPurchases.forEach(p => {
-      const row = exportColumnConfig.map(col => {
+      const row = activeExportColumns.map(col => {
          let val = col.csvFn ? col.csvFn(p) : (p[col.accessor] || '');
          const stringVal = String(val).replace(/"/g, '""');
          return `"${stringVal}"`;

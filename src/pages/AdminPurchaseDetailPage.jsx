@@ -11,13 +11,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { format as formatTz, utcToZonedTime, zonedTimeToUtc } from 'date-fns-tz';
-import { ArrowLeft, Save, UserCircle, ShoppingBag, CalendarDays, DollarSign, MapPin, List, Edit2, Briefcase, Phone, Clock, MessageSquare, Tag, FileText, Calculator, ExternalLink, Flag, AlertTriangle, Download, Loader2 } from 'lucide-react';
+import { ArrowLeft, Save, UserCircle, ShoppingBag, CalendarDays, DollarSign, MapPin, List, Edit2, Briefcase, Phone, Clock, MessageSquare, Tag, FileText, Calculator, ExternalLink, Flag, AlertTriangle, Download, Loader2, Plus, Pencil, Trash2 } from 'lucide-react';
 import InvoiceModal from '@/components/AdminDashboard/InvoiceModal';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import CustomerSelector from '@/components/AdminDashboard/CustomerSelector';
 import { useCustomerAutoFill } from '@/hooks/useCustomerAutoFill';
-import { getPurchaseAgreementSignedUrl, updatePurchase } from '@/lib/storage/purchaseStorage';
+import { createPurchasePartialPayment, deletePurchasePartialPayment, getPurchaseAgreementSignedUrl, getPurchasePartialPayments, reconcilePurchasePartialPayments, updatePurchase, updatePurchasePartialPayment } from '@/lib/storage/purchaseStorage';
 import { formatPreferredBookingDateForAdmin, toLocalDatetimeInputString } from '@/lib/dateTimeHelpers';
 
 // --- Helper Functions ---
@@ -222,7 +223,7 @@ const PurchaseAgreementAttachmentSection = ({
   </Section>
 );
 
-const PurchaseServicePaymentInfo = ({ purchase, isEditing, editableFields, onInputChange, onSelectChange }) => {
+const PurchaseServicePaymentInfo = ({ purchase, isEditing, editableFields, onInputChange, onSelectChange, partialPayments = [], onAddPayment, onEditPayment, onDeletePayment, paymentBusy = false }) => {
     const { baseAmount, discountAmount, finalTotal } = calculateTransactionTotals(
         isEditing ? editableFields.base_amount : 0, 
         isEditing ? editableFields.discount_type : 'none', 
@@ -254,7 +255,7 @@ const PurchaseServicePaymentInfo = ({ purchase, isEditing, editableFields, onInp
                     <Label htmlFor="preferred_booking_date" className="text-sm font-medium flex items-center">
                         Preferred Booking Date
                     </Label>
-                    <Input 
+                    <Input
                         id="preferred_booking_date" 
                         name="preferred_booking_date" 
                         type="datetime-local" 
@@ -277,9 +278,10 @@ const PurchaseServicePaymentInfo = ({ purchase, isEditing, editableFields, onInp
                         step="0.001" 
                         min="0"
                         value={editableFields.base_amount} 
-                        onChange={onInputChange} 
-                        className="mt-1 text-sm font-semibold"
+                        readOnly
+                        className="mt-1 bg-slate-100 text-sm font-semibold"
                     />
+                    <p className="mt-1 text-[11px] text-muted-foreground">Calculated from the partial-payment history.</p>
                 </div>
 
                 <div>
@@ -425,6 +427,10 @@ const PurchaseServicePaymentInfo = ({ purchase, isEditing, editableFields, onInp
                     <span>BHD {Math.max(finalTotal - editAmountReceived, 0).toFixed(3)}</span>
                 </div>
             </div>
+            <div className="rounded-lg border border-slate-200 bg-white p-3">
+                <div className="mb-3 flex items-center justify-between gap-3"><p className="text-sm font-semibold">Partial Payment History</p><Button type="button" size="sm" onClick={onAddPayment} disabled={paymentBusy || Math.max(finalTotal - editAmountReceived, 0) <= 0}><Plus className="mr-1.5 h-4 w-4" /> Add Partial Payment</Button></div>
+                {partialPayments.length ? <div className="divide-y divide-slate-100">{partialPayments.map((payment, index) => <div key={payment.id} className="flex items-center justify-between gap-3 py-2"><div><p className="text-sm font-semibold">Payment {index + 1}: BHD {Number(payment.amount).toFixed(3)}</p><p className="text-xs text-slate-500">{payment.payment_date}{payment.is_opening_entry ? ' · Opening entry' : ''}</p></div><div className="flex gap-1"><Button type="button" variant="ghost" size="icon" className="h-8 w-8" disabled={paymentBusy} onClick={() => onEditPayment(payment)} aria-label={`Edit payment ${index + 1}`}><Pencil className="h-4 w-4" /></Button><Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-red-600" disabled={paymentBusy} onClick={() => onDeletePayment(payment)} aria-label={`Delete payment ${index + 1}`}><Trash2 className="h-4 w-4" /></Button></div></div>)}</div> : <p className="py-3 text-center text-sm text-slate-500">No payments recorded.</p>}
+            </div>
         </div>
     ) : (
         <>
@@ -520,13 +526,14 @@ const PurchaseServicePaymentInfo = ({ purchase, isEditing, editableFields, onInp
                     value={`BHD ${Math.max((Number(displayAmount) || 0) - savedAmountReceived, 0).toFixed(3)}`}
                     valueClassName="font-semibold"
                 />
+                {partialPayments.length > 0 && <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3"><p className="mb-2 text-sm font-semibold">Payment History</p>{partialPayments.map((payment, index) => <div key={payment.id} className="flex justify-between py-1 text-sm"><span>Payment {index + 1} · {payment.payment_date}</span><span className="font-semibold">BHD {Number(payment.amount).toFixed(3)}</span></div>)}</div>}
             </div>
         </>
     )}
   </Section>
 )};
 
-const PurchaseServicePaymentInfoWithJobs = ({ purchase, isEditing, editableFields, onInputChange, onSelectChange }) => {
+const PurchaseServicePaymentInfoWithJobs = ({ purchase, isEditing, editableFields, onInputChange, onSelectChange, partialPayments, onAddPayment, onEditPayment, onDeletePayment, paymentBusy }) => {
   return (
     <>
       <PurchaseServicePaymentInfo 
@@ -535,6 +542,11 @@ const PurchaseServicePaymentInfoWithJobs = ({ purchase, isEditing, editableField
         editableFields={editableFields} 
         onInputChange={onInputChange} 
         onSelectChange={onSelectChange}
+        partialPayments={partialPayments}
+        onAddPayment={onAddPayment}
+        onEditPayment={onEditPayment}
+        onDeletePayment={onDeletePayment}
+        paymentBusy={paymentBusy}
       />
       {!isEditing && <PurchaseLinkedJobs purchase={purchase} />}
     </>
@@ -722,7 +734,12 @@ const AdminPurchaseDetailPage = () => {
   const [isEditingFlagReason, setIsEditingFlagReason] = useState(false);
   const [flagReasonInput, setFlagReasonInput] = useState('');
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
-  const [isPaymentAmountDirty, setIsPaymentAmountDirty] = useState(false);
+  const [partialPayments, setPartialPayments] = useState([]);
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [editingPayment, setEditingPayment] = useState(null);
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentDate, setPaymentDate] = useState('');
+  const [paymentSaving, setPaymentSaving] = useState(false);
 
   const [editableFields, setEditableFields] = useState({
     status: '',
@@ -768,6 +785,7 @@ const AdminPurchaseDetailPage = () => {
       }
       if (data) {
         setPurchase(data);
+        setPartialPayments(await getPurchasePartialPayments(purchaseRefId));
         
         const currentPaid = Number(data.paid_amount) || 0;
         const currentDiscount = Number(data.discount_amount) || 0;
@@ -821,7 +839,6 @@ const AdminPurchaseDetailPage = () => {
         
         // Initialize flag reason input
         setFlagReasonInput(data.notes || '');
-        setIsPaymentAmountDirty(false);
       } else {
         navigate("/admin-dashboard/purchases");
       }
@@ -839,49 +856,62 @@ const AdminPurchaseDetailPage = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    if (name === 'amount_received') {
-      setIsPaymentAmountDirty(true);
-      setEditableFields(prev => {
-        if (value === '') {
-          return {
-            ...prev,
-            amount_received: '',
-            status: ['Paid', 'Partially Paid'].includes(prev.status) ? 'Pending' : prev.status,
-          };
-        }
-
-        const entered = Number(value);
-        if (!Number.isFinite(entered) || entered < 0) {
-          return { ...prev, amount_received: value };
-        }
-
-        const { finalTotal } = calculateTransactionTotals(prev.base_amount, prev.discount_type, prev.discount_value);
-        if (finalTotal > 0 && entered >= finalTotal) {
-          return { ...prev, amount_received: String(finalTotal), status: 'Paid' };
-        }
-        if (entered > 0) {
-          return { ...prev, amount_received: value, status: 'Partially Paid' };
-        }
-        return {
-          ...prev,
-          amount_received: value,
-          status: ['Paid', 'Partially Paid'].includes(prev.status) ? 'Pending' : prev.status,
-        };
-      });
-      return;
-    }
     setEditableFields(prev => ({ ...prev, [name]: value }));
   };
 
   const handleSelectChange = (name, value) => {
     setEditableFields(prev => {
-      if (name === 'status' && value === 'Paid') {
-        const { finalTotal } = calculateTransactionTotals(prev.base_amount, prev.discount_type, prev.discount_value);
-        return { ...prev, status: value, amount_received: String(finalTotal) };
-      }
       if (name === 'subscription_plan_type') return { ...prev, subscription_plan_type: value, subscription_days_per_week: value === 'Custom' ? prev.subscription_days_per_week : '' };
       return { ...prev, [name]: value };
     });
+  };
+
+  const openPaymentDialog = (payment = null) => {
+    setEditingPayment(payment);
+    setPaymentAmount(payment ? String(payment.amount) : '');
+    setPaymentDate(payment?.payment_date || formatTz(utcToZonedTime(new Date(), 'Asia/Bahrain'), 'yyyy-MM-dd', { timeZone: 'Asia/Bahrain' }));
+    setPaymentDialogOpen(true);
+  };
+
+  const handleSavePartialPayment = async () => {
+    const amount = Number(paymentAmount);
+    if (!Number.isFinite(amount) || amount <= 0 || !paymentDate) {
+      toast({ title: 'Invalid Payment', description: 'Enter an amount greater than zero and select a payment date.', variant: 'destructive' });
+      return;
+    }
+    const { finalTotal } = calculateTransactionTotals(editableFields.base_amount, editableFields.discount_type, editableFields.discount_value);
+    const otherPaymentsTotal = partialPayments.reduce((total, payment) => total + (payment.id === editingPayment?.id ? 0 : Number(payment.amount || 0)), 0);
+    const maximumPayment = Math.max(finalTotal - otherPaymentsTotal, 0);
+    if (amount > maximumPayment) {
+      toast({ title: 'Payment Exceeds Balance', description: `The maximum available payment is BHD ${maximumPayment.toFixed(3)}.`, variant: 'destructive' });
+      return;
+    }
+    setPaymentSaving(true);
+    try {
+      if (editingPayment) await updatePurchasePartialPayment(editingPayment.id, amount, paymentDate);
+      else await createPurchasePartialPayment(purchaseRefId, amount, paymentDate);
+      setPaymentDialogOpen(false);
+      await fetchPurchaseDetails();
+      toast({ title: editingPayment ? 'Payment Updated' : 'Partial Payment Added' });
+    } catch (error) {
+      toast({ title: 'Unable to Save Payment', description: error.message, variant: 'destructive' });
+    } finally {
+      setPaymentSaving(false);
+    }
+  };
+
+  const handleDeletePartialPayment = async (payment) => {
+    if (!window.confirm(`Delete the BHD ${Number(payment.amount).toFixed(3)} payment from ${payment.payment_date}?`)) return;
+    setPaymentSaving(true);
+    try {
+      await deletePurchasePartialPayment(payment.id);
+      await fetchPurchaseDetails();
+      toast({ title: 'Payment Deleted', description: 'Purchase totals and status were recalculated.' });
+    } catch (error) {
+      toast({ title: 'Unable to Delete Payment', description: error.message, variant: 'destructive' });
+    } finally {
+      setPaymentSaving(false);
+    }
   };
   
   const handleSaveFlagReason = async () => {
@@ -965,27 +995,19 @@ const AdminPurchaseDetailPage = () => {
           editableFields.discount_value
       );
 
-      const rawAmountReceived = editableFields.amount_received === ''
-          ? 0
-          : Number(editableFields.amount_received);
-      if (!Number.isFinite(rawAmountReceived) || rawAmountReceived < 0) {
-        toast({
-          title: "Validation Error",
-          description: "Amount Paid must be a valid non-negative number.",
-          variant: "destructive"
-        });
+      const ledgerTotal = partialPayments.reduce((total, payment) => total + Number(payment.amount || 0), 0);
+      if (finalTotal < ledgerTotal) {
+        toast({ title: 'Validation Error', description: `Total Due cannot be less than the recorded payments of BHD ${ledgerTotal.toFixed(3)}.`, variant: 'destructive' });
         setLoading(false);
         return;
       }
 
-      let normalizedAmountReceived = Math.min(rawAmountReceived, finalTotal);
+      let normalizedAmountReceived = Math.min(ledgerTotal, finalTotal);
       let normalizedStatus = editableFields.status;
-      if (editableFields.status === 'Paid') {
-        normalizedAmountReceived = finalTotal;
-      } else if (isPaymentAmountDirty) {
+      if (['Pending', 'Partially Paid', 'Paid'].includes(editableFields.status)) {
         if (finalTotal > 0 && normalizedAmountReceived >= finalTotal) normalizedStatus = 'Paid';
         else if (normalizedAmountReceived > 0) normalizedStatus = 'Partially Paid';
-        else if (normalizedStatus === 'Partially Paid') normalizedStatus = 'Pending';
+        else normalizedStatus = 'Pending';
       }
 
       let isoPreferredDate = null;
@@ -1008,7 +1030,6 @@ const AdminPurchaseDetailPage = () => {
         scheduled_at: isoPreferredDate, // Keep synced if updating preferred
         paid_amount: finalTotal,
         final_amount_due_on_arrival: finalTotal,
-        amount_received: normalizedAmountReceived,
         payment_type: editableFields.payment_type || 'Cash',
         discount_amount: discountAmount,
         original_amount: baseAmount, // Store pre-discount amount for invoice
@@ -1037,6 +1058,7 @@ const AdminPurchaseDetailPage = () => {
       console.log("PurchaseRefId:", purchaseRefId);
       
       await updatePurchase(purchaseRefId, updateData);
+      await reconcilePurchasePartialPayments(purchaseRefId);
 
       toast({ title: "Success", description: "Purchase updated successfully." });
       setIsEditing(false);
@@ -1119,6 +1141,9 @@ const AdminPurchaseDetailPage = () => {
 
   const customerName = purchase.profiles ? `${purchase.profiles.first_name || ''} ${purchase.profiles.last_name || ''}`.trim() : purchase.name;
   const canCreateInvoice = adminProfile && (adminProfile.role === 'admin' || adminProfile.role === 'superadmin');
+  const paymentDialogTotal = calculateTransactionTotals(editableFields.base_amount, editableFields.discount_type, editableFields.discount_value).finalTotal;
+  const paymentDialogOtherTotal = partialPayments.reduce((total, payment) => total + (payment.id === editingPayment?.id ? 0 : Number(payment.amount || 0)), 0);
+  const maximumPartialPayment = Math.max(paymentDialogTotal - paymentDialogOtherTotal, 0);
 
   return (
     <div className="space-y-6">
@@ -1301,6 +1326,11 @@ const AdminPurchaseDetailPage = () => {
                     editableFields={editableFields} 
                     onInputChange={handleInputChange} 
                     onSelectChange={handleSelectChange}
+                    partialPayments={partialPayments}
+                    onAddPayment={() => openPaymentDialog()}
+                    onEditPayment={openPaymentDialog}
+                    onDeletePayment={handleDeletePartialPayment}
+                    paymentBusy={paymentSaving}
                 />
 
                 <div className="md:col-span-2">
@@ -1360,7 +1390,7 @@ const AdminPurchaseDetailPage = () => {
                     actionLoading={agreementActionLoading}
                 />
                 <PurchaseAddressInfo purchase={purchase} />
-                <PurchaseServicePaymentInfoWithJobs purchase={purchase} />
+                <PurchaseServicePaymentInfoWithJobs purchase={purchase} partialPayments={partialPayments} />
             </>
           )}
         </CardContent>
@@ -1371,6 +1401,19 @@ const AdminPurchaseDetailPage = () => {
         onClose={() => setIsInvoiceModalOpen(false)}
         purchase={purchase}
       />
+      <Dialog open={paymentDialogOpen} onOpenChange={(open) => !paymentSaving && setPaymentDialogOpen(open)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editingPayment ? 'Edit Partial Payment' : 'Add Partial Payment'}</DialogTitle>
+            <DialogDescription>Record the installment amount and the date it was received.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="space-y-2"><Label htmlFor="partial-payment-amount">Payment Amount (BHD)</Label><Input id="partial-payment-amount" type="number" min="0.001" max={maximumPartialPayment} step="0.001" value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} placeholder="0.000" /><p className="text-xs text-muted-foreground">Maximum available: BHD {maximumPartialPayment.toFixed(3)}</p></div>
+            <div className="space-y-2"><Label htmlFor="partial-payment-date">Payment Date</Label><Input id="partial-payment-date" type="date" value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} /></div>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setPaymentDialogOpen(false)} disabled={paymentSaving}>Cancel</Button><Button onClick={handleSavePartialPayment} disabled={paymentSaving || !paymentAmount || !paymentDate}>{paymentSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{editingPayment ? 'Save Payment' : 'Add Payment'}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

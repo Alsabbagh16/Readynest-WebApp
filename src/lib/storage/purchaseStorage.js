@@ -119,6 +119,46 @@ export const updatePurchase = async (purchaseRefId, updateData) => {
   }
 };
 
+export const getPurchasePartialPayments = async (purchaseRefId) => {
+  const { data, error } = await supabase
+    .from('purchase_partial_payments')
+    .select('*')
+    .eq('purchase_ref_id', purchaseRefId)
+    .order('payment_date', { ascending: true })
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return data || [];
+};
+
+export const createPurchasePartialPayment = async (purchaseRefId, amount, paymentDate) => {
+  const { data, error } = await supabase.rpc('create_purchase_partial_payment', {
+    p_purchase_ref_id: purchaseRefId,
+    p_amount: amount,
+    p_payment_date: paymentDate,
+  });
+  if (error) throw error;
+  return data;
+};
+
+export const updatePurchasePartialPayment = async (paymentId, amount, paymentDate) => {
+  const { error } = await supabase.rpc('update_purchase_partial_payment', {
+    p_payment_id: paymentId,
+    p_amount: amount,
+    p_payment_date: paymentDate,
+  });
+  if (error) throw error;
+};
+
+export const deletePurchasePartialPayment = async (paymentId) => {
+  const { error } = await supabase.rpc('delete_purchase_partial_payment', { p_payment_id: paymentId });
+  if (error) throw error;
+};
+
+export const reconcilePurchasePartialPayments = async (purchaseRefId) => {
+  const { error } = await supabase.rpc('reconcile_purchase_partial_payments', { p_purchase_ref_id: purchaseRefId });
+  if (error) throw error;
+};
+
 export const getPurchaseByRef = async (refId) => {
     const { data, error } = await supabase
         .from('purchases')
