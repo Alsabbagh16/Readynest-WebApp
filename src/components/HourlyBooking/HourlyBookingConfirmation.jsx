@@ -28,7 +28,7 @@ const HourlyBookingConfirmation = ({ isOpen, onClose, details, t = (key) => key 
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30 mb-4">
             <CheckCircle2 className="h-10 w-10 text-green-600 dark:text-green-400" />
           </div>
-          <DialogTitle className="text-2xl font-bold tracking-tight text-foreground text-center">{t('booking.confirmed')}!</DialogTitle>
+          <DialogTitle className="text-2xl font-bold tracking-tight text-foreground text-center">Booking Request Received!</DialogTitle>
           <DialogDescription className="text-center text-muted-foreground mt-2">
             {t('booking.confirmationSubtitle')}
           </DialogDescription>

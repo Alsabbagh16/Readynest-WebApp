@@ -32,9 +32,11 @@ import { Link } from 'react-router-dom';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { usePermissionContext } from '@/contexts/PermissionContext';
 import CreatePurchaseModal from './CreatePurchaseModal';
+import PurchaseQueueSection from './PurchaseQueueSection';
 import InvoiceModal from '@/components/AdminDashboard/InvoiceModal';
 import PermissionGate from '@/components/PermissionGate';
 import { formatPreferredBookingDateForAdmin } from '@/lib/dateTimeHelpers';
+import { completeModifiedPurchaseQueue, markQueueNotification } from '@/lib/storage/purchaseQueueStorage';
 
 const formatDateSafe = (dateString, formatStr) => {
   try {
@@ -149,6 +151,8 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
   const { adminProfile, adminUser } = useAdminAuth();
   const { hasPerm, isSuperadmin, hasUiRoles } = usePermissionContext();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [modifyingQueueItem, setModifyingQueueItem] = useState(null);
+  const [queueRefreshKey, setQueueRefreshKey] = useState(0);
   const [activeInvoicePurchase, setActiveInvoicePurchase] = useState(null);
   const [viewedPurchases, setViewedPurchases] = useState(() => {
     try {
@@ -726,7 +730,27 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
     return <div className="p-6 text-center">Loading recent purchases...</div>;
   }
 
+  const handlePurchaseCreated = async (purchase) => {
+    if (modifyingQueueItem) {
+      await completeModifiedPurchaseQueue(modifyingQueueItem.queue_id, purchase.purchase_ref_id);
+      const { error } = await supabase.functions.invoke('send-purchase-confirmation', { body: { record: {
+        ...purchase,
+        booking_date: modifyingQueueItem.requested_date,
+        booking_start_time: modifyingQueueItem.requested_time,
+        hours: purchase.hours || modifyingQueueItem.duration_hours,
+        cleaners: modifyingQueueItem.quantity,
+        notification_type: 'approval'
+      } } });
+      await markQueueNotification(modifyingQueueItem.queue_id, error ? 'failed' : 'sent', error?.message || null);
+      setModifyingQueueItem(null);
+      setQueueRefreshKey((value) => value + 1);
+    }
+    fetchPurchases(1, true);
+  };
+
   return (
+    <div className="space-y-6">
+    <PurchaseQueueSection refreshKey={queueRefreshKey} onModify={(item) => { setModifyingQueueItem(item); setIsCreateModalOpen(true); }} onPurchasesChanged={() => fetchPurchases(1, true)} />
     <Card className="border-0 shadow-none rounded-none">
       <CardHeader className="flex flex-col space-y-4 pb-2">
         <div className="flex flex-row items-center justify-between">
@@ -1073,8 +1097,9 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
 
       <CreatePurchaseModal 
         isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        onSuccess={() => fetchPurchases(1, true)}
+        onClose={() => { setIsCreateModalOpen(false); setModifyingQueueItem(null); }}
+        onSuccess={handlePurchaseCreated}
+        initialPurchase={modifyingQueueItem}
       />
       
       <InvoiceModal 
@@ -1083,6 +1108,7 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
         purchase={activeInvoicePurchase}
       />
     </Card>
+    </div>
   );
 };
 

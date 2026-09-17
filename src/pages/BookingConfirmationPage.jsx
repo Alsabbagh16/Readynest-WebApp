@@ -98,9 +98,9 @@ const BookingConfirmationPage = () => {
             >
               <CheckCircle className="h-20 w-20 text-green-500 mx-auto mb-4" />
             </motion.div>
-            <CardTitle className="text-3xl sm:text-4xl font-extrabold tracking-tight text-foreground dark:text-white">Booking Confirmed!</CardTitle>
+            <CardTitle className="text-3xl sm:text-4xl font-extrabold tracking-tight text-foreground dark:text-white">Booking Request Received!</CardTitle>
             <CardDescription className="mt-2 text-lg text-muted-foreground dark:text-slate-400">
-              Thank you, {name || 'Valued Customer'}! Your cleaning service is scheduled.
+              Thank you, {name || 'Valued Customer'}! Your request is awaiting confirmation from our team.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-6 space-y-6">

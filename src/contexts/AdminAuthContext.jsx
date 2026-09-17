@@ -1,9 +1,9 @@
-import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import React, { createContext, useState, useContext, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useToast } from "@/components/ui/use-toast";
 import { findEmployeeById, findEmployeeByEmail } from '@/lib/storage/employeeStorage';
 import { useLoading } from '@/contexts/LoadingContext';
-import { useLocation } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 
 const AdminAuthContext = createContext(null);
 
@@ -15,9 +15,11 @@ export const AdminAuthProvider = ({ children }) => {
   const [adminProfileLoading, setAdminProfileLoading] = useState(false); 
   const { toast } = useToast();
   const { addLoadingMessage, removeLoadingMessage } = useLoading();
-  const location = useLocation();
+  const { user: sharedAuthUser, authContextLoading } = useAuth();
+  const adminProfileRef = useRef(null);
 
   const resetAdminState = useCallback(() => {
+    adminProfileRef.current = null;
     setAdminProfile(null);
     setIsAdmin(false);
     setAdminProfileLoading(false); 
@@ -30,7 +32,7 @@ export const AdminAuthProvider = ({ children }) => {
     }
 
     // If we are not explicitly logging in and already have the correct profile, skip fetching
-    if (!isExplicitAdminLogin && adminProfile && adminProfile.id === supabaseUserId) {
+    if (!isExplicitAdminLogin && adminProfileRef.current?.id === supabaseUserId) {
         return;
     }
 
@@ -41,6 +43,7 @@ export const AdminAuthProvider = ({ children }) => {
       const employeeProfile = await findEmployeeById(supabaseUserId);
       
       if (employeeProfile && (employeeProfile.role === 'admin' || employeeProfile.role === 'superadmin' || employeeProfile.role === 'staff')) {
+        adminProfileRef.current = employeeProfile;
         setAdminProfile(employeeProfile);
         setIsAdmin(true);
       } else {
@@ -63,66 +66,44 @@ export const AdminAuthProvider = ({ children }) => {
       removeLoadingMessage(profileMsgId);
       setAdminProfileLoading(false);
     }
-  }, [toast, addLoadingMessage, removeLoadingMessage, resetAdminState, adminProfile]);
+  }, [toast, addLoadingMessage, removeLoadingMessage, resetAdminState]);
 
   useEffect(() => {
-    // Only perform admin checks if we are on an admin route
-    // Admin routes are defined as starting with /admin-panel or /admin-dashboard
-    const isAdminRoute = location.pathname.startsWith('/admin-panel') || location.pathname.startsWith('/admin-dashboard');
+    let active = true;
 
-    if (!isAdminRoute) {
-        // If we are not on an admin route, ensure we aren't holding onto admin state that might confuse things
-        // or trigger unwanted UI elements.
-        if (adminUser || isAdmin) {
-            setAdminUser(null);
-            resetAdminState();
-        }
-        setAdminAuthLoading(false);
-        return; 
-    }
-
-    const checkSession = async () => {
-        setAdminAuthLoading(true);
-        try {
-            const { data: { session }, error } = await supabase.auth.getSession();
-            if (error) throw error;
-            
-            const supabaseSessUser = session?.user ?? null;
-            setAdminUser(supabaseSessUser);
-
-            if (supabaseSessUser) {
-                await fetchAdminProfileAndUpdateState(supabaseSessUser.id, false);
-            } else {
-                resetAdminState();
-            }
-        } catch (error) {
-            console.error("Admin session check failed", error);
-            resetAdminState();
-        } finally {
-            setAdminAuthLoading(false);
-        }
-    };
-
-    checkSession();
-
-    const { data: { subscription: authListener } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        if (location.pathname.startsWith('/admin-panel') || location.pathname.startsWith('/admin-dashboard')) {
-            const supabaseSessUser = session?.user ?? null;
-            setAdminUser(supabaseSessUser);
-            if (supabaseSessUser) {
-              await fetchAdminProfileAndUpdateState(supabaseSessUser.id, false);
-            } else {
-              resetAdminState();
-            }
-        }
+    const synchronizeAdmin = async () => {
+      if (authContextLoading || sharedAuthUser === undefined) {
+        if (adminUser === undefined) setAdminAuthLoading(true);
+        return;
       }
-    );
-    
-    return () => {
-      authListener?.unsubscribe();
+
+      if (!sharedAuthUser) {
+        if (!active) return;
+        setAdminUser(null);
+        resetAdminState();
+        setAdminAuthLoading(false);
+        return;
+      }
+
+      // Preserve object identity for unchanged users. Supabase may publish a fresh
+      // session object after focus/token refresh, but that is not a new admin login.
+      setAdminUser((currentUser) => currentUser?.id === sharedAuthUser.id ? currentUser : sharedAuthUser);
+
+      if (adminProfileRef.current?.id === sharedAuthUser.id) {
+        setAdminAuthLoading(false);
+        return;
+      }
+
+      setAdminAuthLoading(true);
+      await fetchAdminProfileAndUpdateState(sharedAuthUser.id, false);
+      if (active) setAdminAuthLoading(false);
     };
-  }, [location.pathname, fetchAdminProfileAndUpdateState, resetAdminState]);
+
+    synchronizeAdmin();
+    return () => { active = false; };
+  // Deliberately depend on the stable identity, not the refreshed session object.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sharedAuthUser?.id, authContextLoading, fetchAdminProfileAndUpdateState, resetAdminState]);
 
 
   const adminLogin = async (email, password) => {

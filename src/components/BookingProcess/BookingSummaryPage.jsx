@@ -16,7 +16,7 @@ import PriceAndCheckoutSection from './summary/PriceAndCheckoutSection';
 import PromoCodeInput from './PromoCodeInput';
 import { calculateBookingPrice } from './summary/priceCalculator';
 import { buildPurchaseData } from './summary/checkoutHelper';
-import { recordCouponRedemption } from '@/lib/couponUtils';
+import { submitWebsitePurchaseRequest } from '@/lib/storage/purchaseQueueStorage';
 
 const stepVariants = {
   initial: { opacity: 0, x: 50 },
@@ -192,43 +192,11 @@ const BookingSummaryPage = ({ addonTemplates: allAddonTemplates }) => {
     console.log("Attempting to save purchase:", purchaseData);
 
     try {
-      const { data: insertedPurchase, error } = await supabase
-        .from('purchases')
-        .insert([purchaseData])
-        .select()
-        .single();
-
-      if (error) {
-        console.error("Error saving purchase:", error);
-        toast({
-          title: "Booking Failed",
-          description: `Could not save your booking. ${error.message}`,
-          variant: "destructive",
-        });
-        setIsSubmitting(false);
-        return;
-      }
-
-      if (appliedCouponData) {
-        try {
-          const redemptionResult = await recordCouponRedemption(
-            appliedCouponData.coupon.id,
-            user?.id || null,
-            isGuestFlowActive ? guestDetails.email : (user?.email || profile?.email),
-            isGuestFlowActive ? guestDetails.phone : profile?.phone
-          );
-
-          if (redemptionResult.error) {
-            console.warn("Coupon redemption recording warning:", redemptionResult.error);
-          }
-        } catch (couponError) {
-          console.error("Critical error in coupon recording:", couponError);
-        }
-      }
+      const insertedPurchase = await submitWebsitePurchaseRequest(purchaseData);
       
       try {
         const { error: emailError } = await supabase.functions.invoke('send-purchase-confirmation', {
-          body: { record: insertedPurchase }
+          body: { record: { ...purchaseData, purchase_ref_id: insertedPurchase.purchase_ref_id, notification_type: 'pending' } }
         });
         
         if (emailError) {

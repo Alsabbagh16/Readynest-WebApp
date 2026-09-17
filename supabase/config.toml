@@ -45,3 +45,8 @@ entrypoint = "./functions/vehicle-maps-config/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/google-business-reviews/index.ts"
+
+[functions.purchase-queue-ingest]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/purchase-queue-ingest/index.ts"

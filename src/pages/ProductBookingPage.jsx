@@ -16,7 +16,8 @@ import {
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchProductById } from '@/lib/storage/productStorage';
-import { createPurchase } from '@/lib/storage/purchaseStorage';
+import { submitWebsitePurchaseRequest } from '@/lib/storage/purchaseQueueStorage';
+import { supabase } from '@/lib/supabase';
 import { validateBookingTime } from '@/lib/timeWindowValidator';
 import SavedAddressSelector from '@/components/HourlyBooking/SavedAddressSelector';
 import ManualAddressForm from '@/components/HourlyBooking/ManualAddressForm';
@@ -191,7 +192,11 @@ const ProductBookingPage = () => {
     };
 
     try {
-      const result = await createPurchase(purchasePayload);
+      const result = await submitWebsitePurchaseRequest(purchasePayload);
+      if (purchasePayload.email) {
+        supabase.functions.invoke('send-purchase-confirmation', { body: { record: { ...purchasePayload, purchase_ref_id: result.purchase_ref_id, notification_type: 'pending' } } })
+          .catch((emailError) => console.error('Pending acknowledgement failed:', emailError));
+      }
       setConfirmationDetails({
         purchase_ref_id: result.purchase_ref_id,
         product_name: product.name,
@@ -414,9 +419,9 @@ const ProductBookingPage = () => {
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30 mb-4">
                 <CheckCircle2 className="h-10 w-10 text-green-600 dark:text-green-400" />
               </div>
-              <DialogTitle className="text-2xl font-bold text-foreground text-center">Booking Confirmed!</DialogTitle>
+              <DialogTitle className="text-2xl font-bold text-foreground text-center">Booking Request Received!</DialogTitle>
               <DialogDescription className="text-center text-muted-foreground mt-2">
-                Your booking has been successfully placed. We will contact you shortly.
+                Your request is awaiting approval. We will contact you shortly.
               </DialogDescription>
             </DialogHeader>
 

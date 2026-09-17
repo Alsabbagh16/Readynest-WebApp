@@ -34,7 +34,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 
-const CreatePurchaseModal = ({ isOpen, onClose, onSuccess, initialCustomer = null }) => {
+const CreatePurchaseModal = ({ isOpen, onClose, onSuccess, initialCustomer = null, initialPurchase = null }) => {
   const [loading, setLoading] = useState(false);
   const [products, setProducts] = useState([]);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -116,7 +116,25 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess, initialCustomer = nul
   }, [isOpen]);
 
   useEffect(() => {
-    if (!isOpen || !initialCustomer?.id) return;
+    if (!isOpen || !initialPurchase) return;
+    const payload = initialPurchase.request_payload || {};
+    const address = initialPurchase.property_snapshot || payload.address || {};
+    setFormData((prev) => ({ ...prev,
+      name: initialPurchase.customer_name || payload.name || '', email: initialPurchase.customer_email || payload.email || '',
+      phone: initialPurchase.customer_phone || payload.user_phone || '', productId: initialPurchase.service_id || payload.product_id || 'custom',
+      amount: initialPurchase.quoted_price ?? payload.paid_amount ?? '', paymentType: payload.payment_type || 'BenefitPay', status: payload.status || 'Pending',
+      preferred_booking_date: initialPurchase.requested_date ? `${initialPurchase.requested_date}T${String(initialPurchase.requested_time || '09:00').slice(0, 5)}` : (payload.preferred_booking_date || ''),
+      customer_id: initialPurchase.customer_id || payload.user_id || null, user_id: initialPurchase.customer_id || payload.user_id || null,
+      address_street: address.street || '', address_city: address.city || '', address_zip: address.zip || '',
+      address_phone: address.phone || initialPurchase.customer_phone || payload.user_phone || '', address_alt_phone: address.alt_phone || '' }));
+    setSelectedAddressId(initialPurchase.property_id || null);
+    setHourlyService((prev) => ({ ...prev, cleaners: String(initialPurchase.quantity ?? payload.cleaners_count ?? payload.cleaners ?? ''),
+      hours: String(initialPurchase.duration_hours ?? payload.hours ?? ''), isSubscription: Boolean(payload.is_subscription),
+      subscriptionPlanType: payload.subscription_plan_type || 'Weekly', subscriptionDaysPerWeek: payload.subscription_days_per_week ?? '' }));
+  }, [isOpen, initialPurchase]);
+
+  useEffect(() => {
+    if (!isOpen || !initialCustomer?.id || initialPurchase) return;
 
     const initialName = initialCustomer.name
       || `${initialCustomer.first_name || ''} ${initialCustomer.last_name || ''}`.trim();
@@ -129,7 +147,7 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess, initialCustomer = nul
       customer_id: initialCustomer.id,
       user_id: initialCustomer.id,
     }));
-  }, [isOpen, initialCustomer]);
+  }, [isOpen, initialCustomer, initialPurchase]);
 
   // Recalculate amount when hourly service fields change
   useEffect(() => {
@@ -365,6 +383,7 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess, initialCustomer = nul
       }
 
       const purchasePayload = {
+        purchase_ref_id: initialPurchase?.reserved_purchase_ref,
         customer_id: resolvedCustomerId,
         user_id: resolvedCustomerId,
         email: resolvedEmail,
@@ -466,7 +485,7 @@ const CreatePurchaseModal = ({ isOpen, onClose, onSuccess, initialCustomer = nul
           : "Purchase created successfully."
       });
       setRecoveryMessage('');
-      onSuccess();
+      await onSuccess?.(result);
       onClose();
       
       // Reset Form

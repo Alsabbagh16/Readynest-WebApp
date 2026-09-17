@@ -126,7 +126,15 @@ export const useAuthCore = () => {
            setUser(null);
            setAuthError(null);
         } else if (session?.user) {
-           setUser(session.user);
+           // A token refresh or repeated SIGNED_IN event often contains a newly
+           // allocated user object for the same account. Preserve the current
+           // object so forms throughout the application do not rerender as if
+           // authentication changed. USER_UPDATED still applies fresh metadata.
+           setUser((currentUser) => (
+             currentUser?.id === session.user.id && event !== 'USER_UPDATED'
+               ? currentUser
+               : session.user
+           ));
            
            // Handle post-login redirect (especially for Google OAuth)
            if (event === 'SIGNED_IN') {

@@ -18,6 +18,8 @@ interface PurchaseRecord {
   address: string;
   cleaners?: number;
   hours?: number;
+  notification_type?: 'pending' | 'approval' | 'rejection';
+  rejection_reason?: string;
 }
 
 serve(async (req: Request) => {
@@ -49,6 +51,26 @@ serve(async (req: Request) => {
     const bookingDateTime = record.booking_date 
       ? `${record.booking_date}, ${record.booking_start_time || ''} - ${record.booking_end_time || ''}`
       : 'To be confirmed';
+    const notificationType = record.notification_type || 'approval';
+    const customerSubject = notificationType === 'pending'
+      ? `Booking Request Received - ${record.purchase_ref_id}`
+      : notificationType === 'rejection'
+        ? `Booking Request Update - ${record.purchase_ref_id}`
+        : `Booking Confirmed - ${record.purchase_ref_id}`;
+    const customerHtml = notificationType === 'pending' ? `
+      <h2>Your Booking Request Has Been Received</h2><p>Hello ${record.name || 'Valued Customer'},</p>
+      <p>We have received your request <strong>${record.purchase_ref_id}</strong>. Our team will review it and email you once it is approved.</p>
+      <p><strong>Service:</strong> ${record.product_name || 'Cleaning Service'}</p><p><strong>Requested date & time:</strong> ${bookingDateTime}</p>
+      <p>Best regards,<br>The ReadyNest Team</p>` : notificationType === 'rejection' ? `
+      <h2>Booking Request Update</h2><p>Hello ${record.name || 'Valued Customer'},</p>
+      <p>We are unable to approve booking request <strong>${record.purchase_ref_id}</strong> at this time.</p>
+      ${record.rejection_reason ? `<p><strong>Reason:</strong> ${record.rejection_reason}</p>` : ''}
+      <p>Please contact us if you would like help arranging another service.</p><p>Best regards,<br>The ReadyNest Team</p>` : `
+      <h2>Your Booking Has Been Confirmed!</h2><p>Hello ${record.name || 'Valued Customer'},</p><p>Thank you for your booking. Here are the details:</p><hr />
+      <p><strong>Reference ID:</strong> ${record.purchase_ref_id}</p><p><strong>Service:</strong> ${record.product_name || 'Cleaning Service'}</p>
+      <p><strong>Date & Time:</strong> ${bookingDateTime}</p><p><strong>Address:</strong> ${record.address || 'Address on file'}</p>
+      ${record.cleaners ? `<p><strong>Cleaners:</strong> ${record.cleaners}</p>` : ''}${record.hours ? `<p><strong>Hours:</strong> ${record.hours}</p>` : ''}
+      <p><strong>Amount:</strong> ${record.paid_amount || 0} BHD</p><hr /><p>If you need to make any changes, please contact us.</p><p>Best regards,<br>The ReadyNest Team</p>`;
 
     // Send confirmation email to customer
     const customerEmailResponse = await fetch('https://api.resend.com/emails', {
@@ -60,23 +82,8 @@ serve(async (req: Request) => {
       body: JSON.stringify({
         from: 'ReadyNest <noreply@readynest.com>',
         to: [record.email],
-        subject: `Booking Confirmed - ${record.purchase_ref_id}`,
-        html: `
-          <h2>Your Booking Has Been Confirmed!</h2>
-          <p>Hello ${record.name || 'Valued Customer'},</p>
-          <p>Thank you for your booking. Here are the details:</p>
-          <hr />
-          <p><strong>Reference ID:</strong> ${record.purchase_ref_id}</p>
-          <p><strong>Service:</strong> ${record.product_name || 'Cleaning Service'}</p>
-          <p><strong>Date & Time:</strong> ${bookingDateTime}</p>
-          <p><strong>Address:</strong> ${record.address || 'Address on file'}</p>
-          ${record.cleaners ? `<p><strong>Cleaners:</strong> ${record.cleaners}</p>` : ''}
-          ${record.hours ? `<p><strong>Hours:</strong> ${record.hours}</p>` : ''}
-          <p><strong>Amount:</strong> ${record.paid_amount || 0} BHD</p>
-          <hr />
-          <p>If you need to make any changes, please contact us.</p>
-          <p>Best regards,<br>The ReadyNest Team</p>
-        `,
+        subject: customerSubject,
+        html: customerHtml,
       }),
     });
 
@@ -88,6 +95,7 @@ serve(async (req: Request) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
       );
     }
+    if (notificationType === 'rejection') return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
 
     // Send notification email to admin
     await fetch('https://api.resend.com/emails', {
