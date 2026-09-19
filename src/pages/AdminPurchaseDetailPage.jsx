@@ -740,6 +740,8 @@ const AdminPurchaseDetailPage = () => {
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentDate, setPaymentDate] = useState('');
   const [paymentSaving, setPaymentSaving] = useState(false);
+  const [deleteInvoiceOpen, setDeleteInvoiceOpen] = useState(false);
+  const [deletingInvoice, setDeletingInvoice] = useState(false);
 
   const [editableFields, setEditableFields] = useState({
     status: '',
@@ -1133,6 +1135,33 @@ const AdminPurchaseDetailPage = () => {
     });
   };
 
+  const handleDeleteInvoice = async () => {
+    setDeletingInvoice(true);
+    try {
+      const { error } = await supabase
+        .from('purchases')
+        .delete()
+        .eq('purchase_ref_id', purchaseRefId);
+      if (error) throw error;
+
+      toast({
+        title: 'Invoice Deleted',
+        description: `Invoice ${purchaseRefId} was permanently deleted.`,
+      });
+      navigate('/admin-dashboard/purchases', { replace: true });
+    } catch (error) {
+      console.error('Error deleting invoice:', error);
+      toast({
+        title: 'Unable to Delete Invoice',
+        description: error.message || 'The invoice could not be deleted.',
+        variant: 'destructive',
+      });
+    } finally {
+      setDeletingInvoice(false);
+      setDeleteInvoiceOpen(false);
+    }
+  };
+
   if (loading && !purchase) {
     return <div className="p-6 text-center">Loading...</div>;
   }
@@ -1366,6 +1395,11 @@ const AdminPurchaseDetailPage = () => {
                 </div>
                 
                  <div className="flex justify-end flex-wrap gap-2 mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                    {canCreateInvoice && (
+                      <Button type="button" variant="destructive" onClick={() => setDeleteInvoiceOpen(true)} disabled={loading || deletingInvoice} className="admin-button-wrap sm:mr-auto">
+                        <Trash2 className="mr-2 h-4 w-4 button-icon" /> Delete Invoice
+                      </Button>
+                    )}
                     <Button variant="outline" onClick={() => {
                         setIsEditing(false);
                         fetchPurchaseDetails();
@@ -1401,6 +1435,22 @@ const AdminPurchaseDetailPage = () => {
         onClose={() => setIsInvoiceModalOpen(false)}
         purchase={purchase}
       />
+      <Dialog open={deleteInvoiceOpen} onOpenChange={(open) => !deletingInvoice && setDeleteInvoiceOpen(open)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Invoice?</DialogTitle>
+            <DialogDescription>
+              This permanently deletes invoice {purchase.purchase_ref_id} and its recorded payment history. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteInvoiceOpen(false)} disabled={deletingInvoice}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDeleteInvoice} disabled={deletingInvoice}>
+              {deletingInvoice ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Deleting...</> : <><Trash2 className="mr-2 h-4 w-4" /> Delete Invoice</>}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog open={paymentDialogOpen} onOpenChange={(open) => !paymentSaving && setPaymentDialogOpen(open)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

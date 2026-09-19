@@ -140,6 +140,7 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
   const [customDateRange, setCustomDateRange] = useState({ start: '', end: '' }); // custom date range
   const [bulkSelectMode, setBulkSelectMode] = useState(false);
   const [selectedPurchases, setSelectedPurchases] = useState(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [purchaseRefsWithJobs, setPurchaseRefsWithJobs] = useState(new Set());
   const [pagination, setPagination] = useState({
     currentPage: 1,
@@ -748,6 +749,37 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
     fetchPurchases(1, true);
   };
 
+  const handleBulkDelete = async () => {
+    if (selectedPurchases.size === 0) return;
+
+    const purchaseIds = Array.from(selectedPurchases);
+    setBulkDeleting(true);
+    try {
+      const { error } = await supabase
+        .from('purchases')
+        .delete()
+        .in('purchase_ref_id', purchaseIds);
+      if (error) throw error;
+
+      toast({
+        title: 'Purchases Deleted',
+        description: `Permanently deleted ${purchaseIds.length} selected purchase(s).`,
+      });
+      setSelectedPurchases(new Set());
+      setBulkSelectMode(false);
+      await fetchPurchases(1, true);
+    } catch (error) {
+      console.error('Error bulk deleting purchases:', error);
+      toast({
+        title: 'Unable to Delete Purchases',
+        description: error.message || 'The selected purchases could not be deleted.',
+        variant: 'destructive',
+      });
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
     <PurchaseQueueSection refreshKey={queueRefreshKey} onModify={(item) => { setModifyingQueueItem(item); setIsCreateModalOpen(true); }} onPurchasesChanged={() => fetchPurchases(1, true)} />
@@ -787,6 +819,27 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
                   >
                     <span>Paid ({selectedPurchases.size})</span>
                   </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button size="sm" variant="destructive" disabled={selectedPurchases.size === 0 || bulkDeleting}>
+                        <Trash2 className="mr-1 h-4 w-4" /> Delete ({selectedPurchases.size})
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Selected Purchases?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will permanently delete {selectedPurchases.size} selected purchase(s) and their associated payment history. This action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel disabled={bulkDeleting}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={handleBulkDelete} disabled={bulkDeleting}>
+                          {bulkDeleting ? 'Deleting...' : 'Delete Purchases'}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                   <Button 
                     onClick={() => {
                       setBulkSelectMode(false);
