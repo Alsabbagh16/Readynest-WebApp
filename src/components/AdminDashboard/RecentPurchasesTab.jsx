@@ -130,6 +130,46 @@ const getPurchaseFullAddress = (address) => {
   return address;
 };
 
+const normalizePurchaseRef = (value) => String(value || '').trim().toUpperCase();
+const JOB_LOOKUP_CHUNK_SIZE = 100;
+const JOB_LOOKUP_PAGE_SIZE = 1000;
+
+const fetchLinkedJobPurchaseRefs = async (purchaseRefIds) => {
+  const refsByNormalizedValue = new Map();
+  purchaseRefIds.forEach((reference) => {
+    const normalizedReference = normalizePurchaseRef(reference);
+    if (normalizedReference && !refsByNormalizedValue.has(normalizedReference)) {
+      refsByNormalizedValue.set(normalizedReference, String(reference).trim());
+    }
+  });
+  const queryRefs = [...refsByNormalizedValue.values()];
+  const linkedRefs = new Set();
+
+  for (let chunkStart = 0; chunkStart < queryRefs.length; chunkStart += JOB_LOOKUP_CHUNK_SIZE) {
+    const chunk = queryRefs.slice(chunkStart, chunkStart + JOB_LOOKUP_CHUNK_SIZE);
+    let pageStart = 0;
+
+    while (true) {
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('purchase_ref_id')
+        .in('purchase_ref_id', chunk)
+        .range(pageStart, pageStart + JOB_LOOKUP_PAGE_SIZE - 1);
+
+      if (error) throw error;
+      (data || []).forEach((job) => {
+        const reference = normalizePurchaseRef(job.purchase_ref_id);
+        if (reference) linkedRefs.add(reference);
+      });
+
+      if (!data || data.length < JOB_LOOKUP_PAGE_SIZE) break;
+      pageStart += JOB_LOOKUP_PAGE_SIZE;
+    }
+  }
+
+  return linkedRefs;
+};
+
 const RecentPurchasesTab = ({ refreshTrigger }) => {
   const [purchases, setPurchases] = useState([]);
   const [filteredPurchases, setFilteredPurchases] = useState([]);
@@ -182,7 +222,7 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
 
   const purchaseNeedsJob = useCallback((purchaseRefId) => {
     if (!purchaseRefId) return false;
-    return !purchaseRefsWithJobs.has(purchaseRefId);
+    return !purchaseRefsWithJobs.has(normalizePurchaseRef(purchaseRefId));
   }, [purchaseRefsWithJobs]);
 
   const fetchPurchases = useCallback(async (page = 1, resetPagination = false) => {
@@ -239,24 +279,9 @@ const RecentPurchasesTab = ({ refreshTrigger }) => {
         .map((purchase) => purchase.purchase_ref_id)
         .filter(Boolean);
 
-      let linkedJobPurchaseRefs = new Set();
-      if (purchaseRefIds.length > 0) {
-        const { data: jobsData, error: jobsError } = await supabase
-          .from('jobs')
-          .select('purchase_ref_id')
-          .in('purchase_ref_id', purchaseRefIds);
-
-        if (jobsError) {
-          console.error("Supabase select error for linked jobs in RecentPurchasesTab:", jobsError);
-          throw jobsError;
-        }
-
-        linkedJobPurchaseRefs = new Set(
-          (jobsData || [])
-            .map((job) => job.purchase_ref_id)
-            .filter(Boolean)
-        );
-      }
+      const linkedJobPurchaseRefs = purchaseRefIds.length > 0
+        ? await fetchLinkedJobPurchaseRefs(purchaseRefIds)
+        : new Set();
       
       // Set all purchases for client-side filtering
       setPurchases(data || []);
