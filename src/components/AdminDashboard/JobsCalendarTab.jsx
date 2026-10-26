@@ -14,18 +14,14 @@ import { supabase } from '@/lib/supabase';
 import { useToast } from "@/components/ui/use-toast";
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { usePermissionContext } from '@/contexts/PermissionContext';
+import { getJobDateKey, parseJobFaceValueDate } from '@/lib/jobDateUtils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CalendarDays, ChevronLeft, ChevronRight, Loader2, PlusCircle, Users } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
-const stripTimezone = (dateString) => dateString?.replace(/(Z|[+-]\d{2}:?\d{2})$/, '') || '';
-
-const parseJobDate = (dateString) => {
-  const cleanDateString = stripTimezone(dateString);
-  return cleanDateString ? new Date(cleanDateString) : null;
-};
+const JOBS_PAGE_SIZE = 1000;
 
 const getAreaLabel = (address) => {
   if (!address) return 'No area';
@@ -54,7 +50,7 @@ const getStatusDotClassName = (status) => {
 };
 
 const DayJobPill = ({ job }) => {
-  const jobDate = parseJobDate(job.preferred_date);
+  const jobDate = parseJobFaceValueDate(job.preferred_date);
   const employeeCount = job.assigned_employees_ids?.length || job.employees_data?.length || 0;
 
   return (
@@ -108,10 +104,23 @@ const JobsCalendarTab = () => {
         query = query.contains('assigned_employees_ids', [adminProfile.id]);
       }
       
-      const { data, error } = await query;
-      if (error) throw error;
+      // Supabase limits a response to 1,000 rows by default. The calendar is
+      // loaded for the whole schedule, so fetch every page instead of silently
+      // dropping jobs that happen to fall after the first page.
+      const allJobs = [];
+      let page = 0;
+      while (true) {
+        const { data, error } = await query
+          .order('preferred_date', { ascending: true })
+          .range(page * JOBS_PAGE_SIZE, ((page + 1) * JOBS_PAGE_SIZE) - 1);
+        if (error) throw error;
 
-      let jobsWithEmployees = data || [];
+        allJobs.push(...(data || []));
+        if (!data || data.length < JOBS_PAGE_SIZE) break;
+        page += 1;
+      }
+
+      let jobsWithEmployees = allJobs;
 
       // Fetch employee details for tooltips/modals
       if (jobsWithEmployees.length > 0) {
@@ -150,9 +159,8 @@ const JobsCalendarTab = () => {
   const jobsByDate = useMemo(() => {
     const groups = new Map();
     jobs.forEach((job) => {
-      const jobDate = parseJobDate(job.preferred_date);
-      if (!jobDate) return;
-      const dayKey = format(jobDate, 'yyyy-MM-dd');
+      const dayKey = getJobDateKey(job.preferred_date);
+      if (!dayKey) return;
       const dayJobs = groups.get(dayKey) || [];
       dayJobs.push(job);
       groups.set(dayKey, dayJobs);
@@ -160,8 +168,8 @@ const JobsCalendarTab = () => {
 
     groups.forEach((dayJobs) => {
       dayJobs.sort((a, b) => {
-        const aDate = parseJobDate(a.preferred_date);
-        const bDate = parseJobDate(b.preferred_date);
+        const aDate = parseJobFaceValueDate(a.preferred_date);
+        const bDate = parseJobFaceValueDate(b.preferred_date);
         return (aDate?.getTime() || 0) - (bDate?.getTime() || 0);
       });
     });
@@ -171,8 +179,8 @@ const JobsCalendarTab = () => {
 
   const visibleMonthJobs = useMemo(() => (
     jobs.filter((job) => {
-      const jobDate = parseJobDate(job.preferred_date);
-      return jobDate && isSameMonth(jobDate, currentMonth);
+      const jobDate = parseJobFaceValueDate(job.preferred_date);
+      return jobDate ? isSameMonth(jobDate, currentMonth) : false;
     })
   ), [jobs, currentMonth]);
 

@@ -2,6 +2,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { addDays, format, parseISO } from 'date-fns';
+import { useAdminAuth } from '@/contexts/AdminAuthContext';
+import { usePermissionContext } from '@/contexts/PermissionContext';
+import { getJobDateKey, parseJobFaceValueDate } from '@/lib/jobDateUtils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -12,13 +15,6 @@ const DAY_START_HOUR = 6;
 const DAY_END_HOUR = 22;
 const HOUR_HEIGHT = 96;
 const MINUTE_HEIGHT = HOUR_HEIGHT / 60;
-
-const stripTimezone = (dateString) => dateString?.replace(/(Z|[+-]\d{2}:?\d{2})$/, '') || '';
-
-const parseFaceValueDate = (dateString) => {
-  const cleanDateString = stripTimezone(dateString);
-  return cleanDateString ? new Date(cleanDateString) : null;
-};
 
 const formatTime = (date) => format(date, 'hh:mm a');
 
@@ -50,7 +46,7 @@ const getDurationHours = (job) => {
 };
 
 const getJobTiming = (job) => {
-  const start = parseFaceValueDate(job.preferred_date);
+  const start = parseJobFaceValueDate(job.preferred_date);
   if (!start) return null;
   const durationHours = getDurationHours(job);
   const end = new Date(start.getTime() + durationHours * 60 * 60 * 1000);
@@ -252,6 +248,8 @@ const JobsDayViewPage = () => {
   const navigate = useNavigate();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { adminProfile } = useAdminAuth();
+  const { hasPerm, isSuperadmin, hasUiRoles } = usePermissionContext();
 
   const selectedDate = useMemo(() => {
     try {
@@ -273,7 +271,7 @@ const JobsDayViewPage = () => {
         const endOfDay = new Date(dateParam);
         endOfDay.setUTCHours(23, 59, 59, 999);
 
-        const { data, error } = await supabase
+        let query = supabase
           .from('jobs')
           .select(`
             job_ref_id,
@@ -287,14 +285,23 @@ const JobsDayViewPage = () => {
             assigned_employees_ids,
             hours_needed,
             purchase:purchases(hours)
-          `)
+          `);
+
+        const canViewAll = isSuperadmin || (hasUiRoles && hasPerm('jobs.view_all'));
+        if (adminProfile && !canViewAll) {
+          query = query.contains('assigned_employees_ids', [adminProfile.id]);
+        }
+
+        const { data, error } = await query
           .gte('preferred_date', startOfDay.toISOString())
           .lte('preferred_date', endOfDay.toISOString())
           .order('preferred_date', { ascending: true });
 
         if (error) throw error;
 
-        let jobsData = data || [];
+        // Keep the day view aligned with the monthly calendar's face-value date
+        // handling, even when the stored timestamp includes a timezone suffix.
+        let jobsData = (data || []).filter((job) => getJobDateKey(job.preferred_date) === dateParam);
 
         if (jobsData.length > 0) {
           const { data: employees } = await supabase.from('employees').select('id, full_name, email, position, is_part_timer');
@@ -318,7 +325,7 @@ const JobsDayViewPage = () => {
     };
 
     fetchDayJobs();
-  }, [dateParam]);
+  }, [dateParam, adminProfile, hasPerm, isSuperadmin, hasUiRoles]);
 
   const schedulerJobs = useMemo(() => buildSchedulerJobs(jobs), [jobs]);
   const maxTracks = useMemo(() => Math.max(1, ...schedulerJobs.map((job) => job.trackCount)), [schedulerJobs]);
