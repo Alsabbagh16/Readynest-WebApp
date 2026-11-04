@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Bot, Check, ChevronDown, ChevronLeft, ChevronRight, Loader2, Pencil, RefreshCw, RotateCcw, X } from 'lucide-react';
+import { Bot, ChevronDown, ChevronLeft, ChevronRight, Loader2, Pencil, RefreshCw, RotateCcw, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/lib/supabase';
 import { getPurchaseByRef } from '@/lib/storage/purchaseStorage';
-import { approvePurchaseQueue, getPurchaseQueue, markQueueNotification, rejectPurchaseQueue, revivePurchaseQueue } from '@/lib/storage/purchaseQueueStorage';
+import { getPurchaseQueue, markQueueNotification, rejectPurchaseQueue, revivePurchaseQueue } from '@/lib/storage/purchaseQueueStorage';
 
 const PAGE_SIZE = 12;
 const formatValue = (value) => value === null || value === undefined || value === '' ? 'Not provided' : String(value);
@@ -72,12 +72,6 @@ const PurchaseQueueSection = ({ onModify, onPurchasesChanged, refreshKey = 0 }) 
     finally { setActionId(null); }
   };
 
-  const approve = (item) => act(item, async () => {
-    const ref = await approvePurchaseQueue(item.queue_id);
-    const purchase = await getPurchaseByRef(ref);
-    try { await notify(item, 'approval', purchase); } catch { /* approval remains successful and retryable */ }
-  }, 'Purchase Approved');
-
   const confirmReject = () => act(rejecting, async () => {
     await rejectPurchaseQueue(rejecting.queue_id, reason);
     try { await notify({ ...rejecting, rejection_reason: reason }, 'rejection'); } catch { /* retained for retry */ }
@@ -113,7 +107,7 @@ const PurchaseQueueSection = ({ onModify, onPurchasesChanged, refreshKey = 0 }) 
       <button type="button" onClick={() => toggle(item.queue_id)} className="mt-3 flex w-full items-center justify-between border-t pt-3 text-xs font-semibold text-blue-600">All purchase details <ChevronDown className={`h-4 w-4 transition ${expanded.has(item.queue_id) ? 'rotate-180' : ''}`} /></button>
       {expanded.has(item.queue_id) && <div className="mt-3 space-y-2 rounded-lg bg-slate-50 p-3 text-xs"><p><b>Customer ID:</b> {formatValue(item.customer_id)}</p><p><b>Service ID:</b> {formatValue(item.service_id)}</p><p><b>Property ID:</b> {formatValue(item.property_id)}</p><p><b>Contact:</b> {formatValue(item.customer_email)} · {formatValue(item.customer_phone)}</p><p><b>Customer notes:</b> {formatValue(item.customer_notes)}</p><p><b>AI notes:</b> {formatValue(item.ai_notes)}</p><p><b>Source message ID:</b> {formatValue(item.source_message_id)}</p><details><summary className="cursor-pointer font-semibold">Raw request payload</summary><pre className="mt-2 max-h-44 overflow-auto whitespace-pre-wrap break-all">{JSON.stringify(item.request_payload, null, 2)}</pre></details>{item.rejection_reason && <p className="text-red-700"><b>Rejection reason:</b> {item.rejection_reason}</p>}</div>}
       {item.notification_status === 'failed' && <div className="mt-3 flex items-center justify-between rounded-md bg-red-50 p-2 text-xs text-red-700"><span>Email failed</span><Button size="sm" variant="outline" className="h-7" onClick={() => retryEmail(item)}>Retry Email</Button></div>}
-      <div className="mt-4 flex flex-wrap gap-2">{tab === 'pending' ? <><Button size="sm" onClick={() => approve(item)} disabled={actionId === item.queue_id}><Check className="mr-1 h-4 w-4" /> Approve</Button><Button size="sm" variant="outline" onClick={() => onModify(item)}><Pencil className="mr-1 h-4 w-4" /> Modify &amp; Approve</Button><Button size="sm" variant="outline" className="text-red-600" onClick={() => { setRejecting(item); setReason(''); }}><X className="mr-1 h-4 w-4" /> Reject</Button></> : <Button size="sm" onClick={() => act(item, () => revivePurchaseQueue(item.queue_id), 'Purchase Request Revived')}><RotateCcw className="mr-1 h-4 w-4" /> Revive</Button>}</div>
+      <div className="mt-4 flex flex-wrap gap-2">{tab === 'pending' ? <><Button size="sm" onClick={() => onModify(item)}><Pencil className="mr-1 h-4 w-4" /> Modify &amp; Approve</Button><Button size="sm" variant="outline" className="text-red-600" onClick={() => { setRejecting(item); setReason(''); }}><X className="mr-1 h-4 w-4" /> Reject</Button></> : <Button size="sm" onClick={() => act(item, () => revivePurchaseQueue(item.queue_id), 'Purchase Request Revived')}><RotateCcw className="mr-1 h-4 w-4" /> Revive</Button>}</div>
     </article>)}</div> : <div className="rounded-xl border border-dashed bg-white p-8 text-center text-sm text-slate-500">No {tab} purchase requests.</div>}
     {pages > 1 && <div className="mt-4 flex items-center justify-center gap-2"><Button size="icon" variant="outline" disabled={page === 1} onClick={() => setPage((p) => p - 1)}><ChevronLeft className="h-4 w-4" /></Button><span className="text-sm">Page {page} of {pages}</span><Button size="icon" variant="outline" disabled={page === pages} onClick={() => setPage((p) => p + 1)}><ChevronRight className="h-4 w-4" /></Button></div>}
     <Dialog open={Boolean(rejecting)} onOpenChange={(open) => !open && setRejecting(null)}><DialogContent><DialogHeader><DialogTitle>Reject Purchase Request</DialogTitle><DialogDescription>The reason is optional and will be included in the customer email when provided.</DialogDescription></DialogHeader><Textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Optional rejection reason" rows={4} /><DialogFooter><Button variant="outline" onClick={() => setRejecting(null)}>Cancel</Button><Button variant="destructive" onClick={confirmReject} disabled={Boolean(actionId)}>Reject Request</Button></DialogFooter></DialogContent></Dialog>

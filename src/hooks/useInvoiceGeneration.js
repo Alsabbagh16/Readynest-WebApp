@@ -88,13 +88,35 @@ export const useInvoiceGeneration = (purchase) => {
         ? Number(purchase.original_amount) 
         : (discount > 0 ? paidAmount + discount : paidAmount);
 
-    // Main Service Item - use original amount (pre-discount) for unit price
+    const additionalProducts = Array.isArray(purchase.raw_selections?.additional_products)
+        ? purchase.raw_selections.additional_products
+        : Array.isArray(purchase.raw_selections?.additionalProducts)
+            ? purchase.raw_selections.additionalProducts
+            : [];
+    const additionalProductsTotal = additionalProducts.reduce(
+        (sum, product) => sum + Math.max(0, Number(product.price) || 0),
+        0
+    );
+    const mainServiceAmount = Math.max(0, originalAmount - additionalProductsTotal);
+
+    // Main service and manually-added products are separate invoice line items.
     lineItems.push({
         id: 'service-main',
         description: purchase.product_name || 'Service Charge',
         quantity: 1,
-        unitPrice: originalAmount,
-        total: originalAmount
+        unitPrice: mainServiceAmount,
+        total: mainServiceAmount
+    });
+
+    additionalProducts.forEach((product, index) => {
+        const price = Math.max(0, Number(product.price) || 0);
+        lineItems.push({
+            id: product.id || `additional-product-${index + 1}`,
+            description: product.name || `Additional Product ${index + 1}`,
+            quantity: 1,
+            unitPrice: price,
+            total: price
+        });
     });
     
     // Addons handling - primarily informational if included in base price

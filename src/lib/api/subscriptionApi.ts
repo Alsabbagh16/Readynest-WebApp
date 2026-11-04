@@ -26,9 +26,6 @@ const unwrap = <T>(data: T | null, error: { message: string; code?: string } | n
 export const subscriptionApi = {
   // GET /api/subscriptions
   async getSubscriptions(): Promise<SubscriptionDashboardRow[]> {
-    const { error: refreshError } = await supabase.rpc('refresh_subscription_health_for_dashboard');
-    if (refreshError) throw new SubscriptionApiError(refreshError.message, refreshError.code);
-
     const { data, error } = await supabase.rpc('get_subscription_dashboard');
     return unwrap<SubscriptionDashboardRow[]>(data || [], error);
   },
@@ -73,6 +70,11 @@ export const subscriptionApi = {
 
   async resumeSubscription(clientId: string): Promise<SubscriptionStatus> {
     const { data, error } = await supabase.rpc('resume_subscription', { p_client_id: clientId });
+    return unwrap<SubscriptionStatus>(data, error);
+  },
+
+  async unbookSubscription(clientId: string): Promise<SubscriptionStatus> {
+    const { data, error } = await supabase.rpc('unbook_subscription', { p_client_id: clientId });
     return unwrap<SubscriptionStatus>(data, error);
   },
 

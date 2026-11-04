@@ -110,6 +110,22 @@ export const useSubscriptionDashboard = () => {
     }
   }, [refreshFollowUpCards, subscriptions]);
 
+  const unbookSubscription = useCallback(async (clientId: string) => {
+    const previousSubscriptions = subscriptions;
+    setUpdatingId(clientId);
+    setSubscriptions((rows) => rows.map((row) => row.client_id === clientId
+      ? { ...row, status: 'unbooked', manually_paused: false }
+      : row));
+    try {
+      await subscriptionApi.unbookSubscription(clientId);
+    } catch (requestError) {
+      setSubscriptions(previousSubscriptions);
+      throw requestError;
+    } finally {
+      setUpdatingId(null);
+    }
+  }, [subscriptions]);
+
   const createFollowUpCard = useCallback(async (clientId: string, note: string, importance: FollowUpImportance, reminderDate: string | null) => {
     setUpdatingId(clientId);
     try {
@@ -184,6 +200,7 @@ export const useSubscriptionDashboard = () => {
     followUp,
     pauseSubscription,
     resumeSubscription,
+    unbookSubscription,
     createFollowUpCard,
     updateFollowUpCard,
     completeFollowUpCard,

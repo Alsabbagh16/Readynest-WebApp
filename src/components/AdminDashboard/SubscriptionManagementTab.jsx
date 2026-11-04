@@ -76,18 +76,21 @@ const formatDate = (date) => {
 };
 
 const RetentionDots = ({ history, styles, label, describe, onSelect, selectedPurchaseRef }) => {
-  const paddedHistory = [...(history || [])];
-  while (paddedHistory.length < 4) paddedHistory.unshift(null);
+  const purchaseHistory = (history || []).filter((entry) => entry?.purchase_ref_id).slice(-4);
+
+  if (purchaseHistory.length === 0) {
+    return <p className="mt-1 text-[10px] text-slate-400">No payments yet</p>;
+  }
 
   return (
     <div className="mt-1 flex items-center gap-1.5" aria-label={label}>
-      {paddedHistory.slice(-4).map((entry, index) => {
-        const dotClassName = `block h-2.5 w-2.5 rounded-full ${entry ? styles[entry.status] : 'bg-slate-200'} ${
+      {purchaseHistory.map((entry) => {
+        const dotClassName = `block h-2.5 w-2.5 rounded-full ${styles[entry.status] || paymentStyles.pending} ${
           selectedPurchaseRef && entry?.purchase_ref_id === selectedPurchaseRef ? 'ring-2 ring-blue-500 ring-offset-1' : ''
         }`;
-        return entry?.purchase_ref_id && onSelect ? (
+        return onSelect ? (
           <button
-            key={entry.period_start}
+            key={entry.purchase_ref_id}
             type="button"
             className="rounded-full"
             title={`${describe(entry)} - click to filter services`}
@@ -97,9 +100,9 @@ const RetentionDots = ({ history, styles, label, describe, onSelect, selectedPur
           </button>
         ) : (
           <span
-            key={entry?.period_start || `empty-${index}`}
+            key={entry.purchase_ref_id}
             className={dotClassName}
-            title={entry ? describe(entry) : 'No subscription payment for this period'}
+            title={describe(entry)}
           />
         );
       })}
@@ -112,12 +115,14 @@ const ServiceRetentionDots = ({ history, planType, customDays }) => {
   const expectedSlots = Math.max(4, daysPerWeek * 4);
   const paddedHistory = [...(history || [])].slice(0, expectedSlots);
   while (paddedHistory.length < expectedSlots) paddedHistory.push(null);
+  const linkedJobCount = (history || []).filter((entry) => entry?.job_ref_id).length;
+  const overflowCount = Math.max(0, linkedJobCount - expectedSlots);
 
   return (
     <div
       className="mt-1 grid w-fit gap-1.5"
       style={{ gridTemplateColumns: `repeat(${planType === 'Custom' ? daysPerWeek : 4}, minmax(0, 1fr))` }}
-      aria-label={`Latest subscription purchase, ${expectedSlots} expected jobs`}
+      aria-label={`Latest subscription purchase, ${expectedSlots} expected jobs${overflowCount ? `, ${overflowCount} additional jobs` : ''}`}
     >
       {paddedHistory.map((entry, slotIndex) => (
         entry?.job_ref_id ? (
@@ -135,6 +140,14 @@ const ServiceRetentionDots = ({ history, planType, customDays }) => {
           />
         )
       ))}
+      {overflowCount > 0 && (
+        <span
+          className="flex h-2.5 min-w-5 items-center text-[10px] font-bold leading-none text-blue-700"
+          title={`${overflowCount} additional linked job${overflowCount === 1 ? '' : 's'}`}
+        >
+          +{overflowCount}
+        </span>
+      )}
     </div>
   );
 };
@@ -224,6 +237,7 @@ const SubscriptionManagementContent = () => {
     refresh,
     pauseSubscription,
     resumeSubscription,
+    unbookSubscription,
     createFollowUpCard,
     updateFollowUpCard,
     completeFollowUpCard,
@@ -282,6 +296,22 @@ const SubscriptionManagementContent = () => {
     } catch (requestError) {
       toast({
         title: shouldResume ? 'Unable to Resume' : 'Unable to Pause',
+        description: requestError.message || 'The subscription status was restored.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleUnbook = async (subscription) => {
+    try {
+      await unbookSubscription(subscription.client_id);
+      toast({
+        title: 'Subscription Unbooked',
+        description: `${subscription.client_name} has been moved to Unbooked.`,
+      });
+    } catch (requestError) {
+      toast({
+        title: 'Unable to Unbook',
         description: requestError.message || 'The subscription status was restored.',
         variant: 'destructive',
       });
@@ -468,6 +498,10 @@ const SubscriptionManagementContent = () => {
                         <DropdownMenuItem onSelect={() => handlePauseToggle(subscription)}>
                           {subscription.manually_paused ? <Play className="mr-2 h-4 w-4" /> : <Pause className="mr-2 h-4 w-4" />}
                           {subscription.manually_paused ? 'Resume Subscription' : 'Pause Subscription'}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => handleUnbook(subscription)} disabled={subscription.status === 'unbooked'}>
+                          <CalendarClock className="mr-2 h-4 w-4" />
+                          Unbook Subscription
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onSelect={() => openCreateDialog(subscription)}>

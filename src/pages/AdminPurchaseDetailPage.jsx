@@ -68,21 +68,41 @@ const getStatusBadgeVariant = (status) => {
   }
 };
 
-const calculateTransactionTotals = (baseAmountStr, discountType, discountValueStr) => {
-    const base = parseFloat(baseAmountStr) || 0;
+const normalizeAdditionalProducts = (rawSelections) => {
+    const products = rawSelections?.additional_products || rawSelections?.additionalProducts;
+    if (!Array.isArray(products)) return [];
+    return products.map((product, index) => ({
+        id: product.id || `product-${index + 1}`,
+        name: String(product.name || ''),
+        price: product.price === null || product.price === undefined ? '' : String(product.price),
+    }));
+};
+
+const getAdditionalProductsTotal = (products = []) => products.reduce(
+    (total, product) => total + Math.max(0, parseFloat(product.price) || 0),
+    0,
+);
+
+const calculateTransactionTotals = (baseAmountStr, discountType, discountValueStr, additionalProducts = []) => {
+    const base = Math.max(0, parseFloat(baseAmountStr) || 0);
+    const productsTotal = getAdditionalProductsTotal(additionalProducts);
+    const subtotal = base + productsTotal;
     let discount = 0;
     const discVal = parseFloat(discountValueStr) || 0;
 
     if (discountType === 'percent') {
-        discount = base * (discVal / 100);
+        discount = subtotal * (discVal / 100);
     } else if (discountType === 'fixed') {
         discount = discVal;
     }
 
-    const total = Math.max(0, base - discount);
+    discount = Math.min(Math.max(0, discount), subtotal);
+    const total = Math.max(0, subtotal - discount);
     
     return {
-        baseAmount: base,
+        baseAmount: subtotal,
+        mainProductAmount: base,
+        additionalProductsAmount: productsTotal,
         discountAmount: discount,
         finalTotal: total
     };
@@ -223,11 +243,12 @@ const PurchaseAgreementAttachmentSection = ({
   </Section>
 );
 
-const PurchaseServicePaymentInfo = ({ purchase, isEditing, editableFields, onInputChange, onSelectChange, partialPayments = [], onAddPayment, onEditPayment, onDeletePayment, paymentBusy = false }) => {
+const PurchaseServicePaymentInfo = ({ purchase, isEditing, editableFields, onInputChange, onSelectChange, onAddProduct, onProductChange, onRemoveProduct, partialPayments = [], onAddPayment, onEditPayment, onDeletePayment, paymentBusy = false }) => {
     const { baseAmount, discountAmount, finalTotal } = calculateTransactionTotals(
         isEditing ? editableFields.base_amount : 0, 
         isEditing ? editableFields.discount_type : 'none', 
-        isEditing ? editableFields.discount_value : 0
+        isEditing ? editableFields.discount_value : 0,
+        isEditing ? editableFields.additional_products : [],
     );
 
     const displayAmount = purchase.final_amount_due_on_arrival !== null 
@@ -241,6 +262,7 @@ const PurchaseServicePaymentInfo = ({ purchase, isEditing, editableFields, onInp
         Math.max(Number(purchase.amount_received) || 0, 0),
         Number(displayAmount) || 0
     );
+    const savedAdditionalProducts = normalizeAdditionalProducts(purchase.raw_selections);
 
     return (
   <Section title="Service & Payment" icon={<ShoppingBag className="h-5 w-5 text-primary"/>}>
@@ -278,10 +300,10 @@ const PurchaseServicePaymentInfo = ({ purchase, isEditing, editableFields, onInp
                         step="0.001" 
                         min="0"
                         value={editableFields.base_amount} 
-                        readOnly
-                        className="mt-1 bg-slate-100 text-sm font-semibold"
+                        onChange={onInputChange}
+                        className="mt-1 text-sm font-semibold"
                     />
-                    <p className="mt-1 text-[11px] text-muted-foreground">Calculated from the partial-payment history.</p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">Main service price before added products and discount.</p>
                 </div>
 
                 <div>
@@ -352,6 +374,52 @@ const PurchaseServicePaymentInfo = ({ purchase, isEditing, editableFields, onInp
                         {editableFields.subscription_plan_type === 'Custom' && <div className="mt-2"><Label htmlFor="subscription_days_per_week" className="text-sm font-medium">Days per Week <span className="text-red-500">*</span></Label><Input id="subscription_days_per_week" name="subscription_days_per_week" type="number" min="3" max="7" step="1" value={editableFields.subscription_days_per_week} onChange={onInputChange} required /></div>}
                     </div>
                 )}
+
+                <div className="md:col-span-2 space-y-3 rounded-lg border border-dashed border-slate-300 bg-white p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                            <p className="text-sm font-semibold">Additional Products</p>
+                            <p className="text-[11px] text-muted-foreground">Each product is added to the purchase subtotal and invoice.</p>
+                        </div>
+                        <Button type="button" size="sm" variant="outline" onClick={onAddProduct}>
+                            <Plus className="mr-1.5 h-4 w-4" /> Add Product
+                        </Button>
+                    </div>
+                    {editableFields.additional_products.length > 0 && (
+                        <div className="space-y-3">
+                            {editableFields.additional_products.map((product, index) => (
+                                <div key={product.id} className="grid grid-cols-1 gap-3 rounded-md bg-slate-50 p-3 sm:grid-cols-[minmax(0,1fr)_160px_40px] sm:items-end">
+                                    <div>
+                                        <Label htmlFor={`additional_product_name_${index}`} className="text-xs font-medium">Product Name</Label>
+                                        <Input
+                                            id={`additional_product_name_${index}`}
+                                            value={product.name}
+                                            onChange={(event) => onProductChange(index, 'name', event.target.value)}
+                                            placeholder="Product description"
+                                            className="mt-1"
+                                        />
+                                    </div>
+                                    <div>
+                                        <Label htmlFor={`additional_product_price_${index}`} className="text-xs font-medium">Product Price (BHD)</Label>
+                                        <Input
+                                            id={`additional_product_price_${index}`}
+                                            type="number"
+                                            min="0"
+                                            step="0.001"
+                                            value={product.price}
+                                            onChange={(event) => onProductChange(index, 'price', event.target.value)}
+                                            placeholder="0.000"
+                                            className="mt-1"
+                                        />
+                                    </div>
+                                    <Button type="button" variant="ghost" size="icon" className="h-10 w-10 text-red-600" onClick={() => onRemoveProduct(index)} aria-label={`Remove product ${index + 1}`}>
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
 
                 <div>
                     <Label htmlFor="discount_type" className="text-sm font-medium">Discount Type</Label>
@@ -443,6 +511,19 @@ const PurchaseServicePaymentInfo = ({ purchase, isEditing, editableFields, onInp
             />
             <DetailItem label="Payment Type" value={purchase.payment_type || 'N/A'} />
             <DetailItem label="Subscription" value={purchase.is_subscription ? 'Yes' : 'No'} />
+            {savedAdditionalProducts.length > 0 && (
+                <div className="flex items-start py-1 text-sm">
+                    <dt className="w-36 shrink-0 font-medium text-gray-500 dark:text-gray-400">Additional Products:</dt>
+                    <dd className="min-w-0 flex-1 space-y-1 text-gray-700 dark:text-gray-300">
+                        {savedAdditionalProducts.map((product, index) => (
+                            <div key={product.id || index} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-md bg-slate-50 px-2 py-1 dark:bg-slate-800">
+                                <span className="break-words font-medium">{product.name}</span>
+                                <span className="shrink-0 text-muted-foreground">BHD {Number(product.price || 0).toFixed(3)}</span>
+                            </div>
+                        ))}
+                    </dd>
+                </div>
+            )}
             {purchase.is_subscription && (
                 <DetailItem label="Frequency" value={purchase.subscription_plan_type === 'Custom' ? `Custom - ${purchase.subscription_days_per_week} days/week` : purchase.subscription_plan_type || 'Weekly'} />
             )}
@@ -533,7 +614,7 @@ const PurchaseServicePaymentInfo = ({ purchase, isEditing, editableFields, onInp
   </Section>
 )};
 
-const PurchaseServicePaymentInfoWithJobs = ({ purchase, isEditing, editableFields, onInputChange, onSelectChange, partialPayments, onAddPayment, onEditPayment, onDeletePayment, paymentBusy }) => {
+const PurchaseServicePaymentInfoWithJobs = ({ purchase, isEditing, editableFields, onInputChange, onSelectChange, onAddProduct, onProductChange, onRemoveProduct, partialPayments, onAddPayment, onEditPayment, onDeletePayment, paymentBusy }) => {
   return (
     <>
       <PurchaseServicePaymentInfo 
@@ -542,6 +623,9 @@ const PurchaseServicePaymentInfoWithJobs = ({ purchase, isEditing, editableField
         editableFields={editableFields} 
         onInputChange={onInputChange} 
         onSelectChange={onSelectChange}
+        onAddProduct={onAddProduct}
+        onProductChange={onProductChange}
+        onRemoveProduct={onRemoveProduct}
         partialPayments={partialPayments}
         onAddPayment={onAddPayment}
         onEditPayment={onEditPayment}
@@ -766,7 +850,8 @@ const AdminPurchaseDetailPage = () => {
     is_subscription: false,
     subscription_plan_type: 'Weekly',
     subscription_days_per_week: '',
-    amount_received: ''
+    amount_received: '',
+    additional_products: [],
   });
 
   // Use Auto-fill Hook
@@ -800,6 +885,8 @@ const AdminPurchaseDetailPage = () => {
         const originalBase = data.original_amount 
             ? Number(data.original_amount) 
             : (savedDiscount > 0 ? savedPaid + savedDiscount : savedPaid);
+        const additionalProducts = normalizeAdditionalProducts(data.raw_selections);
+        const mainProductAmount = Math.max(0, originalBase - getAdditionalProductsTotal(additionalProducts));
         
         // Determine discount type based on saved data
         let discountType = 'none';
@@ -814,7 +901,7 @@ const AdminPurchaseDetailPage = () => {
             status: data.status || '',
             product_name: data.product_name || '',
             preferred_booking_date: formatForInput(data.preferred_booking_date) || '',
-            base_amount: originalBase.toString(),
+            base_amount: mainProductAmount.toString(),
             payment_type: data.payment_type || 'Cash',
             discount_type: discountType,
             discount_value: discountValue,
@@ -825,6 +912,7 @@ const AdminPurchaseDetailPage = () => {
             amount_received: data.amount_received === null || data.amount_received === undefined
                 ? '0'
                 : String(data.amount_received),
+            additional_products: additionalProducts,
             
             user_phone: data.user_phone || '',
             email: data.email || '',
@@ -868,6 +956,32 @@ const AdminPurchaseDetailPage = () => {
     });
   };
 
+  const handleAddProduct = () => {
+    setEditableFields((current) => ({
+      ...current,
+      additional_products: [
+        ...current.additional_products,
+        { id: `product-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name: '', price: '' },
+      ],
+    }));
+  };
+
+  const handleProductChange = (index, field, value) => {
+    setEditableFields((current) => ({
+      ...current,
+      additional_products: current.additional_products.map((product, productIndex) => (
+        productIndex === index ? { ...product, [field]: value } : product
+      )),
+    }));
+  };
+
+  const handleRemoveProduct = (index) => {
+    setEditableFields((current) => ({
+      ...current,
+      additional_products: current.additional_products.filter((_, productIndex) => productIndex !== index),
+    }));
+  };
+
   const openPaymentDialog = (payment = null) => {
     setEditingPayment(payment);
     setPaymentAmount(payment ? String(payment.amount) : '');
@@ -881,7 +995,7 @@ const AdminPurchaseDetailPage = () => {
       toast({ title: 'Invalid Payment', description: 'Enter an amount greater than zero and select a payment date.', variant: 'destructive' });
       return;
     }
-    const { finalTotal } = calculateTransactionTotals(editableFields.base_amount, editableFields.discount_type, editableFields.discount_value);
+    const { finalTotal } = calculateTransactionTotals(editableFields.base_amount, editableFields.discount_type, editableFields.discount_value, editableFields.additional_products);
     const otherPaymentsTotal = partialPayments.reduce((total, payment) => total + (payment.id === editingPayment?.id ? 0 : Number(payment.amount || 0)), 0);
     const maximumPayment = Math.max(finalTotal - otherPaymentsTotal, 0);
     if (amount > maximumPayment) {
@@ -990,11 +1104,25 @@ const AdminPurchaseDetailPage = () => {
         setLoading(false);
         return;
       }
+      if (editableFields.base_amount === '' || !Number.isFinite(Number(editableFields.base_amount)) || Number(editableFields.base_amount) < 0) {
+        toast({ title: "Validation Error", description: "Enter a valid non-negative base price.", variant: "destructive" });
+        setLoading(false);
+        return;
+      }
+      const invalidProduct = editableFields.additional_products.find((product) => (
+        !product.name.trim() || product.price === '' || !Number.isFinite(Number(product.price)) || Number(product.price) < 0
+      ));
+      if (invalidProduct) {
+        toast({ title: "Validation Error", description: "Each added product requires a name and a valid non-negative price.", variant: "destructive" });
+        setLoading(false);
+        return;
+      }
       
-      const { discountAmount, finalTotal } = calculateTransactionTotals(
+      const { baseAmount, discountAmount, finalTotal } = calculateTransactionTotals(
           editableFields.base_amount, 
           editableFields.discount_type, 
-          editableFields.discount_value
+          editableFields.discount_value,
+          editableFields.additional_products,
       );
 
       const ledgerTotal = partialPayments.reduce((total, payment) => total + Number(payment.amount || 0), 0);
@@ -1022,8 +1150,14 @@ const AdminPurchaseDetailPage = () => {
         }
       }
 
-      // Store original amount (base before discount) for invoice generation
-      const baseAmount = Number(editableFields.base_amount) || 0;
+      const additionalProducts = editableFields.additional_products.map((product) => ({
+        id: product.id,
+        name: product.name.trim(),
+        price: Number(product.price),
+      }));
+      const existingRawSelections = purchase.raw_selections && typeof purchase.raw_selections === 'object' && !Array.isArray(purchase.raw_selections)
+        ? purchase.raw_selections
+        : {};
 
       const updateData = {
         status: normalizedStatus,
@@ -1035,6 +1169,7 @@ const AdminPurchaseDetailPage = () => {
         payment_type: editableFields.payment_type || 'Cash',
         discount_amount: discountAmount,
         original_amount: baseAmount, // Store pre-discount amount for invoice
+        raw_selections: { ...existingRawSelections, additional_products: additionalProducts },
         coupon_code: editableFields.coupon_code ? editableFields.coupon_code.trim() : null,
         is_subscription: editableFields.is_subscription,
         subscription_plan_type: editableFields.subscription_plan_type || 'Weekly',
@@ -1170,7 +1305,7 @@ const AdminPurchaseDetailPage = () => {
 
   const customerName = purchase.profiles ? `${purchase.profiles.first_name || ''} ${purchase.profiles.last_name || ''}`.trim() : purchase.name;
   const canCreateInvoice = adminProfile && (adminProfile.role === 'admin' || adminProfile.role === 'superadmin');
-  const paymentDialogTotal = calculateTransactionTotals(editableFields.base_amount, editableFields.discount_type, editableFields.discount_value).finalTotal;
+  const paymentDialogTotal = calculateTransactionTotals(editableFields.base_amount, editableFields.discount_type, editableFields.discount_value, editableFields.additional_products).finalTotal;
   const paymentDialogOtherTotal = partialPayments.reduce((total, payment) => total + (payment.id === editingPayment?.id ? 0 : Number(payment.amount || 0)), 0);
   const maximumPartialPayment = Math.max(paymentDialogTotal - paymentDialogOtherTotal, 0);
 
@@ -1355,6 +1490,9 @@ const AdminPurchaseDetailPage = () => {
                     editableFields={editableFields} 
                     onInputChange={handleInputChange} 
                     onSelectChange={handleSelectChange}
+                    onAddProduct={handleAddProduct}
+                    onProductChange={handleProductChange}
+                    onRemoveProduct={handleRemoveProduct}
                     partialPayments={partialPayments}
                     onAddPayment={() => openPaymentDialog()}
                     onEditPayment={openPaymentDialog}

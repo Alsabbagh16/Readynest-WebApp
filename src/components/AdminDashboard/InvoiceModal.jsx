@@ -66,7 +66,6 @@ const InvoiceDocument = ({ invoiceData, purchase, exportMode = false }) => (
       <div className={`min-w-0 ${exportMode ? "text-right" : "text-left sm:text-right"}`}>
         <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Service Details</h3>
         <div className="text-sm text-slate-700 space-y-1 break-words">
-          <p>Product: <span className="font-medium">{purchase.product_name}</span></p>
           <p>Ref ID: {purchase.purchase_ref_id}</p>
         </div>
       </div>
