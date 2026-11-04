@@ -641,6 +641,28 @@ const PurchaseLinkedJobs = ({ purchase }) => {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const expectedJobs = (() => {
+    if (!purchase.is_subscription) return null;
+    if (purchase.subscription_plan_type === 'Custom') {
+      return Math.max(3, Number(purchase.subscription_days_per_week) || 3) * 4;
+    }
+    return purchase.subscription_plan_type === 'Twice Weekly' ? 8 : 4;
+  })();
+  const completedJobs = jobs.filter((job) => String(job.status || '').trim().toLowerCase() === 'completed').length;
+  const linkedJobsTitle = (
+    <span className="flex flex-wrap items-center gap-2">
+      <span>Linked Jobs</span>
+      <span className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700">
+        Total Jobs
+        <strong className="text-blue-950">{loading ? '...' : `${jobs.length}${expectedJobs !== null ? `/${expectedJobs}` : ''}`}</strong>
+      </span>
+      <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
+        Completed Jobs
+        <strong className="text-emerald-950">{loading ? '...' : completedJobs}</strong>
+      </span>
+    </span>
+  );
+
   useEffect(() => {
     const fetchJobs = async () => {
       if (!purchase.purchase_ref_id) {
@@ -683,7 +705,7 @@ const PurchaseLinkedJobs = ({ purchase }) => {
 
   if (loading) {
     return (
-      <Section title="Linked Jobs" icon={<Briefcase className="h-5 w-5 text-primary"/>}>
+      <Section title={linkedJobsTitle} icon={<Briefcase className="h-5 w-5 text-primary"/>}>
         <div className="text-sm text-gray-500">Loading jobs...</div>
       </Section>
     );
@@ -691,14 +713,14 @@ const PurchaseLinkedJobs = ({ purchase }) => {
 
   if (jobs.length === 0) {
     return (
-      <Section title="Linked Jobs" icon={<Briefcase className="h-5 w-5 text-primary"/>}>
+      <Section title={linkedJobsTitle} icon={<Briefcase className="h-5 w-5 text-primary"/>}>
         <div className="text-sm text-gray-500">No jobs linked to this purchase.</div>
       </Section>
     );
   }
 
   return (
-    <Section title="Linked Jobs" icon={<Briefcase className="h-5 w-5 text-primary"/>}>
+    <Section title={linkedJobsTitle} icon={<Briefcase className="h-5 w-5 text-primary"/>}>
       <div className="space-y-3">
         {jobs.map((job) => (
           <div key={job.job_ref_id} className="border border-gray-200 dark:border-gray-600 rounded-lg p-3 bg-gray-50 dark:bg-gray-800/50">
