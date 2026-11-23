@@ -38,6 +38,7 @@ import AdminEditServicePage from "@/pages/AdminEditServicePage";
 import AdminCreateAddonPage from "@/pages/AdminCreateAddonPage";
 import ManageAddonsPage from "@/pages/ManageAddonsPage";
 import JobsDayViewPage from '@/pages/JobsDayViewPage'; 
+import AdminEquipmentDetailPage from '@/pages/AdminEquipmentDetailPage';
 
 import { PermissionProvider, usePermissionContext } from '@/contexts/PermissionContext';
 import PermissionGate from '@/components/PermissionGate';
@@ -66,7 +67,7 @@ const adminTabGroups = [
     id: 'operations',
     label: 'Operations',
     icon: ListChecks,
-    tabIds: ['jobs-calendar', 'jobs', 'purchases', 'subscription-management', 'vehicle-logistics'],
+    tabIds: ['jobs-calendar', 'jobs', 'purchases', 'subscription-management', 'vehicle-logistics', 'inventory'],
   },
   {
     id: 'people',
@@ -78,7 +79,7 @@ const adminTabGroups = [
     id: 'services',
     label: 'Services',
     icon: Package,
-    tabIds: ['manage-services', 'service-rates', 'coupons', 'inventory'],
+    tabIds: ['manage-services', 'service-rates', 'coupons'],
   },
   {
     id: 'administration',
@@ -184,6 +185,7 @@ const AdminDashboardContent = () => {
     if (currentTabSlug === 'jobs-calendar') return 'jobs-calendar';
     if (currentTabSlug === 'service-rates') return 'service-rates';
     if (currentTabSlug === 'manage-roles') return 'manage-roles';
+    if (currentTabSlug === 'inventory') return 'inventory';
     
     const tabExists = visibleTabs.find(tab => tab.id === currentTabSlug);
     return tabExists ? currentTabSlug : (visibleTabs.length > 0 ? visibleTabs[0].id : '');
@@ -230,6 +232,7 @@ const AdminDashboardContent = () => {
     if (pathSegments[2] === 'manage-services' && pathSegments[3] === 'manage-addons') return 'Manage Addons';
     if (pathSegments[2] === 'service-rates') return 'Service Rates';
     if (pathSegments[2] === 'manage-roles') return 'Role Management';
+    if (pathSegments[2] === 'inventory' && pathSegments[3] === 'equipment') return 'Equipment Details';
     
     const currentActiveTabInfo = visibleTabs.find(tab => tab.id === activeTabId);
     return currentActiveTabInfo?.label || 'Admin Dashboard';
@@ -553,6 +556,12 @@ const AdminDashboardContent = () => {
                      <PermissionGate permission="addons_templates.create" fallback={<PermissionDeniedPage />}>
                         <ManageAddonsPage />
                      </PermissionGate>
+                  } />
+
+                  <Route path="inventory/equipment/:equipmentCode" element={
+                    <PermissionGate permission="tab.inventory.view" fallback={<PermissionDeniedPage />}>
+                      <AdminEquipmentDetailPage />
+                    </PermissionGate>
                   } />
                   
                    <Route path="manage-roles" element={

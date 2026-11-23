@@ -8,9 +8,10 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/use-toast';
-import { Plus, Edit, Trash2, Search, Loader2, Package, FolderPlus, AlertTriangle, Truck, Phone, Mail } from 'lucide-react';
+import { Plus, Edit, Trash2, Search, Loader2, Package, FolderPlus, AlertTriangle, Truck, Phone, Mail, Wrench } from 'lucide-react';
 import InventoryForm from './InventoryForm';
 import SupplierForm from './SupplierForm';
+import EquipmentGallery from './EquipmentGallery';
 import {
   getAllInventoryItems,
   getAllInventoryCategories,
@@ -69,7 +70,7 @@ const InventoryTab = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
-  const [activeTab, setActiveTab] = useState('stock');
+  const [activeTab, setActiveTab] = useState('equipment');
   
   const [isItemDialogOpen, setIsItemDialogOpen] = useState(false);
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false);
@@ -392,39 +393,38 @@ const InventoryTab = () => {
         <div>
           <h2 className="text-xl font-bold text-gray-900">Inventory Management</h2>
           <p className="text-sm text-gray-500 mt-1">
-            {items.length} items • {suppliers.length} suppliers • {categories.length} categories
-            {lowStockCount > 0 && (
-              <span className="text-amber-600 ml-2">
-                • {lowStockCount} low stock
-              </span>
-            )}
+            {activeTab === 'equipment' ? 'Track machines, equipment, warranties, and related documents' : `${items.length} items • ${suppliers.length} suppliers • ${categories.length} categories${lowStockCount > 0 ? ` • ${lowStockCount} low stock` : ''}`}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        {activeTab !== 'equipment' && <div className="flex flex-wrap gap-2">
           <PermissionGate permission="inventory.create_supplier">
             <Button variant="outline" size="sm" onClick={handleCreateSupplier} className="gap-1.5">
               <Truck className="h-4 w-4" />
               <span className="hidden sm:inline">New</span> Supplier
             </Button>
           </PermissionGate>
-          <PermissionGate permission="inventory.create_category">
+          {activeTab === 'stock' && <PermissionGate permission="inventory.create_category">
             <Button variant="outline" size="sm" onClick={handleCreateCategory} className="gap-1.5">
               <FolderPlus className="h-4 w-4" />
               <span className="hidden sm:inline">New</span> Category
             </Button>
-          </PermissionGate>
-          <PermissionGate permission="inventory.create_item">
+          </PermissionGate>}
+          {activeTab === 'stock' && <PermissionGate permission="inventory.create_item">
             <Button size="sm" onClick={handleCreateItem} className="gap-1.5">
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">New</span> Item
             </Button>
-          </PermissionGate>
-        </div>
+          </PermissionGate>}
+        </div>}
       </div>
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="mb-4">
+          <TabsTrigger value="equipment" className="gap-2">
+            <Wrench className="h-4 w-4" />
+            Equipment
+          </TabsTrigger>
           <TabsTrigger value="stock" className="gap-2">
             <Package className="h-4 w-4" />
             Stock
@@ -434,6 +434,10 @@ const InventoryTab = () => {
             Suppliers
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="equipment">
+          <EquipmentGallery />
+        </TabsContent>
 
         {/* Stock Tab */}
         <TabsContent value="stock">
