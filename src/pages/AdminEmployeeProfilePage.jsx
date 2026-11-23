@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { 
     findEmployeeById, 
     updateEmployee, 
+    updateEmployeeJobVisibility,
     uploadEmployeeDocumentFile, 
     getEmployeeDocumentsList, 
     deleteEmployeeDocumentFile 
@@ -21,13 +22,14 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, Check, ChevronDown, Edit3, ShieldAlert, Trash2, Download, MessageCircle, Plus, File, Pencil, Undo2, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from "@/components/ui/use-toast";
-import EmployeeDialog from '@/components/AdminDashboard/EmployeeDialog';
 import EmployeeReportsCard from '@/components/AdminDashboard/EmployeeReportsCard';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
+import { usePermissionContext } from '@/contexts/PermissionContext';
 
 const formatDateSafe = (dateString) => {
     if (!dateString) return 'N/A';
@@ -401,7 +403,7 @@ const EmployeeOtherDetailsCard = ({ employee }) => {
     );
 };
 
-const EmployeeIdentityCard = ({ employee, pastJobsCount, upcomingJobsCount, showMessaging = true }) => {
+const EmployeeIdentityCard = ({ canManage, employee, onToggleJobVisibility, pastJobsCount, upcomingJobsCount, showMessaging = true }) => {
     const employmentType = employee.is_part_timer ? 'Part-Time' : 'Regular';
     const status = employee.role === 'suspended' || employee.status === 'suspended' ? 'Suspended' : 'Active';
     const whatsAppPhone = String(employee.mobile || '').replace(/[^\d]/g, '');
@@ -450,8 +452,21 @@ const EmployeeIdentityCard = ({ employee, pastJobsCount, upcomingJobsCount, show
                     <DetailField label="Joining Date" value={formatDateSafe(employee.hire_date || employee.created_at)} />
                     <DetailField label="Employment Type" value={employmentType} />
                     <DetailField label="Status" value={status} />
-                    <DetailField label="Position" value={employee.position || (employee.is_part_timer ? 'Part Timer' : 'Employee')} />
+                    <DetailField label="Department" value={employee.department?.name} />
+                    <DetailField label="Position" value={employee.employee_position?.name || employee.position || (employee.is_part_timer ? 'Part Timer' : 'Employee')} />
                     <DetailField label="Preferred Off Day" value={employee.preferred_off_day || 'No preference'} />
+                </div>
+                <div className="mt-5 flex items-center justify-between gap-4 rounded-2xl border border-slate-100 bg-slate-50 p-4 text-left">
+                    <div>
+                        <p className="text-sm font-semibold text-slate-800">Show On Job Assign</p>
+                        <p className="mt-1 text-xs text-slate-400">Display this employee in job assignment selectors.</p>
+                    </div>
+                    <Switch
+                        checked={employee.visible_in_job_assignment !== false}
+                        onCheckedChange={onToggleJobVisibility}
+                        disabled={!canManage}
+                        aria-label={`Toggle job assignment visibility for ${employee.full_name || employee.email}`}
+                    />
                 </div>
             </CardContent>
         </Card>
@@ -1238,14 +1253,13 @@ const AdminEmployeeProfilePage = ({ employeeId = null, selfService = false }) =>
     const navigate = useNavigate();
     const { toast } = useToast();
     const { adminProfile } = useAdminAuth();
+    const { hasPerm, hasUiRoles, isSuperadmin } = usePermissionContext();
 
     const [employee, setEmployee] = useState(null);
     const [assignedServices, setAssignedServices] = useState([]);
     const [employeeDocuments, setEmployeeDocuments] = useState([]);
     const [partTimePayouts, setPartTimePayouts] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-    const [formError, setFormError] = useState(null);
     const [timelineTab, setTimelineTab] = useState('upcoming');
     const [timelinePage, setTimelinePage] = useState(1);
     const [performanceFilterMode, setPerformanceFilterMode] = useState('monthly');
@@ -1260,7 +1274,10 @@ const AdminEmployeeProfilePage = ({ employeeId = null, selfService = false }) =>
 
     const timelinePageSize = 5;
 
-    const canManageEmployees = !selfService && adminProfile && (adminProfile.role === 'admin' || adminProfile.role === 'superadmin');
+    const canManageEmployees = !selfService && Boolean(adminProfile) && (
+        isSuperadmin
+        || (hasUiRoles ? hasPerm('employees.create') : ['admin', 'superadmin'].includes(adminProfile.role))
+    );
 
     const fetchEmployeeData = useCallback(async () => {
         setLoading(true);
@@ -1317,21 +1334,14 @@ const AdminEmployeeProfilePage = ({ employeeId = null, selfService = false }) =>
         setTimelinePage(1);
     }, [timelineTab]);
 
-    const handleSaveEmployee = async (employeeData) => {
-        if (!canManageEmployees) {
-            toast({ title: "Permission Denied", description: "You do not have permission to edit employees.", variant: "destructive" });
-            return;
-        }
-        setFormError(null);
+    const handleToggleJobVisibility = async (visible) => {
+        if (!canManageEmployees) return;
         try {
-            await updateEmployee(employeeData);
-            toast({ title: "Employee Updated", description: `Details for ${employeeData.fullName || employeeData.email} saved.` });
-            setIsEditDialogOpen(false);
-            fetchEmployeeData(); 
+            const updatedEmployee = await updateEmployeeJobVisibility(employee.id, visible);
+            setEmployee((currentEmployee) => ({ ...currentEmployee, ...updatedEmployee }));
+            toast({ title: 'Visibility Updated', description: `${employee.full_name || employee.email} is now ${visible ? 'visible' : 'hidden'} in job assignment.` });
         } catch (error) {
-            let errorMessage = error.message || "An unexpected error occurred.";
-            toast({ title: "Error Saving Employee", description: errorMessage, variant: "destructive" });
-            setFormError(errorMessage);
+            toast({ title: 'Unable to Update Visibility', description: error.message, variant: 'destructive' });
         }
     };
 
@@ -1595,7 +1605,7 @@ const AdminEmployeeProfilePage = ({ employeeId = null, selfService = false }) =>
                     <span className="min-w-0 truncate font-semibold text-slate-800">{employee.full_name || 'Employee Profile'}</span>
                 </div>}
                 {!selfService && canManageEmployees && (
-                    <Button size="sm" onClick={() => setIsEditDialogOpen(true)} className="rounded-xl bg-white text-slate-700 shadow-sm hover:bg-slate-100">
+                    <Button size="sm" onClick={() => navigate(`/admin-dashboard/employee/${employee.id}/edit`)} className="rounded-xl bg-white text-slate-700 shadow-sm hover:bg-slate-100">
                         <Edit3 className="mr-2 h-4 w-4" /> Edit Employee
                     </Button>
                 )}
@@ -1610,7 +1620,9 @@ const AdminEmployeeProfilePage = ({ employeeId = null, selfService = false }) =>
 
             <div className="grid min-w-0 max-w-full gap-5 lg:grid-cols-12">
                 <EmployeeIdentityCard
+                    canManage={canManageEmployees}
                     employee={employee}
+                    onToggleJobVisibility={handleToggleJobVisibility}
                     pastJobsCount={completedJobs.length}
                     upcomingJobsCount={upcomingJobs.length}
                     showMessaging={!selfService}
@@ -1673,16 +1685,6 @@ const AdminEmployeeProfilePage = ({ employeeId = null, selfService = false }) =>
                 />}
             </div>
 
-            {isEditDialogOpen && canManageEmployees && (
-                <EmployeeDialog
-                    isOpen={isEditDialogOpen}
-                    onOpenChange={setIsEditDialogOpen}
-                    editingEmployee={employee}
-                    onSave={handleSaveEmployee}
-                    formError={formError}
-                    setFormError={setFormError}
-                />
-            )}
         </div>
     );
 };

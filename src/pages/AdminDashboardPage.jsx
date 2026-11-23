@@ -32,6 +32,7 @@ import AdminCreateJobPage from '@/pages/AdminCreateJobPage';
 import { Link, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import AdminServiceDetailPage from '@/pages/AdminServiceDetailPage';
 import AdminEmployeeProfilePage from '@/pages/AdminEmployeeProfilePage';
+import AdminEmployeeFormPage from '@/pages/AdminEmployeeFormPage';
 import AdminUserProfilePage from '@/pages/AdminUserProfilePage';
 import AdminCreateServicePage from "@/pages/AdminCreateServicePage";
 import AdminEditServicePage from "@/pages/AdminEditServicePage";
@@ -222,6 +223,8 @@ const AdminDashboardContent = () => {
     if (pathSegments[2] === 'job' && pathSegments[3] === 'create') return 'Create New Job';
     if (pathSegments[2] === 'job' && pathSegments[3]) return 'Job Details';
     if (pathSegments[2] === 'jobs' && pathSegments[3] === 'day') return 'Daily Schedule'; 
+    if (pathSegments[2] === 'employees' && pathSegments[3] === 'new') return 'Create Employee';
+    if (pathSegments[2] === 'employee' && pathSegments[4] === 'edit') return 'Edit Employee';
     if (pathSegments[2] === 'employee' && pathSegments[3]) return 'Employee Profile';
     if (pathSegments[2] === 'user' && pathSegments[3]) return 'User Profile';
     if (pathSegments[2] === 'purchase' && pathSegments[4] === 'agreement') return 'Purchase Agreement';
@@ -503,8 +506,18 @@ const AdminDashboardContent = () => {
                      </PermissionGate>
                   }/> 
                   <Route path="employee/:id" element={
-                     <PermissionGate permission="employees.create" fallback={<PermissionDeniedPage />}>
+                     <PermissionGate permission="tab.employees.view" fallback={<PermissionDeniedPage />}>
                         <AdminEmployeeProfilePage />
+                     </PermissionGate>
+                  } />
+                  <Route path="employees/new" element={
+                     <PermissionGate permission="employees.create" fallback={<PermissionDeniedPage />}>
+                        <AdminEmployeeFormPage mode="create" />
+                     </PermissionGate>
+                  } />
+                  <Route path="employee/:id/edit" element={
+                     <PermissionGate permission="employees.create" fallback={<PermissionDeniedPage />}>
+                        <AdminEmployeeFormPage mode="edit" />
                      </PermissionGate>
                   } />
                   

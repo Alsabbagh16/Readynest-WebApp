@@ -14,7 +14,11 @@ const normalizeEmployeeUpdateValue = (value) => {
 export const getEmployees = async () => {
   const { data, error } = await supabase
     .from('employees')
-    .select('*')
+    .select(`
+      *,
+      department:employee_departments!employees_department_id_fkey(id, name, sort_order),
+      employee_position:employee_positions!employees_position_id_fkey(id, department_id, name, sort_order)
+    `)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -56,6 +60,8 @@ export const addEmployee = async (employeeData) => {
         mobile: employeeData.mobile || null,
         address: employeeData.address || null,
         position: employeeData.position || null,
+        department_id: employeeData.departmentId || null,
+        position_id: employeeData.positionId || null,
         origin: employeeData.origin || null,
         sex: employeeData.sex || null,
         passport_number: employeeData.passportNumber || null,
@@ -67,6 +73,7 @@ export const addEmployee = async (employeeData) => {
         visa_issuance_date: employeeData.visaIssuanceDate || null,
         visa_expiry_date: employeeData.visaExpiryDate || null,
         photo_url: employeeData.photoUrl || null,
+        visible_in_job_assignment: employeeData.visible_in_job_assignment !== false,
         preferred_off_day: employeeData.preferredOffDay || null,
         role: employeeData.role || 'employee',
         document_urls: [],
@@ -172,6 +179,8 @@ export const updateEmployee = async (updatedData) => {
     visa_issuance_date: updatedData.visaIssuanceDate || updatedData.visa_issuance_date || null,
     visa_expiry_date: updatedData.visaExpiryDate || updatedData.visa_expiry_date || null,
     photo_url: updatedData.photoUrl ?? updatedData.photo_url,
+    department_id: updatedData.departmentId ?? updatedData.department_id,
+    position_id: updatedData.positionId ?? updatedData.position_id,
     preferred_off_day: updatedData.preferredOffDay ?? updatedData.preferred_off_day,
     document_urls: updatedData.document_urls,
     updated_at: new Date().toISOString(),
@@ -183,7 +192,7 @@ export const updateEmployee = async (updatedData) => {
     'date_of_birth', 'hire_date', 'visa_number', 'visa_issuance_date', 'visa_expiry_date', 
     'photo_url', 'role', 'document_urls', 'is_part_timer', 'visible_in_job_assignment',
     'age', 'employee_code', 'metadata_code', 'numeric_metadata_code', 'phone_suffix',
-    'internal_notes', 'preferred_off_day', 'updated_at'
+    'internal_notes', 'preferred_off_day', 'department_id', 'position_id', 'updated_at'
   ];
 
   const filteredPayload = Object.keys(payloadToUpdate)
@@ -269,7 +278,11 @@ export const findEmployeeById = async (id) => {
   if (!id) return null;
   const { data, error } = await supabase
     .from('employees')
-    .select('*')
+    .select(`
+      *,
+      department:employee_departments!employees_department_id_fkey(id, name, sort_order),
+      employee_position:employee_positions!employees_position_id_fkey(id, department_id, name, sort_order)
+    `)
     .eq('id', id)
     .single();
 
@@ -285,6 +298,171 @@ export const findEmployeeById = async (id) => {
     throw error;
   }
   return data;
+};
+
+const EMPLOYEE_PHOTOS_BUCKET = 'employee-photos';
+
+const sanitizeFileName = (fileName) => String(fileName || 'employee-photo')
+  .replace(/[^a-zA-Z0-9._-]+/g, '-')
+  .replace(/-+/g, '-')
+  .replace(/^-|-$/g, '');
+
+export const uploadEmployeePhoto = async (employeeId, file) => {
+  if (!employeeId || !file) {
+    throw new Error('Employee ID and photo are required.');
+  }
+
+  if (!String(file.type || '').startsWith('image/')) {
+    throw new Error('Please choose a valid image file.');
+  }
+
+  if (file.size > 8 * 1024 * 1024) {
+    throw new Error('Employee photos must be smaller than 8 MB.');
+  }
+
+  const filePath = `${employeeId}/${uuidv4()}-${sanitizeFileName(file.name)}`;
+  const { data, error } = await supabase.storage
+    .from(EMPLOYEE_PHOTOS_BUCKET)
+    .upload(filePath, file, { cacheControl: '3600', upsert: false });
+
+  if (error) throw error;
+
+  const { data: publicUrlData } = supabase.storage
+    .from(EMPLOYEE_PHOTOS_BUCKET)
+    .getPublicUrl(data.path);
+
+  return { path: data.path, publicUrl: publicUrlData.publicUrl };
+};
+
+export const getEmployeeDepartments = async () => {
+  const { data: departments, error: departmentError } = await supabase
+    .from('employee_departments')
+    .select('*')
+    .order('sort_order', { ascending: true })
+    .order('name', { ascending: true });
+
+  if (departmentError) throw departmentError;
+
+  const { data: positions, error: positionError } = await supabase
+    .from('employee_positions')
+    .select('*')
+    .order('sort_order', { ascending: true })
+    .order('name', { ascending: true });
+
+  if (positionError) throw positionError;
+
+  return (departments || []).map((department) => ({
+    ...department,
+    positions: (positions || []).filter((position) => position.department_id === department.id),
+  }));
+};
+
+export const createEmployeeDepartment = async (name) => {
+  const trimmedName = String(name || '').trim();
+  if (!trimmedName) throw new Error('Department name is required.');
+
+  const { data: currentDepartments, error: countError } = await supabase
+    .from('employee_departments')
+    .select('sort_order')
+    .order('sort_order', { ascending: false })
+    .limit(1);
+  if (countError) throw countError;
+
+  const { data, error } = await supabase
+    .from('employee_departments')
+    .insert({
+      name: trimmedName,
+      sort_order: Number(currentDepartments?.[0]?.sort_order ?? -1) + 1,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+};
+
+export const createEmployeePosition = async (departmentId, name) => {
+  const trimmedName = String(name || '').trim();
+  if (!departmentId) throw new Error('Department is required.');
+  if (!trimmedName) throw new Error('Position name is required.');
+
+  const { data: currentPositions, error: countError } = await supabase
+    .from('employee_positions')
+    .select('sort_order')
+    .eq('department_id', departmentId)
+    .order('sort_order', { ascending: false })
+    .limit(1);
+  if (countError) throw countError;
+
+  const { data, error } = await supabase
+    .from('employee_positions')
+    .insert({
+      department_id: departmentId,
+      name: trimmedName,
+      sort_order: Number(currentPositions?.[0]?.sort_order ?? -1) + 1,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+};
+
+export const renameEmployeeDirectoryItem = async (type, id, name) => {
+  const tableName = type === 'department' ? 'employee_departments' : 'employee_positions';
+  const trimmedName = String(name || '').trim();
+  if (!id || !trimmedName) throw new Error('A name is required.');
+
+  const { data, error } = await supabase
+    .from(tableName)
+    .update({ name: trimmedName })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+};
+
+export const deleteEmployeeDirectoryItem = async (type, id) => {
+  const tableName = type === 'department' ? 'employee_departments' : 'employee_positions';
+  const { error } = await supabase.from(tableName).delete().eq('id', id);
+  if (error) throw error;
+};
+
+export const reorderEmployeeDirectoryItems = async (type, orderedItems) => {
+  const tableName = type === 'department' ? 'employee_departments' : 'employee_positions';
+  const updates = orderedItems.map((item, index) => (
+    supabase.from(tableName).update({ sort_order: index }).eq('id', item.id)
+  ));
+  const results = await Promise.all(updates);
+  const failedResult = results.find((result) => result.error);
+  if (failedResult?.error) throw failedResult.error;
+};
+
+export const persistEmployeePositionLayout = async (departments) => {
+  const positionLayout = (departments || []).flatMap((department) => (
+    (department.positions || []).map((position, index) => ({
+      departmentId: department.id,
+      positionId: position.id,
+      sortOrder: index,
+    }))
+  ));
+
+  const positionResults = await Promise.all(positionLayout.map((item) => (
+    supabase
+      .from('employee_positions')
+      .update({ department_id: item.departmentId, sort_order: item.sortOrder })
+      .eq('id', item.positionId)
+  )));
+  const failedPositionResult = positionResults.find((result) => result.error);
+  if (failedPositionResult?.error) throw failedPositionResult.error;
+
+  const employeeResults = await Promise.all(positionLayout.map((item) => (
+    supabase
+      .from('employees')
+      .update({ department_id: item.departmentId, updated_at: new Date().toISOString() })
+      .eq('position_id', item.positionId)
+  )));
+  const failedEmployeeResult = employeeResults.find((result) => result.error);
+  if (failedEmployeeResult?.error) throw failedEmployeeResult.error;
 };
 
 export const updateEmployeePhotoUrl = async (employeeId, photoUrl) => {

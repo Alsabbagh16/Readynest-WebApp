@@ -3,6 +3,9 @@ import { supabase } from '@/lib/supabase';
 import { useToast } from "@/components/ui/use-toast";
 import { useLoading } from '@/contexts/LoadingContext';
 
+const SIGNED_IN_REDIRECT_CHECK_INTERVAL_MS = 60_000;
+let lastSignedInRedirectCheckAt = 0;
+
 export const useAuthCore = () => {
   const [user, setUser] = useState(undefined);
   const [authContextLoading, setAuthContextLoading] = useState(true);
@@ -138,14 +141,20 @@ export const useAuthCore = () => {
            
            // Handle post-login redirect (especially for Google OAuth)
            if (event === 'SIGNED_IN') {
-             const storedRedirect = localStorage.getItem('postLoginRedirect');
-             console.log('[AuthCore] SIGNED_IN event - checking redirect:', storedRedirect);
-             if (storedRedirect) {
-               localStorage.removeItem('postLoginRedirect');
-               // Use setTimeout to ensure state updates complete before navigation
-               setTimeout(() => {
-                 window.location.href = storedRedirect;
-               }, 100);
+             const now = Date.now();
+             const shouldCheckRedirect = now - lastSignedInRedirectCheckAt >= SIGNED_IN_REDIRECT_CHECK_INTERVAL_MS;
+
+             if (shouldCheckRedirect) {
+               lastSignedInRedirectCheckAt = now;
+               const storedRedirect = localStorage.getItem('postLoginRedirect');
+               console.log('[AuthCore] SIGNED_IN event - checking redirect:', storedRedirect);
+               if (storedRedirect) {
+                 localStorage.removeItem('postLoginRedirect');
+                 // Use setTimeout to ensure state updates complete before navigation
+                 setTimeout(() => {
+                   window.location.href = storedRedirect;
+                 }, 100);
+               }
              }
            }
         }
