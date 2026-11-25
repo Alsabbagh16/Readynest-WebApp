@@ -11,6 +11,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -40,6 +41,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Trash2,
+  ListChecks,
   Users,
   Repeat2
 } from "lucide-react";
@@ -120,6 +122,10 @@ const getDateRange = (filter) => {
 const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [bulkSelectMode, setBulkSelectMode] = useState(false);
+  const [selectedJobs, setSelectedJobs] = useState(() => new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [deletingJobs, setDeletingJobs] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [quickFilter, setQuickFilter] = useState('all');
@@ -149,7 +155,6 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
 
   const handlePageChange = (newPage) => {
     setPagination(prev => ({ ...prev, currentPage: newPage }));
-    fetchJobs(newPage);
   };
 
   const handleItemsPerPageChange = (newItemsPerPage) => {
@@ -159,7 +164,6 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
       currentPage: 1,
       totalPages: Math.ceil(prev.totalItems / newItemsPerPage)
     }));
-    fetchJobs(1, true);
   };
 
   const fetchJobs = async (page = 1, resetPagination = false) => {
@@ -172,7 +176,7 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
         .select(`
             *,
             purchase:purchases(product_name, purchase_ref_id, is_subscription),
-            user:profiles(first_name, last_name, email)
+            user:profiles(first_name, last_name, email, phone)
         `)
         .order('preferred_date', { ascending: false });
 
@@ -248,18 +252,44 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
     }
   };
 
-  const deleteJob = async (jobRefId) => {
+  const canDeleteJobs = adminProfile?.role === 'superadmin' || isSuperadmin;
+
+  const deleteJobs = async (jobRefs) => {
+    if (!canDeleteJobs || deletingJobs || !jobRefs.length) return;
+    setDeletingJobs(true);
+    const deletedRefs = new Set();
+    let failure;
     try {
-      const { error } = await supabase
-        .from('jobs')
-        .delete()
-        .eq('job_ref_id', jobRefId);
-      if (error) throw error;
-      toast({ title: "Success", description: `Job ${jobRefId} has been permanently deleted.` });
-      fetchJobs(1, true); 
+      // Keep the delete filter short when the selection spans many pages.
+      for (let offset = 0; offset < jobRefs.length; offset += 50) {
+        const { data, error } = await supabase
+          .from('jobs')
+          .delete()
+          .in('job_ref_id', jobRefs.slice(offset, offset + 50))
+          .select('job_ref_id');
+        if (error) throw error;
+        data.forEach(({ job_ref_id }) => deletedRefs.add(job_ref_id));
+      }
     } catch (error) {
-      console.error(`Error deleting job:`, error);
-      toast({ title: "Error", description: `Could not delete job ${jobRefId}.`, variant: "destructive" });
+      failure = error;
+      console.error('Error deleting jobs:', error);
+    } finally {
+      setJobs((current) => current.filter((job) => !deletedRefs.has(job.job_ref_id)));
+      setSelectedJobs((current) => new Set([...current].filter((ref) => !deletedRefs.has(ref))));
+      setDeletingJobs(false);
+      setBulkDeleteOpen(false);
+    }
+
+    const deletedCount = deletedRefs.size;
+    const jobLabel = jobRefs.length === 1 ? 'job' : 'jobs';
+    if (deletedCount === jobRefs.length) {
+      toast({ title: 'Deletion Complete', description: `Permanently deleted ${deletedCount} ${jobLabel}.` });
+    } else {
+      toast({
+        title: deletedCount ? 'Some Jobs Could Not Be Deleted' : 'Unable to Delete Jobs',
+        description: `Deleted ${deletedCount} of ${jobRefs.length} requested ${jobLabel}.${failure?.message ? ` ${failure.message}` : ''}`,
+        variant: 'destructive',
+      });
     }
   };
 
@@ -304,9 +334,26 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
     }
   };
 
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+  const hideMarker = 'hide:';
+  const hideIndex = normalizedSearch.indexOf(hideMarker);
+  const searchLower = (hideIndex < 0 ? normalizedSearch : normalizedSearch.slice(0, hideIndex)).trim();
+  const hiddenClient = hideIndex < 0 ? '' : normalizedSearch.slice(hideIndex + hideMarker.length).trim();
+  const hiddenPhone = /^[\d+().\s-]+$/.test(hiddenClient) ? hiddenClient.replace(/\D/g, '') : '';
+
   const filteredJobs = jobs.filter(job => {
-    const searchLower = searchTerm.toLowerCase();
-    const matchesSearch = 
+    const profileName = [job.user?.first_name, job.user?.last_name].filter(Boolean).join(' ');
+    const customerNames = [job.user_name, profileName];
+    const hidesClient = hiddenClient && (
+      customerNames.some((name) => name?.toLowerCase().includes(hiddenClient)) ||
+      (hiddenPhone && [job.user_phone, job.user?.phone].some((phone) =>
+        String(phone ?? '').replace(/\D/g, '').includes(hiddenPhone)
+      ))
+    );
+    if (hidesClient) return false;
+
+    const matchesSearch =
+      !searchLower ||
       job.job_ref_id?.toLowerCase().includes(searchLower) ||
       job.user_name?.toLowerCase().includes(searchLower) ||
       job.user_email?.toLowerCase().includes(searchLower);
@@ -364,29 +411,67 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
       totalPages: Math.ceil(filteredJobs.length / prev.itemsPerPage),
       currentPage: 1 // Reset to first page when filters change
     }));
-  }, [filteredJobs.length, pagination.itemsPerPage, quickFilter]);
+  }, [filteredJobs.length, pagination.itemsPerPage, quickFilter, searchTerm]);
 
   // Get paginated data from filtered results
-  const getPaginatedJobs = () => {
-    const startIndex = (pagination.currentPage - 1) * pagination.itemsPerPage;
-    const endIndex = startIndex + pagination.itemsPerPage;
-    return filteredJobs.slice(startIndex, endIndex);
+  const pageStart = (pagination.currentPage - 1) * pagination.itemsPerPage;
+  const paginatedJobs = filteredJobs.slice(pageStart, pageStart + pagination.itemsPerPage);
+  const selectingJobs = canDeleteJobs && bulkSelectMode;
+  const pageSelectionCount = paginatedJobs.filter((job) => selectedJobs.has(job.job_ref_id)).length;
+  const pageSelection = pageSelectionCount > 0 && pageSelectionCount === paginatedJobs.length
+    ? true
+    : pageSelectionCount > 0 ? 'indeterminate' : false;
+
+  const updateJobSelection = (jobRefs, checked) => {
+    setSelectedJobs((current) => {
+      const next = new Set(current);
+      for (const ref of jobRefs) {
+        if (checked) next.add(ref);
+        else next.delete(ref);
+      }
+      return next;
+    });
   };
 
   const canCreateJob = isSuperadmin || (hasUiRoles ? hasPerm('jobs.create') : true);
 
+  const renderBulkSelectButton = (className) => canDeleteJobs && (
+    <Button
+      type="button"
+      size="icon"
+      variant={selectingJobs ? 'default' : 'outline'}
+      className={className}
+      aria-label="Bulk Select"
+      aria-pressed={selectingJobs}
+      title="Bulk Select"
+      disabled={deletingJobs}
+      onClick={() => {
+        setBulkSelectMode(!selectingJobs);
+        if (selectingJobs) setSelectedJobs(new Set());
+      }}
+    >
+      <ListChecks className="h-4 w-4" aria-hidden="true" />
+    </Button>
+  );
+
   return (
     <div className="p-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-gray-900">Jobs List</h2>
-          <p className="text-sm text-gray-500">Manage and track service appointments</p>
+        <div className="flex w-full items-start justify-between gap-3 md:w-auto">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">Jobs List</h2>
+            <p className="text-sm text-gray-500">Manage and track service appointments</p>
+          </div>
+          {renderBulkSelectButton('shrink-0 md:hidden')}
         </div>
         <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+             {renderBulkSelectButton('hidden shrink-0 md:inline-flex')}
              <div className="relative flex-1 md:w-64">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
                 <Input
-                  placeholder="Search jobs..."
+                  aria-label="Search jobs"
+                  title="Use hide: followed by a client name or mobile number to exclude their jobs"
+                  placeholder="Search jobs or use hide:..."
                   className="pl-9 bg-white"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -474,10 +559,54 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
         ].map((option) => <Button key={option.value} type="button" size="sm" variant={quickFilter === option.value ? 'default' : 'ghost'} className="min-w-0 flex-1 px-2 sm:flex-none sm:px-3" onClick={() => setQuickFilter(option.value)}><option.icon className="mr-1 h-4 w-4 shrink-0 sm:mr-2" />{option.value === 'subscription' ? <><span className="sm:hidden">Sub</span><span className="hidden sm:inline">Subscription</span></> : option.label}</Button>)}
       </div>
 
+      {selectingJobs && (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <Button type="button" size="sm" variant="destructive" disabled={!selectedJobs.size || deletingJobs} onClick={() => setBulkDeleteOpen(true)}>
+            <Trash2 className="mr-2 h-4 w-4" /> Delete ({selectedJobs.size})
+          </Button>
+          <Button type="button" size="sm" variant="outline" disabled={deletingJobs} onClick={() => {
+            setBulkSelectMode(false);
+            setSelectedJobs(new Set());
+          }}>Cancel Selection</Button>
+        </div>
+      )}
+
+      <AlertDialog open={canDeleteJobs && bulkDeleteOpen} onOpenChange={(open) => {
+        if (!deletingJobs) setBulkDeleteOpen(open);
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Selected Jobs?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to permanently delete {selectedJobs.size} selected {selectedJobs.size === 1 ? 'job' : 'jobs'}? This includes any selections from other pages or filters. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingJobs}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              disabled={deletingJobs || !selectedJobs.size}
+              onClick={(event) => {
+                event.preventDefault();
+                void deleteJobs([...selectedJobs]);
+              }}
+            >
+              {deletingJobs ? 'Deleting...' : 'Delete Permanently'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <div className="rounded-md border bg-white overflow-hidden">
         <Table>
           <TableHeader className="bg-gray-50">
             <TableRow>
+              {selectingJobs && (
+                <TableHead className="w-10">
+                  <Checkbox aria-label="Select jobs on this page" checked={pageSelection} disabled={loading || deletingJobs || !paginatedJobs.length}
+                    onCheckedChange={(checked) => updateJobSelection(paginatedJobs.map((job) => job.job_ref_id), checked === true)} />
+                </TableHead>
+              )}
               <TableHead>Job ID</TableHead>
               <TableHead>Purchase ID</TableHead>
               <TableHead>Customer</TableHead>
@@ -491,15 +620,21 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
           <TableBody>
             {loading ? (
                 <TableRow>
-                    <TableCell colSpan={8} className="h-24 text-center">Loading jobs...</TableCell>
+                    <TableCell colSpan={selectingJobs ? 9 : 8} className="h-24 text-center">Loading jobs...</TableCell>
                 </TableRow>
-            ) : getPaginatedJobs().length === 0 ? (
+            ) : paginatedJobs.length === 0 ? (
                 <TableRow>
-                    <TableCell colSpan={8} className="h-24 text-center text-gray-500">No jobs found matching your criteria.</TableCell>
+                    <TableCell colSpan={selectingJobs ? 9 : 8} className="h-24 text-center text-gray-500">No jobs found matching your criteria.</TableCell>
                 </TableRow>
             ) : (
-                getPaginatedJobs().map((job) => (
-                <TableRow key={job.job_ref_id} className="hover:bg-gray-50/50">
+                paginatedJobs.map((job) => (
+                <TableRow key={job.job_ref_id} className="hover:bg-gray-50/50" data-state={selectingJobs && selectedJobs.has(job.job_ref_id) ? 'selected' : undefined}>
+                    {selectingJobs && (
+                      <TableCell>
+                        <Checkbox aria-label={`Select job ${job.job_ref_id}`} checked={selectedJobs.has(job.job_ref_id)} disabled={deletingJobs}
+                          onCheckedChange={(checked) => updateJobSelection([job.job_ref_id], checked === true)} />
+                      </TableCell>
+                    )}
                     <TableCell className="font-medium">
                         <Link to={`/admin-dashboard/job/${job.job_ref_id}`} className="text-primary hover:underline">
                             {job.job_ref_id}
@@ -599,7 +734,7 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
                                     >
                                       <Users className="mr-2 h-4 w-4" /> Share to Part-Timers
                                     </DropdownMenuItem>
-                                    {(adminProfile?.role === 'superadmin' || isSuperadmin) && (
+                                    {canDeleteJobs && (
                                         <AlertDialog>
                                             <AlertDialogTrigger asChild>
                                                 <DropdownMenuItem 
@@ -621,7 +756,8 @@ const RecentServicesTab = ({ onStartJob, refreshTrigger }) => {
                                                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                                                     <AlertDialogAction
                                                         className="bg-red-500 hover:bg-red-600"
-                                                        onClick={() => deleteJob(job.job_ref_id)}
+                                                        disabled={deletingJobs}
+                                                        onClick={() => deleteJobs([job.job_ref_id])}
                                                     >
                                                         Delete Permanently
                                                     </AlertDialogAction>
