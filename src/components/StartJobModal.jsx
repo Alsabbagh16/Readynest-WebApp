@@ -17,14 +17,14 @@ import { uploadJobDocument } from '@/lib/storage/jobStorage';
 import { useToast } from '@/components/ui/use-toast';
 
 const checklistItems = [
-      { id: 'checklist-photosbefore', label: "Took before Photos" },
+      { id: 'checklist-photosbefore', label: "Took before Photos", optional: true },
   { id: 'checklist-bedsheets', label: "Bed Sheets Changed" },
   { id: 'checklist-floor', label: "Floor Vacuumed" },
     { id: 'checklist-trash', label: "Trash Removed" },
     { id: 'checklist-livingroom', label: "Living Room sofa arranged & tables dusted" },
     { id: 'checklist-kitchen', label: "Kitchen silverware, cabints & dishes" },
     { id: 'checklist-electronics', label: "Electronics Turned Off: AC, TV, Lights" },
-          { id: 'checklist-photosafter', label: "Took After Photos" },
+          { id: 'checklist-photosafter', label: "Took After Photos", optional: true },
         { id: 'checklist-locked', label: "Doors Locked & Key Card Placed" }
   
 ];
@@ -171,7 +171,7 @@ const StartJobModal = ({ isOpen, onClose, onComplete, onDocumentsChange, job }) 
     }
   }, [checkedItems, beforePhotos, afterPhotos]);
 
-  const allChecked = checklistItems.every(item => checkedItems[item.id]);
+  const requiredChecklistComplete = checklistItems.every((item) => item.optional || checkedItems[item.id]);
 
   const handleClose = () => {
       if (finishInFlight.current) return;
@@ -195,7 +195,7 @@ const StartJobModal = ({ isOpen, onClose, onComplete, onDocumentsChange, job }) 
   };
 
   const handleCompleteJob = async () => {
-    if (!allChecked || !jobId || finishInFlight.current) return;
+    if (!requiredChecklistComplete || !jobId || finishInFlight.current) return;
     finishInFlight.current = true;
     pauseTimer();
     let uploadedThisAttempt = 0;
@@ -354,7 +354,7 @@ const StartJobModal = ({ isOpen, onClose, onComplete, onDocumentsChange, job }) 
                                     checkedItems[item.id] ? "text-gray-500 line-through decoration-gray-400" : "text-gray-700 dark:text-gray-300"
                                 )}
                             >
-                            {item.label}
+                            {item.label}{item.optional && <span className="ml-1 font-normal text-muted-foreground">(optional)</span>}
                             </Label>
                         </div>
                     </div>
@@ -365,27 +365,27 @@ const StartJobModal = ({ isOpen, onClose, onComplete, onDocumentsChange, job }) 
             <JobFilePicker title="After Photos" inputId="after-photos-upload" accept="image/*"
               selected={selectedAfterFiles} setSelected={setSelectedAfterFiles} uploaded={afterPhotos}
               onRemoveUploaded={(index) => setAfterPhotos((current) => current.filter((_, i) => i !== index))} busy={Boolean(finishStep)} />
-            <p className="text-xs text-muted-foreground">Selected photos upload when you click Complete Job.</p>
+            <p className="text-xs text-muted-foreground">Photos are optional. Selected photos upload when you click Complete Job.</p>
         </div>
 
         <DialogFooter className="shrink-0 p-4 pt-2 sm:justify-between flex-col sm:flex-row gap-2 bg-white dark:bg-slate-950 z-20">
-            {!allChecked && (
+            {!requiredChecklistComplete && (
                  <div className="flex items-center justify-center text-[10px] text-amber-600 bg-amber-50 px-2 py-1 rounded w-full sm:w-auto">
                     <AlertCircle className="w-3 h-3 mr-1 flex-shrink-0" />
-                    Complete checklist
+                    Complete required checklist items
                 </div>
             )}
           <Button 
             type="button" 
             onClick={handleCompleteJob}
-            disabled={!allChecked || Boolean(finishStep)}
+            disabled={!requiredChecklistComplete || Boolean(finishStep)}
             aria-busy={Boolean(finishStep)}
             className={cn(
                 "w-full sm:w-auto sm:ml-auto transition-all duration-300 font-semibold text-sm h-8",
-                allChecked ? "bg-green-600 hover:bg-green-700 text-white shadow-md shadow-green-200" : ""
+                requiredChecklistComplete ? "bg-green-600 hover:bg-green-700 text-white shadow-md shadow-green-200" : ""
             )}
           >
-            {finishStep || (allChecked ? "Complete Job" : "Finish Checklist")}
+            {finishStep || (requiredChecklistComplete ? "Complete Job" : "Finish Checklist")}
           </Button>
         </DialogFooter>
       </DialogContent>
