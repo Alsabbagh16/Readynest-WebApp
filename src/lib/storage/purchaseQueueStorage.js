@@ -33,6 +33,12 @@ export const deletePurchaseQueue = async (queueId) => {
   if (error) throw error;
 };
 
+export const deleteRejectedPurchaseQueue = async () => {
+  const { data, error } = await supabase.rpc('delete_rejected_purchase_queue');
+  if (error) throw error;
+  return data;
+};
+
 export const completeModifiedPurchaseQueue = async (queueId, purchaseRef) => {
   const { error } = await supabase.rpc('complete_modified_purchase_queue', { p_queue_id: queueId, p_purchase_ref: purchaseRef });
   if (error) throw error;

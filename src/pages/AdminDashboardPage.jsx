@@ -263,8 +263,8 @@ const AdminDashboardContent = () => {
     }
   };
 
-  const handleJobComplete = async (durationString) => {
-    if (!activeJobModal) return;
+  const handleJobComplete = async (durationString, uploadedCount = 0) => {
+    if (!activeJobModal) return false;
     try {
         const timestamp = new Date().toISOString();
         const completionNote = `Job completed at ${format(new Date(), 'PPpp')}. Total duration: ${durationString}`;
@@ -275,12 +275,14 @@ const AdminDashboardContent = () => {
             notes: `${previousNotes}\n${completionNote}`
         });
 
-        toast({ title: "Job Completed!", description: `Duration: ${durationString}`, className: "bg-green-50 border-green-200 text-green-900" });
+        toast({ title: "Job Completed!", description: `Duration: ${durationString}.${uploadedCount ? ` ${uploadedCount} file(s) uploaded successfully.` : ''}`, className: "bg-green-50 border-green-200 text-green-900" });
         setActiveJobModal(null);
         setRefreshTrigger(prev => prev + 1);
+        return true;
     } catch (error) {
         console.error("Error completing job:", error);
-        toast({ title: "Error", description: "Failed to complete job.", variant: "destructive" });
+        toast({ title: "Error", description: uploadedCount ? "Files uploaded successfully. Click Complete Job to retry finishing the job." : "Failed to complete job.", variant: "destructive" });
+        return false;
     }
   };
 

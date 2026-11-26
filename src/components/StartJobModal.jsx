@@ -1,4 +1,4 @@
-     import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -10,11 +10,11 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { motion } from "framer-motion";
-import { Timer, CheckCircle2, AlertCircle, MapPin, User, Pause, Play, UploadCloud, Image, Trash2, X } from 'lucide-react';
+import { Timer, CheckCircle2, AlertCircle, MapPin, User, Pause, Play, Trash2, X } from 'lucide-react';
 import { useJobTimer } from '@/hooks/useJobTimer';
 import { cn } from '@/lib/utils';
 import { uploadJobDocument } from '@/lib/storage/jobStorage';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/components/ui/use-toast';
 
 const checklistItems = [
       { id: 'checklist-photosbefore', label: "Took before Photos" },
@@ -32,9 +32,54 @@ const checklistItems = [
 // Estimated max duration for progress bar visualization (e.g., 4 hours)
 const MAX_DURATION_SECONDS = 4 * 60 * 60;
 
+function JobFilePicker({ title, inputId, accept, selected, setSelected, uploaded = [], onRemoveUploaded, busy }) {
+  return (
+    <section className="mb-2 space-y-2 rounded-lg border p-2">
+      <div className="flex items-center justify-between gap-2">
+        <h4 className="text-xs font-medium">{title}</h4>
+        <input
+          id={inputId}
+          type="file"
+          multiple
+          accept={accept}
+          className="hidden"
+          disabled={busy}
+          onChange={(event) => {
+            const files = Array.from(event.target.files || []);
+            setSelected((current) => [...current, ...files]);
+            event.target.value = '';
+          }}
+        />
+        <Button type="button" variant="outline" size="sm" className="h-7 text-xs" disabled={busy}
+          onClick={() => document.getElementById(inputId)?.click()} aria-label={`Select ${title.toLowerCase()}`}>
+          Select
+        </Button>
+      </div>
+      {selected.map((file, index) => (
+        <div key={index} className="flex items-center justify-between gap-2 rounded bg-muted px-2 py-1 text-xs">
+          <span className="truncate">{file.name}</span>
+          <Button type="button" variant="ghost" size="icon" className="h-6 w-6 shrink-0" disabled={busy}
+            aria-label={`Remove ${file.name}`} onClick={() => setSelected((current) => current.filter((_, i) => i !== index))}>
+            <X className="h-3 w-3" />
+          </Button>
+        </div>
+      ))}
+      {uploaded.map((file, index) => (
+        <div key={file.path || index} className="flex items-center justify-between gap-2 px-2 text-xs text-muted-foreground">
+            <span className="truncate">{file.name} · Uploaded</span>
+          <Button type="button" variant="ghost" size="icon" className="h-6 w-6 shrink-0" disabled={busy}
+            aria-label={`Remove ${file.name} from this list`} onClick={() => onRemoveUploaded(index)}>
+            <Trash2 className="h-3 w-3" />
+          </Button>
+        </div>
+      ))}
+    </section>
+  );
+}
+
 const StartJobModal = ({ isOpen, onClose, onComplete, onDocumentsChange, job }) => {
   const [checkedItems, setCheckedItems] = useState({});
-  const { time, isRunning, isPaused, startTimer, pauseTimer, resumeTimer, resetTimer, formatTime, setElapsedTime } = useJobTimer();
+  const { time, isRunning, startTimer, pauseTimer, resumeTimer, resetTimer, formatTime, setElapsedTime } = useJobTimer();
   const { toast } = useToast();
   
   // Image upload states
@@ -42,8 +87,9 @@ const StartJobModal = ({ isOpen, onClose, onComplete, onDocumentsChange, job }) 
   const [afterPhotos, setAfterPhotos] = useState([]);
   const [selectedBeforeFiles, setSelectedBeforeFiles] = useState([]);
   const [selectedAfterFiles, setSelectedAfterFiles] = useState([]);
-  const [isUploadingBefore, setIsUploadingBefore] = useState(false);
-  const [isUploadingAfter, setIsUploadingAfter] = useState(false);
+  const [finishStep, setFinishStep] = useState(null);
+  const finishInFlight = useRef(false);
+  const uploadedCount = useRef(0);
   
   const jobId = job?.job_ref_id;
   const storageKey = jobId ? `job_session_${jobId}` : null;
@@ -128,6 +174,12 @@ const StartJobModal = ({ isOpen, onClose, onComplete, onDocumentsChange, job }) 
   const allChecked = checklistItems.every(item => checkedItems[item.id]);
 
   const handleClose = () => {
+      if (finishInFlight.current) return;
+      if (selectedBeforeFiles.length || selectedAfterFiles.length) {
+          if (!window.confirm('Leave this job and discard the photos you selected for upload?')) return;
+          setSelectedBeforeFiles([]);
+          setSelectedAfterFiles([]);
+      }
       pauseTimer();
       if (storageKey) {
           const sessionData = {
@@ -142,10 +194,50 @@ const StartJobModal = ({ isOpen, onClose, onComplete, onDocumentsChange, job }) 
       onClose();
   };
 
-  const handleCompleteJob = () => {
+  const handleCompleteJob = async () => {
+    if (!allChecked || !jobId || finishInFlight.current) return;
+    finishInFlight.current = true;
     pauseTimer();
-    clearSession();
-    onComplete(formatTime(time));
+    let uploadedThisAttempt = 0;
+    let completed = false;
+
+    const uploadSelected = async (files, folder, setSelected, setUploaded) => {
+      for (const file of files) {
+        const uploaded = await uploadJobDocument(folder, file);
+        setUploaded?.((current) => [...current, { ...uploaded, name: uploaded.fileName, filePath: uploaded.path }]);
+        setSelected((current) => current.filter((selectedFile) => selectedFile !== file));
+        uploadedThisAttempt++;
+        uploadedCount.current++;
+      }
+    };
+
+    try {
+      if (selectedBeforeFiles.length || selectedAfterFiles.length) {
+        setFinishStep('Uploading photos...');
+        await uploadSelected(selectedBeforeFiles, `${jobId}/before-photos`, setSelectedBeforeFiles, setBeforePhotos);
+        await uploadSelected(selectedAfterFiles, `${jobId}/after-photos`, setSelectedAfterFiles, setAfterPhotos);
+      }
+
+      setFinishStep('Completing job...');
+      completed = await onComplete(formatTime(time), uploadedCount.current);
+      if (completed) clearSession();
+    } catch (error) {
+      toast({
+        title: 'File Upload Failed',
+        description: `${uploadedThisAttempt ? `${uploadedThisAttempt} file(s) uploaded. ` : ''}${error.message} Click Complete Job to retry the remaining files.`,
+        variant: 'destructive',
+      });
+    } finally {
+      if (uploadedThisAttempt && !completed) {
+        try {
+          await onDocumentsChange?.();
+        } catch (error) {
+          console.error('Could not refresh job documents after upload:', error);
+        }
+      }
+      finishInFlight.current = false;
+      setFinishStep(null);
+    }
   };
 
   const handleToggleTimer = () => {
@@ -157,94 +249,6 @@ const StartJobModal = ({ isOpen, onClose, onComplete, onDocumentsChange, job }) 
       }
   };
 
-  // Image upload handlers
-  const handleBeforeFileSelect = (e) => {
-    const files = Array.from(e.target.files).filter(file => file.type.startsWith('image/'));
-    setSelectedBeforeFiles(files);
-  };
-
-  const handleAfterFileSelect = (e) => {
-    const files = Array.from(e.target.files).filter(file => file.type.startsWith('image/'));
-    setSelectedAfterFiles(files);
-  };
-
-  const removeSelectedBeforeFile = (index) => {
-    setSelectedBeforeFiles(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const removeSelectedAfterFile = (index) => {
-    setSelectedAfterFiles(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const uploadBeforePhotos = async () => {
-    if (selectedBeforeFiles.length === 0) return;
-    
-    setIsUploadingBefore(true);
-    try {
-      const uploadedPhotos = [];
-      for (const file of selectedBeforeFiles) {
-        const uploadedFile = await uploadJobDocument(`${jobId}/before-photos`, file);
-        uploadedPhotos.push({
-          name: file.name,
-          path: uploadedFile.path,
-          publicURL: uploadedFile.publicURL,
-          filePath: uploadedFile.path
-        });
-      }
-      setBeforePhotos(prev => [...prev, ...uploadedPhotos]);
-      setSelectedBeforeFiles([]);
-      try {
-        await onDocumentsChange?.();
-      } catch (refreshError) {
-        console.error("Could not refresh job documents after upload:", refreshError);
-      }
-      toast({ title: "Before Photos Uploaded", description: `${uploadedPhotos.length} photo(s) uploaded successfully.` });
-    } catch (error) {
-      console.error("Error uploading before photos:", error);
-      toast({ title: "Upload Error", description: `Could not upload before photos: ${error.message}`, variant: "destructive" });
-    } finally {
-      setIsUploadingBefore(false);
-    }
-  };
-
-  const uploadAfterPhotos = async () => {
-    if (selectedAfterFiles.length === 0) return;
-    
-    setIsUploadingAfter(true);
-    try {
-      const uploadedPhotos = [];
-      for (const file of selectedAfterFiles) {
-        const uploadedFile = await uploadJobDocument(`${jobId}/after-photos`, file);
-        uploadedPhotos.push({
-          name: file.name,
-          path: uploadedFile.path,
-          publicURL: uploadedFile.publicURL,
-          filePath: uploadedFile.path
-        });
-      }
-      setAfterPhotos(prev => [...prev, ...uploadedPhotos]);
-      setSelectedAfterFiles([]);
-      try {
-        await onDocumentsChange?.();
-      } catch (refreshError) {
-        console.error("Could not refresh job documents after upload:", refreshError);
-      }
-      toast({ title: "After Photos Uploaded", description: `${uploadedPhotos.length} photo(s) uploaded successfully.` });
-    } catch (error) {
-      console.error("Error uploading after photos:", error);
-      toast({ title: "Upload Error", description: `Could not upload after photos: ${error.message}`, variant: "destructive" });
-    } finally {
-      setIsUploadingAfter(false);
-    }
-  };
-
-  const removeBeforePhoto = (index) => {
-    setBeforePhotos(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const removeAfterPhoto = (index) => {
-    setAfterPhotos(prev => prev.filter((_, i) => i !== index));
-  };
 
   if (!job) return null;
 
@@ -278,7 +282,7 @@ const StartJobModal = ({ isOpen, onClose, onComplete, onDocumentsChange, job }) 
           </div>
         </DialogHeader>
 
-        <div className="px-4 py-2 flex-1 overflow-hidden flex flex-col">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-2">
             {/* Compact Horizontal Timer Bar */}
             <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-3 border border-slate-100 dark:border-slate-800 mb-3 shrink-0">
                 <div className="flex justify-between items-end mb-1">
@@ -288,6 +292,7 @@ const StartJobModal = ({ isOpen, onClose, onComplete, onDocumentsChange, job }) 
                             size="icon" 
                             className="h-7 w-7 rounded-full"
                             onClick={handleToggleTimer}
+                            disabled={Boolean(finishStep)}
                             title={isRunning ? "Pause" : "Resume"}
                         >
                             {isRunning ? <Pause className="h-3 w-3 fill-current" /> : <Play className="h-3 w-3 fill-current ml-0.5" />}
@@ -319,98 +324,13 @@ const StartJobModal = ({ isOpen, onClose, onComplete, onDocumentsChange, job }) 
                 </div>
             </div>
 
-            {/* Upload Before Photos Section */}
-            <div className="bg-white dark:bg-slate-950 border border-gray-100 dark:border-slate-800 rounded-lg p-2 mb-2">
-                <div className="flex items-center justify-between mb-2">
-                    <h4 className="font-medium text-xs text-gray-900 dark:text-gray-100 flex items-center">
-                        <Image className="w-3 h-3 mr-1 text-blue-600" />
-                        Before Photos
-                    </h4>
-                    {beforePhotos.length > 0 && (
-                        <span className="text-[10px] text-muted-foreground">{beforePhotos.length}</span>
-                    )}
-                </div>
-                
-                <div className="space-y-2">
-                    <div className="flex gap-1">
-                        <input
-                            id="before-photos-upload"
-                            type="file"
-                            multiple
-                            accept="image/*"
-                            onChange={handleBeforeFileSelect}
-                            className="hidden"
-                            disabled={isUploadingBefore}
-                        />
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => document.getElementById('before-photos-upload')?.click()}
-                            disabled={isUploadingBefore}
-                            className="h-6 text-xs px-2"
-                        >
-                            <UploadCloud className="mr-1 h-3 w-3" /> Select
-                        </Button>
-                        {selectedBeforeFiles.length > 0 && (
-                            <Button
-                                type="button"
-                                size="sm"
-                                onClick={uploadBeforePhotos}
-                                disabled={isUploadingBefore || selectedBeforeFiles.length === 0}
-                                className="h-6 text-xs px-2"
-                            >
-                                {isUploadingBefore ? '...' : `Upload ${selectedBeforeFiles.length}`}
-                            </Button>
-                        )}
-                    </div>
+            <JobFilePicker title="Before Photos" inputId="before-photos-upload" accept="image/*"
+              selected={selectedBeforeFiles} setSelected={setSelectedBeforeFiles} uploaded={beforePhotos}
+              onRemoveUploaded={(index) => setBeforePhotos((current) => current.filter((_, i) => i !== index))} busy={Boolean(finishStep)} />
 
-                    {selectedBeforeFiles.length > 0 && (
-                        <div className="p-1 border rounded bg-slate-50 dark:bg-slate-800/30">
-                            <div className="space-y-0.5">
-                                {selectedBeforeFiles.map((file, index) => (
-                                    <div key={index} className="flex justify-between items-center text-[10px] dark:text-slate-400">
-                                        <span className="truncate max-w-[120px]">{file.name}</span>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => removeSelectedBeforeFile(index)}
-                                            disabled={isUploadingBefore}
-                                            className="h-4 w-4 p-0 text-red-500 hover:text-red-700"
-                                        >
-                                            <X className="h-2 w-2" />
-                                        </Button>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {beforePhotos.length > 0 && (
-                        <div className="p-1 border rounded bg-blue-50 dark:bg-blue-900/20">
-                            <div className="space-y-0.5">
-                                {beforePhotos.map((photo, index) => (
-                                    <div key={index} className="flex justify-between items-center text-[10px] dark:text-blue-400">
-                                        <span className="truncate max-w-[120px]">{photo.name}</span>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => removeBeforePhoto(index)}
-                                            className="h-4 w-4 p-0 text-red-500 hover:text-red-700"
-                                        >
-                                            <Trash2 className="h-2 w-2" />
-                                        </Button>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* Scrollable Checklist */}
-            <div className="flex-1 overflow-y-auto max-h-[280px] min-h-[80px] bg-white dark:bg-slate-950 border border-gray-100 dark:border-slate-800 rounded-lg p-1 scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-slate-700">
-                 <div className="p-2 sticky top-0 bg-white dark:bg-slate-950 z-10 border-b border-gray-50 dark:border-slate-800 mb-1">
+            {/* Checklist */}
+            <div className="mb-2 min-h-[80px] rounded-lg border border-gray-100 bg-white p-1 dark:border-slate-800 dark:bg-slate-950">
+                 <div className="mb-1 border-b border-gray-50 p-2 dark:border-slate-800">
                     <h4 className="font-medium text-xs text-gray-900 dark:text-gray-100 flex items-center">
                         <CheckCircle2 className="w-3 h-3 mr-1 text-green-600" />
                         Checklist
@@ -423,6 +343,7 @@ const StartJobModal = ({ isOpen, onClose, onComplete, onDocumentsChange, job }) 
                             id={item.id} 
                             checked={!!checkedItems[item.id]}
                             onCheckedChange={() => toggleCheck(item.id)}
+                            disabled={Boolean(finishStep)}
                             className="mt-0.5 border-gray-300 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600 h-3 w-3"
                         />
                         <div className="grid gap-0.5 leading-none">
@@ -441,97 +362,13 @@ const StartJobModal = ({ isOpen, onClose, onComplete, onDocumentsChange, job }) 
                 </div>
             </div>
 
-            {/* Upload After Photos Section */}
-            <div className="bg-white dark:bg-slate-950 border border-gray-100 dark:border-slate-800 rounded-lg p-2 mb-2">
-                <div className="flex items-center justify-between mb-2">
-                    <h4 className="font-medium text-xs text-gray-900 dark:text-gray-100 flex items-center">
-                        <Image className="w-3 h-3 mr-1 text-green-600" />
-                        After Photos
-                    </h4>
-                    {afterPhotos.length > 0 && (
-                        <span className="text-[10px] text-muted-foreground">{afterPhotos.length}</span>
-                    )}
-                </div>
-                
-                <div className="space-y-2">
-                    <div className="flex gap-1">
-                        <input
-                            id="after-photos-upload"
-                            type="file"
-                            multiple
-                            accept="image/*"
-                            onChange={handleAfterFileSelect}
-                            className="hidden"
-                            disabled={isUploadingAfter}
-                        />
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => document.getElementById('after-photos-upload')?.click()}
-                            disabled={isUploadingAfter}
-                            className="h-6 text-xs px-2"
-                        >
-                            <UploadCloud className="mr-1 h-3 w-3" /> Select
-                        </Button>
-                        {selectedAfterFiles.length > 0 && (
-                            <Button
-                                type="button"
-                                size="sm"
-                                onClick={uploadAfterPhotos}
-                                disabled={isUploadingAfter || selectedAfterFiles.length === 0}
-                                className="h-6 text-xs px-2"
-                            >
-                                {isUploadingAfter ? '...' : `Upload ${selectedAfterFiles.length}`}
-                            </Button>
-                        )}
-                    </div>
-
-                    {selectedAfterFiles.length > 0 && (
-                        <div className="p-1 border rounded bg-slate-50 dark:bg-slate-800/30">
-                            <div className="space-y-0.5">
-                                {selectedAfterFiles.map((file, index) => (
-                                    <div key={index} className="flex justify-between items-center text-[10px] dark:text-slate-400">
-                                        <span className="truncate max-w-[120px]">{file.name}</span>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => removeSelectedAfterFile(index)}
-                                            disabled={isUploadingAfter}
-                                            className="h-4 w-4 p-0 text-red-500 hover:text-red-700"
-                                        >
-                                            <X className="h-2 w-2" />
-                                        </Button>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {afterPhotos.length > 0 && (
-                        <div className="p-1 border rounded bg-green-50 dark:bg-green-900/20">
-                            <div className="space-y-0.5">
-                                {afterPhotos.map((photo, index) => (
-                                    <div key={index} className="flex justify-between items-center text-[10px] dark:text-green-400">
-                                        <span className="truncate max-w-[120px]">{photo.name}</span>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => removeAfterPhoto(index)}
-                                            className="h-4 w-4 p-0 text-red-500 hover:text-red-700"
-                                        >
-                                            <Trash2 className="h-2 w-2" />
-                                        </Button>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                </div>
-            </div>
+            <JobFilePicker title="After Photos" inputId="after-photos-upload" accept="image/*"
+              selected={selectedAfterFiles} setSelected={setSelectedAfterFiles} uploaded={afterPhotos}
+              onRemoveUploaded={(index) => setAfterPhotos((current) => current.filter((_, i) => i !== index))} busy={Boolean(finishStep)} />
+            <p className="text-xs text-muted-foreground">Selected photos upload when you click Complete Job.</p>
         </div>
 
-        <DialogFooter className="p-4 pt-2 sm:justify-between flex-col sm:flex-row gap-2 bg-white dark:bg-slate-950 z-20">
+        <DialogFooter className="shrink-0 p-4 pt-2 sm:justify-between flex-col sm:flex-row gap-2 bg-white dark:bg-slate-950 z-20">
             {!allChecked && (
                  <div className="flex items-center justify-center text-[10px] text-amber-600 bg-amber-50 px-2 py-1 rounded w-full sm:w-auto">
                     <AlertCircle className="w-3 h-3 mr-1 flex-shrink-0" />
@@ -541,13 +378,14 @@ const StartJobModal = ({ isOpen, onClose, onComplete, onDocumentsChange, job }) 
           <Button 
             type="button" 
             onClick={handleCompleteJob}
-            disabled={!allChecked}
+            disabled={!allChecked || Boolean(finishStep)}
+            aria-busy={Boolean(finishStep)}
             className={cn(
                 "w-full sm:w-auto sm:ml-auto transition-all duration-300 font-semibold text-sm h-8",
                 allChecked ? "bg-green-600 hover:bg-green-700 text-white shadow-md shadow-green-200" : ""
             )}
           >
-            {allChecked ? "Complete Job" : "Finish Checklist"}
+            {finishStep || (allChecked ? "Complete Job" : "Finish Checklist")}
           </Button>
         </DialogFooter>
       </DialogContent>

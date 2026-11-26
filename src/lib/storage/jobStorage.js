@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { v4 as uuidv4 } from 'uuid';
 import { isValidUUID, generateFallbackPurchaseId } from '@/lib/uuidValidator';
+import { optimizeJobImage } from '@/lib/optimizeJobImage';
 
 // --- Configuration ---
 // Note: Keeping the bucket name constant here for clarity
@@ -430,11 +431,12 @@ export const uploadJobDocument = async (jobRefId, file) => {
         throw new Error('Job Reference ID and file are required for upload.');
     }
 
-    const fileName = `${jobRefId}/${uuidv4()}-${file.name}`;
+    const uploadFile = await optimizeJobImage(file);
+    const fileName = `${jobRefId}/${uuidv4()}-${uploadFile.name}`;
 
     const { data, error } = await supabase.storage
         .from(JOB_DOCUMENTS_BUCKET)
-        .upload(fileName, file, {
+        .upload(fileName, uploadFile, {
             cacheControl: '3600',
             upsert: false,
         });
@@ -446,7 +448,7 @@ export const uploadJobDocument = async (jobRefId, file) => {
 
     // Since the document is private, we still return the path/filename, 
     // but the URL will be generated upon retrieval using createSignedUrl.
-    return { path: data.path, publicURL: '', fileName: file.name };
+    return { path: data.path, publicURL: '', fileName: uploadFile.name };
 };
 
 /**

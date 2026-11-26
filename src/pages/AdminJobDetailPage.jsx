@@ -356,7 +356,7 @@ const JobDocumentsManagerSection = ({ jobRefId, initialDocuments = [], onDocumen
         try {
             for (const file of selectedFiles) {
                 const uploadedFile = await uploadJobDocument(jobRefId, file);
-                uploadedFileObjects.push({ name: file.name, path: uploadedFile.path, publicURL: uploadedFile.publicURL, filePath: uploadedFile.path });
+                uploadedFileObjects.push({ name: uploadedFile.fileName, path: uploadedFile.path, publicURL: uploadedFile.publicURL, filePath: uploadedFile.path });
             }
             
             const newDocumentPaths = uploadedFileObjects.map(f => f.path);
@@ -1009,8 +1009,8 @@ const AdminJobDetailPage = () => {
     }
   };
 
-  const handleJobComplete = async (durationString) => {
-    if (!activeJobModal) return;
+  const handleJobComplete = async (durationString, uploadedCount = 0) => {
+    if (!activeJobModal) return false;
     try {
         const completionNote = `Job completed at ${format(new Date(), 'PPpp')}. Total duration: ${durationString}`;
         const previousNotes = activeJobModal.notes || '';
@@ -1020,13 +1020,15 @@ const AdminJobDetailPage = () => {
             notes: `${previousNotes}\n${completionNote}`
         });
 
-        toast({ title: "Job Completed!", description: `Duration: ${durationString}`, className: "bg-green-50 border-green-200 text-green-900" });
+        toast({ title: "Job Completed!", description: `Duration: ${durationString}.${uploadedCount ? ` ${uploadedCount} file(s) uploaded successfully.` : ''}`, className: "bg-green-50 border-green-200 text-green-900" });
         setActiveJobModal(null);
         setRefreshTrigger(prev => prev + 1);
+        return true;
 
     } catch (error) {
         console.error("Error completing job:", error);
-        toast({ title: "Error", description: "Failed to complete job.", variant: "destructive" });
+        toast({ title: "Error", description: uploadedCount ? "Files uploaded successfully. Click Complete Job to retry finishing the job." : "Failed to complete job.", variant: "destructive" });
+        return false;
     }
   };
 

@@ -1,13 +1,15 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Bot, ChevronDown, ChevronLeft, ChevronRight, Loader2, Pencil, RefreshCw, RotateCcw, X } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Bot, ChevronDown, ChevronLeft, ChevronRight, Loader2, Pencil, RefreshCw, RotateCcw, Trash2, X } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/lib/supabase';
+import { usePermissionContext } from '@/contexts/PermissionContext';
 import { getPurchaseByRef } from '@/lib/storage/purchaseStorage';
-import { deletePurchaseQueue, getPurchaseQueue, markQueueNotification, rejectPurchaseQueue, revivePurchaseQueue } from '@/lib/storage/purchaseQueueStorage';
+import { deletePurchaseQueue, deleteRejectedPurchaseQueue, getPurchaseQueue, markQueueNotification, rejectPurchaseQueue, revivePurchaseQueue } from '@/lib/storage/purchaseQueueStorage';
 
 const PAGE_SIZE = 12;
 const formatValue = (value) => value === null || value === undefined || value === '' ? 'Not provided' : String(value);
@@ -30,6 +32,8 @@ const emailRecord = (item, type, purchase = null) => ({
 
 const PurchaseQueueSection = ({ onModify, onPurchasesChanged, refreshKey = 0 }) => {
   const { toast } = useToast();
+  const { hasPerm, hasUiRoles, isSuperadmin, loading: permissionsLoading } = usePermissionContext();
+  const canDeleteRejected = !permissionsLoading && (isSuperadmin || !hasUiRoles || hasPerm('purchases.edit'));
   const [items, setItems] = useState([]);
   const [tab, setTab] = useState('pending');
   const [page, setPage] = useState(1);
@@ -38,14 +42,25 @@ const PurchaseQueueSection = ({ onModify, onPurchasesChanged, refreshKey = 0 }) 
   const [expanded, setExpanded] = useState(new Set());
   const [rejecting, setRejecting] = useState(null);
   const [removing, setRemoving] = useState(null);
+  const [deleteAllOpen, setDeleteAllOpen] = useState(false);
+  const [deletingRejected, setDeletingRejected] = useState(false);
   const [reason, setReason] = useState('');
   const [isCollapsed, setIsCollapsed] = useState(true);
+  const refreshSequence = useRef(0);
 
   const refresh = useCallback(async () => {
+    const sequence = ++refreshSequence.current;
     setLoading(true);
-    try { setItems(await getPurchaseQueue()); }
-    catch (error) { toast({ title: 'Unable to Load Purchase Queue', description: error.message, variant: 'destructive' }); }
-    finally { setLoading(false); }
+    try {
+      const nextItems = await getPurchaseQueue();
+      if (sequence === refreshSequence.current) setItems(nextItems);
+    } catch (error) {
+      if (sequence === refreshSequence.current) {
+        toast({ title: 'Unable to Load Purchase Queue', description: error.message, variant: 'destructive' });
+      }
+    } finally {
+      if (sequence === refreshSequence.current) setLoading(false);
+    }
   }, [toast]);
   useEffect(() => { refresh(); }, [refresh, refreshKey]);
   useEffect(() => {
@@ -85,6 +100,27 @@ const PurchaseQueueSection = ({ onModify, onPurchasesChanged, refreshKey = 0 }) 
     setRemoving(null);
   }, 'Queued Purchase Permanently Deleted');
 
+  const confirmDeleteAllRejected = async (event) => {
+    event.preventDefault();
+    if (!canDeleteRejected || actionId || deletingRejected) return;
+    setDeletingRejected(true);
+    try {
+      const deletedCount = await deleteRejectedPurchaseQueue();
+      setItems((current) => current.filter((item) => item.lifecycle_status !== 'rejected'));
+      setPage(1);
+      setDeleteAllOpen(false);
+      await refresh();
+      toast({
+        title: deletedCount ? 'Rejected Requests Deleted' : 'No Rejected Requests to Delete',
+        description: deletedCount ? `Permanently deleted ${deletedCount} rejected purchase request${deletedCount === 1 ? '' : 's'}.` : undefined,
+      });
+    } catch (error) {
+      toast({ title: 'Unable to Delete Rejected Requests', description: error.message, variant: 'destructive' });
+    } finally {
+      setDeletingRejected(false);
+    }
+  };
+
   const retryEmail = (item) => act(item, async () => {
     const type = item.lifecycle_status === 'approved' ? 'approval' : item.lifecycle_status === 'rejected' ? 'rejection' : 'pending';
     const purchase = item.approved_purchase_ref ? await getPurchaseByRef(item.approved_purchase_ref) : null;
@@ -107,7 +143,32 @@ const PurchaseQueueSection = ({ onModify, onPurchasesChanged, refreshKey = 0 }) 
       {!isCollapsed && <Button variant="outline" size="sm" onClick={refresh}><RefreshCw className="mr-2 h-4 w-4" /> Refresh</Button>}
     </div>
     {!isCollapsed && <div id="purchase-queue-content">
-    <div className="mb-4 flex w-fit rounded-lg border bg-white p-1">{['pending','rejected'].map((value) => <button key={value} type="button" onClick={() => { setTab(value); setPage(1); }} className={`rounded-md px-4 py-2 text-xs font-semibold capitalize ${tab === value ? 'bg-blue-600 text-white' : 'text-slate-600'}`}>{value} ({items.filter((item) => item.lifecycle_status === value).length})</button>)}</div>
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+      <div className="flex w-fit rounded-lg border bg-white p-1">{['pending','rejected'].map((value) => <button key={value} type="button" onClick={() => { setTab(value); setPage(1); }} className={`rounded-md px-4 py-2 text-xs font-semibold capitalize ${tab === value ? 'bg-blue-600 text-white' : 'text-slate-600'}`}>{value} ({items.filter((item) => item.lifecycle_status === value).length})</button>)}</div>
+      {tab === 'rejected' && canDeleteRejected && (
+        <AlertDialog open={deleteAllOpen} onOpenChange={(open) => { if (!deletingRejected) setDeleteAllOpen(open); }}>
+          <AlertDialogTrigger asChild>
+            <Button type="button" size="sm" variant="destructive" disabled={loading || Boolean(actionId) || deletingRejected}>
+              <Trash2 className="mr-2 h-4 w-4" /> Delete All
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete all rejected requests?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This permanently deletes every rejected purchase request across all pages. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deletingRejected}>Cancel</AlertDialogCancel>
+              <AlertDialogAction className="bg-red-600 hover:bg-red-700" disabled={deletingRejected} onClick={confirmDeleteAllRejected}>
+                {deletingRejected ? 'Deleting...' : 'Delete All Rejected'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+    </div>
     {loading ? <div className="flex h-28 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin" /></div> : cards.length ? <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">{cards.map((item) => <article key={item.queue_id} className="relative rounded-xl border bg-white p-4 shadow-sm">
       <Button type="button" variant="ghost" size="icon" className="absolute right-2 top-2 h-7 w-7 rounded-full text-slate-400 hover:bg-red-50 hover:text-red-600" onClick={() => setRemoving(item)} disabled={actionId === item.queue_id} aria-label={`Permanently delete queued purchase ${item.queue_id}`} title="Permanently delete queued purchase"><X className="h-4 w-4" /></Button>
       <div className="flex items-start justify-between gap-3 pr-8"><div className="min-w-0"><p className="text-[11px] font-semibold uppercase text-slate-400">Queue ID</p><p className="truncate font-mono text-xs font-semibold text-blue-700">{item.queue_id}</p><h3 className="mt-2 truncate font-bold">{item.customer_name || 'Unnamed Customer'}</h3><p className="truncate text-sm text-slate-500">{item.service_name || 'Service not provided'}</p></div><Badge variant="outline" className={item.source === 'ai_agent' ? 'border-violet-200 bg-violet-50 text-violet-700' : 'border-blue-200 bg-blue-50 text-blue-700'}>{item.source === 'ai_agent' ? 'AI Agent' : 'Website'}</Badge></div>
