@@ -14,6 +14,8 @@ import { ArrowLeft, Save, User, Briefcase, Users, Hash, MapPin, CalendarClock, P
 import { generateJobRefId } from '@/lib/storage/jobStorage';
 import { toLocalDatetimeInputString } from '@/lib/dateTimeHelpers';
 import { sendJobCreatedNotification } from '@/lib/whatsappService';
+import JobAssigneeGroups from '@/components/AdminDashboard/JobAssigneeGroups';
+import { JOB_ASSIGNEE_FIELDS } from '@/lib/jobAssignees';
 import { getVisibleAssigneeOptions } from '@/lib/localEmployeeDirectory';
 import PurchaseSearchSelect from '@/components/AdminDashboard/PurchaseSearchSelect';
 
@@ -182,25 +184,7 @@ const EmployeeAssignmentFormSection = ({ formData, handleEmployeeSelect, allEmpl
       <CardTitle className="flex items-center dark:text-white"><Users className="mr-2 h-5 w-5 text-primary" />Assign Employees</CardTitle>
     </CardHeader>
     <CardContent>
-      {allEmployees.length > 0 ? (
-        <div className="space-y-2 max-h-60 overflow-y-auto border p-3 rounded-md dark:border-slate-600">
-          {allEmployees.map(emp => (
-            <div key={emp.id} className="flex items-center space-x-2">
-              <Checkbox
-                id={`emp-${emp.id}`}
-                checked={formData.assigned_employees_ids.includes(emp.id)}
-                onCheckedChange={() => handleEmployeeSelect(emp.id)}
-                className="dark:border-slate-500 dark:data-[state=checked]:bg-primary dark:data-[state=checked]:text-primary-foreground"
-              />
-              <Label htmlFor={`emp-${emp.id}`} className="text-sm font-normal dark:text-slate-300">
-                {emp.full_name} <span className="text-xs text-muted-foreground dark:text-slate-400">({emp.position || 'Employee'})</span>
-              </Label>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="text-muted-foreground text-sm dark:text-slate-400">No employees available for assignment. Add employees in the 'Employees' tab.</p>
-      )}
+      <JobAssigneeGroups employees={allEmployees} selectedIds={formData.assigned_employees_ids} onToggle={handleEmployeeSelect} />
     </CardContent>
   </Card>
 );
@@ -359,7 +343,7 @@ const AdminCreateJobPage = () => {
 
       const { data: employeesData, error: employeesError } = await supabase
         .from('employees')
-        .select('id, full_name, position, is_part_timer, visible_in_job_assignment');
+        .select(JOB_ASSIGNEE_FIELDS);
       if (employeesError) throw employeesError;
       setAllEmployees(getVisibleAssigneeOptions(employeesData || []));
 

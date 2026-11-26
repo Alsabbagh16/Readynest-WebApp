@@ -12,7 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { format } from 'date-fns';
 import { ArrowLeft, Save, UserCircle, Package, CalendarDays, DollarSign, MapPin, Tag, List, Edit2, Users, Briefcase, Phone, UploadCloud, FileText, Trash2, Download, Timer, Play, Pause, ShoppingBag, X, Share2, EyeOff } from 'lucide-react';
-import { Checkbox } from "@/components/ui/checkbox";
+import JobAssigneeGroups from '@/components/AdminDashboard/JobAssigneeGroups';
+import { JOB_ASSIGNEE_FIELDS } from '@/lib/jobAssignees';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import {
   uploadJobDocument,
@@ -28,7 +29,7 @@ import {
 } from '@/lib/storage/jobStorage';
 import StartJobModal from "@/components/StartJobModal";
 import { cn } from "@/lib/utils";
-import { getAllAssigneeDirectory, getVisibleAssigneeOptions, mapAssignedEmployeeDetails } from '@/lib/localEmployeeDirectory';
+import { getAllAssigneeDirectory, mapAssignedEmployeeDetails } from '@/lib/localEmployeeDirectory';
 import PurchaseSearchSelect from '@/components/AdminDashboard/PurchaseSearchSelect';
 
 // Format date treating it as "Face Value" by stripping timezone info before parsing.
@@ -179,35 +180,11 @@ const JobAddressInfoSection = ({ job }) => {
 
 const JobAssignedEmployeesSection = ({ assignedEmployeeDetails, isEditing, editableFields, allEmployees, handleEmployeeSelect }) => (
     <Section title="Assigned Employees" icon={<Users className="h-5 w-5 text-primary"/>}>
-        {isEditing ? (
-            <div className="space-y-2">
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 p-2 border rounded-md max-h-60 overflow-y-auto dark:border-slate-700">
-                {allEmployees.map(emp => (
-                    <div key={emp.id} className="flex items-center space-x-2 p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded">
-                    <Checkbox
-                        id={`edit-emp-${emp.id}`}
-                        checked={editableFields.assigned_employees_ids.includes(emp.id)}
-                        onCheckedChange={() => handleEmployeeSelect(emp.id)}
-                        className="dark:border-slate-600 dark:data-[state=checked]:bg-primary"
-                    />
-                    <Label htmlFor={`edit-emp-${emp.id}`} className="text-sm font-normal leading-none">
-                        {emp.full_name} <span className="text-xs text-muted-foreground">({emp.position || 'Employee'})</span>
-                    </Label>
-                    </div>
-                ))}
-                </div>
-            </div>
-        ) : assignedEmployeeDetails.length > 0 ? (
-            <ul className="list-disc pl-5 space-y-1">
-            {assignedEmployeeDetails.map(emp => (
-                <li key={emp.id} className="text-sm">
-                {emp.full_name} <span className="text-xs text-muted-foreground">({emp.position || 'Employee'})</span>
-                </li>
-            ))}
-            </ul>
-        ) : (
-            <p className="text-sm text-muted-foreground">No employees assigned yet.</p>
-        )}
+        <JobAssigneeGroups
+            employees={isEditing ? allEmployees : assignedEmployeeDetails}
+            selectedIds={isEditing ? editableFields.assigned_employees_ids : undefined}
+            onToggle={isEditing ? handleEmployeeSelect : undefined}
+        />
     </Section>
 );
 
@@ -815,11 +792,10 @@ const AdminJobDetailPage = () => {
       // Fetch employees for assignment
       const { data: employeesData, error: employeesError } = await supabase
         .from('employees')
-        .select('id, full_name, position, is_part_timer, visible_in_job_assignment');
+        .select(JOB_ASSIGNEE_FIELDS);
       if (employeesError) throw employeesError;
       const allAssignableEmployees = getAllAssigneeDirectory(employeesData || []);
-      const mergedEmployees = getVisibleAssigneeOptions(employeesData || []);
-      setAllEmployees(mergedEmployees);
+      setAllEmployees(allAssignableEmployees);
       setAssignedEmployeeDetails(mapAssignedEmployeeDetails(jobData.assigned_employees_ids || [], allAssignableEmployees));
 
       // Fetch available purchases for editing link
@@ -905,7 +881,9 @@ const AdminJobDetailPage = () => {
         status: editableFields.status,
         preferred_date: formattedDateForStorage,
         hours_needed: editableFields.hours_needed ? Number(editableFields.hours_needed) : null,
-        assigned_employees_ids: editableFields.assigned_employees_ids,
+        ...(JSON.stringify(editableFields.assigned_employees_ids) !== JSON.stringify(job?.assigned_employees_ids || [])
+          ? { assigned_employees_ids: editableFields.assigned_employees_ids }
+          : {}),
         notes: editableFields.notes,
         user_phone: editableFields.user_phone,
         user_address: {

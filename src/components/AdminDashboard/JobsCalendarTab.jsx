@@ -15,6 +15,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { usePermissionContext } from '@/contexts/PermissionContext';
 import { getJobDateKey, parseJobFaceValueDate } from '@/lib/jobDateUtils';
+import { JOB_ASSIGNEE_FIELDS, getJobStaffingLabel } from '@/lib/jobAssignees';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -51,7 +52,6 @@ const getStatusDotClassName = (status) => {
 
 const DayJobPill = ({ job }) => {
   const jobDate = parseJobFaceValueDate(job.preferred_date);
-  const employeeCount = job.assigned_employees_ids?.length || job.employees_data?.length || 0;
 
   return (
     <div className={`rounded-lg border border-slate-100 border-l-4 px-2 py-1.5 shadow-sm ${getStatusClasses(job.status)}`}>
@@ -61,7 +61,7 @@ const DayJobPill = ({ job }) => {
       </div>
       <p className="mt-0.5 truncate text-[11px] font-medium">{job.user_name || 'Guest'} - {getAreaLabel(job.user_address)}</p>
       <p className="mt-0.5 flex items-center gap-1 text-[10px] opacity-75">
-        <Users className="h-3 w-3" /> {employeeCount || 'No'} cleaner{employeeCount === 1 ? '' : 's'}
+        <Users className="h-3 w-3 shrink-0" /> {getJobStaffingLabel(job.employees_data)}
       </p>
     </div>
   );
@@ -124,7 +124,8 @@ const JobsCalendarTab = () => {
 
       // Fetch employee details for tooltips/modals
       if (jobsWithEmployees.length > 0) {
-          const { data: employees } = await supabase.from('employees').select('id, full_name, email');
+          const { data: employees, error: employeeError } = await supabase.from('employees').select(JOB_ASSIGNEE_FIELDS);
+          if (employeeError) throw employeeError;
           if (employees) {
               const empMap = new Map(employees.map(e => [e.id, e]));
               jobsWithEmployees = jobsWithEmployees.map(job => {

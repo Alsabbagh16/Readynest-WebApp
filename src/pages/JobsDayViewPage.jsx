@@ -5,6 +5,7 @@ import { addDays, format, parseISO } from 'date-fns';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { usePermissionContext } from '@/contexts/PermissionContext';
 import { getJobDateKey, parseJobFaceValueDate } from '@/lib/jobDateUtils';
+import { JOB_ASSIGNEE_FIELDS, JOB_ASSIGNEE_GROUPS, getJobAssigneeGroup, getJobStaffingLabel, groupJobAssignees } from '@/lib/jobAssignees';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -126,10 +127,6 @@ const drawFittedText = (pdf, text, x, y, maxWidth, maxLines = 1, lineHeight = 4)
   });
 };
 
-const isPartTimeEmployee = (employee) => (
-  employee?.is_part_timer === true || String(employee?.position || '').toLowerCase().includes('part')
-);
-
 const buildSchedulerJobs = (jobs) => {
   const timedJobs = jobs
     .map((job) => {
@@ -189,7 +186,6 @@ const buildSchedulerJobs = (jobs) => {
 
 const JobSlotCard = ({ job }) => {
   const statusStyles = getStatusStyles(job.status);
-  const cleanerCount = job.assigned_employees_ids?.length || job.employees_data?.length || 0;
   const area = getAreaLabel(job.user_address);
 
   return (
@@ -216,22 +212,18 @@ const JobSlotCard = ({ job }) => {
         <p className="mt-1 truncate text-[11px] opacity-80">{getFullAddress(job.user_address)}</p>
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] opacity-80">
-        <span><Users className="mr-1 inline h-3 w-3" />{cleanerCount || 'No'} Cleaner{cleanerCount === 1 ? '' : 's'}</span>
+        <span><Users className="mr-1 inline h-3 w-3" />{getJobStaffingLabel(job.employees_data)}</span>
         <span><Clock className="mr-1 inline h-3 w-3" />{Number(job.durationHours).toFixed(job.durationHours % 1 ? 1 : 0)} Hours</span>
       </div>
       {job.employees_data?.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1">
           {job.employees_data.map((employee) => {
-            const isPartTimer = isPartTimeEmployee(employee);
+            const group = JOB_ASSIGNEE_GROUPS.find(({ key }) => key === getJobAssigneeGroup(employee));
             return (
               <span
                 key={employee.id}
-                className={`max-w-full truncate rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${
-                  isPartTimer
-                    ? 'bg-orange-100 text-orange-700'
-                    : 'bg-emerald-100 text-emerald-700'
-                }`}
-                title={`${employee.full_name || employee.email || 'Employee'}${isPartTimer ? ' - Part Timer' : ' - Regular'}`}
+                className={`max-w-full truncate rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${group.tint}`}
+                title={`${employee.full_name || employee.email || 'Employee'} · ${group.label}`}
               >
                 {employee.full_name || employee.email}
               </span>
@@ -304,7 +296,8 @@ const JobsDayViewPage = () => {
         let jobsData = (data || []).filter((job) => getJobDateKey(job.preferred_date) === dateParam);
 
         if (jobsData.length > 0) {
-          const { data: employees } = await supabase.from('employees').select('id, full_name, email, position, is_part_timer');
+          const { data: employees, error: employeeError } = await supabase.from('employees').select(JOB_ASSIGNEE_FIELDS);
+          if (employeeError) throw employeeError;
           if (employees) {
             const empMap = new Map(employees.map((employee) => [employee.id, employee]));
             jobsData = jobsData.map((job) => {
@@ -475,14 +468,13 @@ const JobsDayViewPage = () => {
             const y = gridTop + ((visibleStartMinutes - segmentStartMinutes) / 60) * hourHeight + 1.2;
             const height = Math.max(17, ((visibleEndMinutes - visibleStartMinutes) / 60) * hourHeight - 2.4);
             const width = Math.max(24, trackWidth - 3);
-            const cleanerCount = job.assigned_employees_ids?.length || job.employees_data?.length || 0;
             const employees = job.employees_data || [];
-            const employeeNames = employees.map((employee) => employee.full_name || employee.email).filter(Boolean);
-            const visibleEmployeeNames = employeeNames.slice(0, 3).join(', ');
-            const remainingEmployeeCount = Math.max(0, employeeNames.length - 3);
-            const employeeLabel = visibleEmployeeNames
-              ? `${visibleEmployeeNames}${remainingEmployeeCount ? ` +${remainingEmployeeCount}` : ''}`
-              : 'Unassigned';
+            const groups = groupJobAssignees(employees);
+            const employeeBadges = JOB_ASSIGNEE_GROUPS.filter(({ key }) => groups[key].length).map((group) => ({
+              ...group,
+              names: groups[group.key].map((employee) => employee.full_name || employee.email || 'Employee').join(', '),
+            }));
+            if (!employeeBadges.length) employeeBadges.push({ ...JOB_ASSIGNEE_GROUPS[3], names: 'Unassigned' });
 
             pdf.setFillColor(226, 232, 240);
             pdf.roundedRect(x + 0.7, y + 0.8, width, height, 2, 2, 'F');
@@ -509,7 +501,7 @@ const JobsDayViewPage = () => {
               pdf.setFontSize(6);
               drawFittedText(
                 pdf,
-                `${cleanerCount || 'No'} cleaner${cleanerCount === 1 ? '' : 's'} - ${Number(job.durationHours).toFixed(job.durationHours % 1 ? 1 : 0)} hours`,
+                `${getJobStaffingLabel(employees).replace(' · ', ' / ')} - ${Number(job.durationHours).toFixed(job.durationHours % 1 ? 1 : 0)} hours`,
                 x + 3.2,
                 y + 16,
                 width - 6,
@@ -519,12 +511,14 @@ const JobsDayViewPage = () => {
             pdf.setFont('helvetica', 'bold');
             pdf.setFontSize(5.6);
             const employeeY = height >= 25 ? y + 21 : y + height - 2.2;
-            const employeeFill = employees.some(isPartTimeEmployee) ? [255, 237, 213] : [220, 252, 231];
-            const employeeText = employees.some(isPartTimeEmployee) ? [194, 65, 12] : [4, 120, 87];
-            pdf.setFillColor(...employeeFill);
-            pdf.roundedRect(x + 3.2, Math.max(y + 8.2, employeeY - 3.8), width - 6.4, 4.8, 1.6, 1.6, 'F');
-            pdf.setTextColor(...employeeText);
-            drawFittedText(pdf, employeeLabel, x + 5, Math.max(y + 11.6, employeeY), width - 10);
+            const badgeWidth = (width - 6.4) / employeeBadges.length;
+            employeeBadges.forEach(({ names, pdfFill, pdfText }, index) => {
+              const badgeX = x + 3.2 + index * badgeWidth;
+              pdf.setFillColor(...pdfFill);
+              pdf.roundedRect(badgeX, Math.max(y + 8.2, employeeY - 3.8), badgeWidth - 0.6, 4.8, 1.6, 1.6, 'F');
+              pdf.setTextColor(...pdfText);
+              drawFittedText(pdf, names, badgeX + 1.5, Math.max(y + 11.6, employeeY), badgeWidth - 3);
+            });
 
             if (height >= 31 && job.status) {
               pdf.setFont('helvetica', 'normal');
